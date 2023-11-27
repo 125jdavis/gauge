@@ -26,18 +26,20 @@
 
 
 // GAUGE SETUP //
+#define pwrPin 49           // pin to keep power alive after key is off 
+#define speedoMax (100)     // maximum mph x10
 
 #define RESET_1 30          // motor driver reset pin
 
-#define M1_SWEEP (90*12)     // range of motion for gauge motor 1 standard X25.168 range 315 degrees at 1/3 degree steps
+#define M1_SWEEP (110*12)     // range of motion for gauge motor 1 standard X25.168 range 315 degrees at 1/3 degree steps
 #define M1_STEP  41         // motor 1 step command
 #define M1_DIR   40         // motor 1 direction command
 
-#define M2_SWEEP (135*12)    // range of motion for gauge motor 2
+#define M2_SWEEP (60*12)    // range of motion for gauge motor 2
 #define M2_STEP  39         // motor 2 step command
 #define M2_DIR   38         // motor 2 direction command
 
-#define M3_SWEEP (135*12)    // range of motion for gauge motor 3
+#define M3_SWEEP (60*12)    // range of motion for gauge motor 3
 #define M3_STEP  44         // motor 3 step command
 #define M3_DIR   45         // motor 3 direction command
 
@@ -84,24 +86,29 @@ Adafruit_SSD1306 display2(SCREEN_W, SCREEN_H, &SPI, OLED_DC_2, OLED_RST_2, OLED_
 Rotary rotary = Rotary(2, 3);  // rotary encoder ipnput pins (2 and 3 are interrupts)
 CRGB leds[NUM_LEDS];
 
-SwitecX12 motor1(M1_SWEEP, M1_STEP, M1_DIR); // initialize motor 1
-SwitecX12 motor2(M2_SWEEP, M2_STEP, M2_DIR); // initialize motor 2
-SwitecX12 motor3(M3_SWEEP, M3_STEP, M3_DIR); // initialize motor 3
+SwitecX12 motor1(M1_SWEEP, M1_STEP, M1_DIR); // initialize motor 1 as Speedometer
+SwitecX12 motor2(M2_SWEEP, M2_STEP, M2_DIR); // initialize motor 2 Coolant temp
+SwitecX12 motor3(M3_SWEEP, M3_STEP, M3_DIR); // initialize motor 3 fuel level
 SwitecX12 motor4(M4_SWEEP, M4_STEP, M4_DIR); // initialize motor 4
 SwitecX25 odoMotor(ODO_STEPS, 10, 11, 12, 13);          // initialize odometer motor
 Adafruit_GPS GPS(&Serial2);   // set serial2 to GPS object
 
 ///// GLOBAL VARIABLES /////
 
+// Signal generation for demo
+int analog = 2;
+int analogSwitch = 0;
+
 // Analog inputs to Dash Control Module
 // vBatt, on pin 0
 float vBatt;
-int filter_vBatt = 6; // out of 16, 16 = no filter
-int analogPin0 = A0;
+int filter_vBatt = 3; // out of 16, 16 = no filter
+int vBattPin = A0;
+float vBattScaler = 4; // voltage divider factor (in this case r1 = 10k, r2 = 3.3k)
 
 // fuel, on pin 3
 float fuelSensor;
-int filter_fuel = 6; // out of 16, 16 = no filter
+int filter_fuel = 1; // out of 16, 16 = no filter
 int analogPin3 = A3;
 
 // therm, on pin 4
@@ -158,8 +165,8 @@ long unsigned GPSupdateRate = 100;
 int splashTime = 1500; //how long should the splash screens show?
 
 // LED Tach variables
-int tachMax = 4000;
-int tachMin = 6000;
+int tachMax = 6000;
+int tachMin = 3000;
 bool tachFlashState = 0;
 
 //Engine Parameters from CAN Bus
@@ -185,10 +192,10 @@ float oilPrs = 25;
 float coolantTemp = 180;
 float fuelPrs = 43;
 float oilTemp = 200;
-float fuelLvl = 75;
+float fuelLvl = 50;
 float battVolt = 12.6;
 float afr = 14.2;
-int RPM = 2000;
+int RPM = 0;
 int Speed = 25;
 
 // CAN Bus variables
@@ -210,7 +217,9 @@ float fuelLvlTable_x[fuelLvlTable_length] = {2.30, 2.25, 2.21, 1.97, 1.60, 1.40,
 float fuelLvlTable_l[fuelLvlTable_length] = {   0,    2,    4,    6,    8,   10,   12,   14,   16};
 
 // EEPROM Variables
-byte clockOffsetAddress;  //EEPROM Address
+byte dispArray1Address = 0;   // starting EEPEOM address for display 1, length is 4 
+byte dispArray2Address = 4;   // EEPROM Address for display 2, length is 1
+byte clockOffsetAddress = 5;  // EEPROM Address for 
 int *input;               //this is a memory address
 int output = 0;
 
@@ -220,7 +229,7 @@ char units = 'Imperial';
 unsigned int nMenuLevel = 14; //This should be the number of menu items on the given level
 byte dispArray1[4] = { 1, 0, 0, 0 };  //should be written to EEPROM 0-3
 unsigned int clockOffset;
-byte dispArray2[1] = {0};
+byte dispArray2[1] = {1};
 
 
 ///// IMAGES /////
@@ -393,11 +402,11 @@ bool rpmSwitch = 0;
 // Signal selection  //
 void sigSelect (void) {
     Speed = v_new; //multiply by unit conversion
-    RPM = rpmCAN/10;
-    coolantTemp = coolantTempCAN/10;
-    oilPrs = oilPrsCAN/10;
-    fuelPrs = fuelPrsCAN/10;
-    afr = afr1CAN/10;
+    RPM = rpmCAN;
+    coolantTemp = (coolantTempCAN/10)-273.15; // convert kelvin to C;
+    oilPrs = (oilPrsCAN/10)-101.3;   //kPa, convert to gauge pressure
+    fuelPrs = (fuelPrsCAN/10)-101.3;  //kPa, convert to gauge pressure
+    afr = afr1CAN/1000;
     fuelLvlCAN = (int)fuelLvl;
 
 }
@@ -407,9 +416,33 @@ void setup() {
 
   Serial.begin(115200); // open the serial port at 115200 bps:
 
-    // Write dispArray1 values from initialization into EEPROM. this is not necessary code
-  for (int i = 0; i < sizeof(dispArray1); i++) {
-    EEPROM.write(i, dispArray1[i]);
+  // Keep Power on until shut off by arduino
+  pinMode(pwrPin, OUTPUT);
+  digitalWrite(pwrPin, HIGH);
+
+  // Initialize Stepper Motors
+  motor1.setPosition(0);
+  motor2.setPosition(0);
+  motor3.setPosition(0);
+    while (motor1.currentStep > 0 || motor2.currentStep > 0 || motor3.currentStep > 0)
+  {
+      motor1.update();
+      motor2.update();
+      motor3.update();
+  }
+  motor1.currentStep = 0;
+  motor2.currentStep = 0;
+  motor3.currentStep = 0;
+
+  // sweep motors through full range of motion
+  motor1.targetStep = M1_SWEEP;
+  motor2.targetStep = M2_SWEEP;
+  motor3.targetStep = M3_SWEEP;
+  while (motor1.currentStep < M1_SWEEP || motor2.currentStep < M2_SWEEP || motor3.currentStep < M3_SWEEP)  
+  {
+      motor1.update();
+      motor2.update();
+      motor3.update();
   }
 
   // Initialize LED Tach
@@ -426,11 +459,12 @@ void setup() {
   attachInterrupt(1, rotate, CHANGE);
   
   //read display array from EEPROM and print to Serial Monitor. 
-  //will need to change this code to actually control display screens instead of just serial print
-  for (int i = 0; i < sizeof(dispArray1); i++) {
-    byte temp = EEPROM.read(i);
-    Serial.println(temp);
+  // Display 1
+  for (int i = dispArray1Address; i < sizeof(dispArray1); i++) {
+    dispArray1[i] = EEPROM.read(i);
   }
+  //Display 2
+  dispArray2[1] = EEPROM.read(dispArray2Address);
 
   //fetch last known clock offset from EEPROM
   clockOffset = EEPROM.read(clockOffsetAddress);  
@@ -457,8 +491,19 @@ void loop() {
     
   //read analog voltage and get filtered value
   if (millis() - timerSensorRead > sensorReadRate) {
+    
+    // // Fake  signal generation for demo
+    // if (analogSwitch == 0){
+    //   analog = analog + 20; 
+    // }
+    // else if (analogSwitch == 1) {
+    //   analog = analog - 20;
+    // }
+    // if (analog > 1022) analogSwitch = 1;
+    // if (analog < 1) analogSwitch = 0;
+    vBatt = readSensor(vBattPin, vBatt, filter_vBatt)*vBattScaler;
     fuelSensor = readSensor(analogPin3,fuelSensor,filter_fuel);
-    fuelLvl = curveLookup(fuelSensor, thermTable_x, thermTable_l, thermTable_length);
+    fuelLvl = curveLookup(fuelSensor, fuelLvlTable_x, fuelLvlTable_l, fuelLvlTable_length);
     thermSensor = readThermSensor(analogPin4, thermSensor, filter_therm);
     therm = curveLookup(thermSensor, thermTable_x, thermTable_l, thermTable_length);
     thermCAN = therm*10;
@@ -498,8 +543,8 @@ void loop() {
     // if (RPM < 2000) rpmSwitch = 0;
     
     
-    //ledShiftLight(RPM);
-    //timerTachUpdate = millis();        // reset timer1 
+    ledShiftLight(RPM);
+    timerTachUpdate = millis();        // reset timer1 
   }
 
   sigSelect();
@@ -510,6 +555,9 @@ void loop() {
     disp2();
     timerDispUpdate = millis();
   }
+
+  // Check for key off
+  if vBatt
 }
 
 
@@ -1030,20 +1078,22 @@ void dispClockOffset (Adafruit_SSD1306 *display) {
 void dispRPM (Adafruit_SSD1306 *display){
     display->setTextColor(WHITE); 
     display->clearDisplay();             //clear buffer
-    display->setTextSize(3);             // text size
+    display->setTextSize(2);             // text size
     display->setCursor(0,8);
-    display->print("RPM: ");
-    display->println(RPM, 0);                 
+    display->println("RPM: ");
+    display->setCursor(50,8);
+    display->println(RPM);                 
     display->display();
 }
 
 void dispSpd (Adafruit_SSD1306 *display){
     display->setTextColor(WHITE); 
     display->clearDisplay();             //clear buffer
-    display->setTextSize(3);             // text size
+    display->setTextSize(2);             // text size
     display->setCursor(0,8);
-    display->print("Speed: ");
-    display->println(v_new, 0);              
+    display->println("Spd: ");
+    display->setCursor(8,50);
+    display->println(v_new);              
     display->display();
 }
 
@@ -1135,7 +1185,7 @@ void dispAFR (Adafruit_SSD1306 *display) {
     display->clearDisplay();             //clear buffer
     display->setCursor(18,6);
     display->setTextSize(3); 
-    display->print(afr, 0);
+    display->print(afr, 1);
     display->println("AFR");         
     display->display();
 }
@@ -1194,7 +1244,7 @@ void dispBattVoltGfx (Adafruit_SSD1306 *display) {
     display->drawBitmap(0, 0, img_battVolt, 35, 32, 1);
     display->setTextSize(3); 
     display->setCursor(50,6);
-    display->println(battVolt, 1);         
+    display->println(vBatt, 1);         
     display->display();
 }
 
@@ -1358,11 +1408,11 @@ void parseCAN( unsigned long id, unsigned long msg)
   else if (id == 0x3E0){  //Haltech Protocol
     coolantTempCAN = (rxBuf[0]<<8) + rxBuf[1];
     Serial.print("Coolant Temp:");
-    Serial.println(coolantTempCAN/10);   // y = x/10
+    Serial.println(coolantTempCAN/10);   // y = (x/10)-273.15 , KELVIN
 
     airTempCAN = (rxBuf[2]<<8) + rxBuf[3];
     Serial.print("IAT:");
-    Serial.println(airTempCAN/10);   // y = x/10
+    Serial.println(airTempCAN/10);   // y = (x/10)-273.15 , KELVIN
 
     fuelTempCAN = (rxBuf[4]<<8) + rxBuf[5];
     Serial.print("Fuel Temp:");
@@ -1388,7 +1438,7 @@ void parseCAN( unsigned long id, unsigned long msg)
 
 ///// LED TACH AND SHIFT LIGHT FUNCTION /////
 void ledShiftLight(int ledRPM){
-  if (ledRPM< tachMin) {
+  if (ledRPM < tachMin) {
       // black out unused range  
     for (int i = 0; i < NUM_LEDS; i++){
       leds[i] = CRGB::Black;
@@ -1500,17 +1550,54 @@ void useInterrupt(boolean v) {
 
 ////// STEPPER MOTORS /////
 
-//  GAUGE 1 DATA UPDATE FUNCTION  //
-int speedometer () {
+//  Speedometer Needle Angle Function  //
+int speedometer (int spd_g) {
 
-  v_g = map(millis()-lagGPS, t_old, t_new, v_old, v_new);               // interpolate values between GPS data fix
+  spd_g = map(millis()-lagGPS, t_old, t_new, v_old, v_new);               // interpolate values between GPS data fix
  
   
-  if (v_g < 70 || v_g > 14000) {                              // bring speeds below 1.5mph and above 140 mph to zero
-    v_g = 0;
-  }
-
-  int angle = map( v_g, 0, 6000, 0, M1_SWEEP);                  // calculate angle of gauge 
+  if (spd_g < 50) spd_g = 0;                                  // if speed is below 0.5 mph set to zero
+  if (spd_g > speedoMax) spd_g = speedoMax;                   // set max pointer rotation
+  
+  int angle = map( spd_g, 0, speedoMax, 0, M1_SWEEP);         // calculate angle of gauge 
   return angle;                                               // return angle of motor
   
+}
+
+
+/////  SHUTDOWN  /////
+
+// save settings, display shutdown screens, and zero out the gauges
+void shutdown (void){
+  // Write dispArray1 values from into EEPROM address 0-3
+  for (int i = dispArray1Address; i < sizeof(dispArray1); i++) {
+    EEPROM.update(i, dispArray1[i]);
+  }
+  
+  // Write dispArray2 values from into EEPROM for disp array 2
+  EEPROM.update(dispArray2Address, dispArray2[1]);
+
+  // Display 
+  dispFalconScript(&display1);
+  disp302CID(&display2);
+
+  // Zero the motors
+  motor1.setPosition(0);
+  motor2.setPosition(0);
+  motor3.setPosition(0);
+    while (motor1.currentStep > 0 || motor2.currentStep > 0 || motor3.currentStep > 0)
+  {
+      motor1.update();
+      motor2.update();
+      motor3.update();
+  }
+
+  // delay
+  delay(2000);
+
+  // check again for key off
+
+
+  // cut power to Dash control unit
+    digitalWrite(pwrPin, LOW);
 }
