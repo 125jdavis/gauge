@@ -111,6 +111,7 @@ float vBattScaler = 0.04; // voltage divider factor (in this case 4/100: r1 = 10
 float fuelSensor;
 int filter_fuel = 1; // out of 16, 16 = no filter
 int analogPin3 = A3;
+float fuelCap = 16;
 
 // therm, on pin 4
 float therm;
@@ -144,6 +145,9 @@ float v = 0;
 bool usingInterrupt = false;
 int lagGPS;
 int v_g;
+float odo;
+byte hour;
+byte minute;
 
 // Rotary Encoder Variables
 bool stateSW = 1;
@@ -196,6 +200,7 @@ float oilTemp = 200;
 float fuelLvl = 50;
 float battVolt = 12.6;
 float afr = 14.2;
+float fuelComp = 0;
 int RPM = 0;
 int Speed = 25;
 
@@ -226,8 +231,8 @@ int output = 0;
 
 // Menu Navigation Variables
 byte menuLevel = 0;
-char units = 'Imperial';
-unsigned int nMenuLevel = 14; //This should be the number of menu items on the given level
+byte units = 0;  // 0 = metric, 1 = 'Merican
+unsigned int nMenuLevel = 15; //This should be the number of menu items on the given level
 byte dispArray1[4] = { 1, 0, 0, 0 };  //should be written to EEPROM 0-3
 unsigned int clockOffset;
 byte dispArray2[1] = {1};
@@ -408,6 +413,7 @@ void sigSelect (void) {
     oilPrs = (oilPrsCAN/10)-101.3;   //kPa, convert to gauge pressure
     fuelPrs = (fuelPrsCAN/10)-101.3;  //kPa, convert to gauge pressure
     afr = afr1CAN/1000;
+    fuelComp = fuelCompCAN/10;
     fuelLvlCAN = (int)fuelLvl;
 
 }
@@ -698,15 +704,31 @@ void dispMenu() {
       dispFuelLvlGfx(&display1);
       break;
     
-    case 5:                //dispArray1 {5 0 0 0} Odometer
+    case 5:               //dispArray1 {5 0 0 0} Battery Voltage
+      if (menuLevel == 0 && button == 1) {  //if button is pressed, do nothing
+        goToLevel0();
+      }
+      Serial.println("batt voltage");
+      dispBattVoltGfx(&display1);
+      break;
+
+    case 6:               //dispArray1 {6 0 0 0} Clock
+      if (menuLevel == 0 && button == 1) {  //if button is pressed, do nothing
+        goToLevel0();
+      }
+      Serial.println("Clock");
+      dispClock(&display1);
+      break;  
+
+    case 7:                //dispArray1 {7 0 0 0} Odometer
       if (menuLevel == 0 && button == 1) {  //if button is pressed, do nothing
         goToLevel0(); 
       }
       Serial.println("Odometer");
-      dispRectangle(&display1);
+      dispTripOdo(&display1);
       break;    
     
-    case 6:                //dispArray1 {6 0 0 0} Speed
+    case 8:                //dispArray1 {8 0 0 0} Speed
       if (menuLevel == 0 && button == 1) {  //if button is pressed, do nothing
         goToLevel0();
       }
@@ -714,7 +736,7 @@ void dispMenu() {
       dispSpd(&display1);
       break;  
     
-    case 7:                //dispArray1 {7 0 0 0} RPM
+    case 9:                //dispArray1 {9 0 0 0} RPM
       if (menuLevel == 0 && button == 1) {  //if button is pressed, do nothing
         goToLevel0();
       }
@@ -722,22 +744,23 @@ void dispMenu() {
       dispRPM(&display1);
       break;  
     
-    case 8:                //dispArray1 {8 0 0 0} Ignition Timing
+    case 10:                //dispArray1 {10 0 0 0} Ignition Timing
       if (menuLevel == 0 && button == 1) {  //if button is pressed, do nothing
         goToLevel0();
       }
       Serial.println("ignition timing");
-      dispBattVoltGfx(&display1);
+      dispIgnAng(&display1);
       break;
     
-    case 9:                //dispArray1 {9 0 0 0} AFR
+    case 11:                //dispArray1 {11 0 0 0} AFR
       if (menuLevel == 0 && button == 1) {  //if button is pressed, do nothing
         goToLevel0();
       }
       Serial.println("AFR");
       dispAFR(&display1);
       break;  
-    case 10:               //dispArray1 {10 0 0 0} Fuel Pressure
+    
+    case 12:               //dispArray1 {12 0 0 0} Fuel Pressure
       if (menuLevel == 0 && button == 1) {  //if button is pressed, do nothing
         goToLevel0();
       }
@@ -745,30 +768,23 @@ void dispMenu() {
       dispFuelPrs(&display1);
       break;  
 
-    case 11:               //dispArray1 {11 0 0 0} Fuel Composition
+    case 13:               //dispArray1 {13 0 0 0} Fuel Composition
       if (menuLevel == 0 && button == 1) {  //if button is pressed, do nothing
         goToLevel0();
       }
       Serial.println("ethanol %");
       dispFuelComp(&display1);
       break;  
-    
-    case 12:               //dispArray1 {12 0 0 0} Clock
+
+    case 14:               //dispArray1 {14 0 0 0} INJ DUTY
       if (menuLevel == 0 && button == 1) {  //if button is pressed, do nothing
         goToLevel0();
       }
-      Serial.println("Clock");
-      break;  
-    
-    case 13:               //dispArray1 {13 0 0 0} Battery Voltage
-      if (menuLevel == 0 && button == 1) {  //if button is pressed, do nothing
-        goToLevel0();
-      }
-      Serial.println("batt voltage");
-      dispBattVoltGfx(&display1);
-      break;  
-    
-    case 14:               //dispArray1 {14 0 0 0} Falcon Script
+      Serial.println("Inj Duty");
+      dispInjDuty(&display1);
+      break;
+      
+    case 15:               //dispArray1 {15 0 0 0} Falcon Script
       if (menuLevel == 0 && button == 1) {  //if button is pressed, do nothing
         goToLevel0();
       }
@@ -850,25 +866,35 @@ void dispMenu() {
                     goToLevel0();
                   }
                   break;
-                case 6:         // Speed on Display 2
-                  Serial.println("Disp2: 302CID");
+
+                case 6:         // Clock on Display 2
+                  Serial.println("Clock");
                   dispArray2[0] = 6;
                   if (button == 1) {
                     // save this setting to the EEPROM
                     goToLevel0();
                   }
                   break;
-                case 7:         // Speed on Display 2
-                  Serial.println("Disp2: 302V");
+
+                case 7:         // 302CID on Display 2
+                  Serial.println("Disp2: 302CID");
                   dispArray2[0] = 7;
                   if (button == 1) {
                     // save this setting to the EEPROM
                     goToLevel0();
                   }
                   break;
-                case 8:         // Speed on Display 2
-                  Serial.println("Disp2: Falcon Script");
+                case 8:         // 302V on Display 2
+                  Serial.println("Disp2: 302V");
                   dispArray2[0] = 8;
+                  if (button == 1) {
+                    // save this setting to the EEPROM
+                    goToLevel0();
+                  }
+                  break;
+                case 9:         // Falcon Script on Display 2
+                  Serial.println("Disp2: Falcon Script");
+                  dispArray2[0] = 9;
                   if (button == 1) {
                     // save this setting to the EEPROM
                     goToLevel0();
@@ -889,17 +915,29 @@ void dispMenu() {
               dispUnits(&display1);
             } else {
               switch (dispArray1[2]) {
-                case 0:         // 'Merican Units
-                  Serial.println("'Merican'");
-                  units = 'Merican';
+                case 0:         // 'Metric Units
+                  Serial.println("Metric'");
+                  display1.setTextColor(WHITE); 
+                  display1.clearDisplay();             //clear buffer
+                  display1.setTextSize(2);             // text size
+                  display1.setCursor(20,8);
+                  display1.println("'Merican'");                 
+                  display1.display();
+                  units = 0;
                   if (button == 1) {
                     // save this setting to the EEPROM
                     goToLevel0();
                   }
                   break;
-                case 1:         // Metric Units
-                  Serial.println("Metric");
-                  units = 'Metric';
+                case 1:         // Merican Units
+                  Serial.println("Merican");
+                  display1.setTextColor(WHITE); 
+                  display1.clearDisplay();             //clear buffer
+                  display1.setTextSize(2);             // text size
+                  display1.setCursor(20,8);
+                  display1.println("'Merican'");                 
+                  display1.display();
+                  units = 1;
                   if (button == 1) {
                     // save this setting to the EEPROM
                     goToLevel0();
@@ -941,6 +979,8 @@ void dispMenu() {
 
                 Serial.print("clock Offset: ");
                 Serial.println(clockOffset);
+                dispClock(&display1);
+
               }
             }
             break;
@@ -995,15 +1035,19 @@ void disp2(void){
       dispSpd(&display2);
       break;
 
-    case 6: // 302CID
+    case 6: // Clock
+      dispClock(&display2);
+      break;
+    
+    case 7: // 302CID
       disp302CID(&display2);
       break;
 
-    case 7: // 302V
+    case 8: // 302V
       disp302V(&display2);
       break;
 
-    case 8: // Falcon Script
+    case 9: // Falcon Script
       dispFalconScript(&display2);
       break;
   }
@@ -1019,29 +1063,6 @@ void incrementOffset() {
     if(clockOffset == 0) clockOffset = 23; else clockOffset--;// increment down one within range of 0-23
   }
 }
-
-// void dispUpdate()   // Send voltage value to OLED display MAYBE NOT NEEDED
-// {
-
-//     display.setTextColor(WHITE); 
-//     display.clearDisplay();             //clear buffer
-//     display.setTextSize(2);             // text size
-//     display.setCursor(1,1);
-//     display.print("Sens A ");
-//     display.print(baro/10, 0);
-//     display.println("%");        
-//     display.setCursor(1,18);
-//     display.print("Sens B ");
-//     display.print(sensor_b/10, 0);
-//     display.println("%");  
-//     // display.setTextSize(3); 
-//     // display.setCursor(74,6);
-//     // display.print(sensor_a/10, 0);
-//     // display.println("%");         
-//     display.display();
-
-
-// }
 
 
 ///// SCREEN DRAWING FUNCTIONS /////
@@ -1084,22 +1105,24 @@ void dispClockOffset (Adafruit_SSD1306 *display) {
 void dispRPM (Adafruit_SSD1306 *display){
     display->setTextColor(WHITE); 
     display->clearDisplay();             //clear buffer
+    display->setTextSize(3);
+    display->setCursor(8,6);
+    display->println(RPM); 
     display->setTextSize(2);             // text size
-    display->setCursor(0,8);
-    display->println("RPM: ");
-    display->setCursor(50,8);
-    display->println(RPM);                 
+    display->setCursor(88,10);
+    display->println("RPM");                
     display->display();
 }
 
 void dispSpd (Adafruit_SSD1306 *display){
     display->setTextColor(WHITE); 
     display->clearDisplay();             //clear buffer
+    display->setTextSize(3); 
+    display->setCursor(24,6);
+    display->println(v_new);
     display->setTextSize(2);             // text size
-    display->setCursor(0,8);
-    display->println("Spd: ");
-    display->setCursor(8,50);
-    display->println(v_new);              
+    display->setCursor(78,10);
+    display->println("MPH");              
     display->display();
 }
 
@@ -1163,35 +1186,40 @@ void dispFuelComp (Adafruit_SSD1306 *display) {
     display->setTextColor(WHITE); 
     display->clearDisplay();             //clear buffer
     display->setTextSize(2);             // text size
-    display->setCursor(1,1);
-    display->println("Eth");        
+    display->setCursor(2,0);
+    display->println("Flex");
+    display->setCursor(2,15);
+    display->println("Fuel");            
     display->setTextSize(3); 
-    display->setCursor(48,6);
-    display->println(fuelCompCAN/10, 0);         
+    display->setCursor(60,6);
+    display->print(fuelComp, 0); 
+    display->println("%");        
     display->display();
 }
 
 void dispFuelLvl (Adafruit_SSD1306 *display) {
     display->setTextColor(WHITE); 
     display->clearDisplay();             //clear buffer
-    display->setTextSize(2);             // text size
-    display->setCursor(1,1);
+    display->setTextSize(1);             // text size
+    display->setCursor(0,5);
     display->println("Fuel");        
-    display->setCursor(1,18);
+    display->setCursor(0,15);
     display->println("Level");
-    display->setTextSize(3); 
-    display->setCursor(72,6);
-    display->print(fuelLvl, 0);
-    display->println("%");         
+    display->setTextSize(2); 
+    display->setCursor(32,6);
+    display->print(fuelLvl, 1);
+    display->println(" GAL");         
     display->display();
 }
 
 void dispAFR (Adafruit_SSD1306 *display) {
     display->setTextColor(WHITE); 
     display->clearDisplay();             //clear buffer
-    display->setCursor(18,6);
+    display->setCursor(8,6);
     display->setTextSize(3); 
     display->print(afr, 1);
+    display->setCursor(88,10);
+    display->setTextSize(2);
     display->println("AFR");         
     display->display();
 }
@@ -1225,12 +1253,31 @@ void disp302V(Adafruit_SSD1306 *display) {
 }
 
 void dispOilPrsGfx (Adafruit_SSD1306 *display) {
+    float oilPrsDisp;
     display->setTextColor(WHITE); 
     display->clearDisplay();             //clear buffer
     display->drawBitmap(0, 0, img_oilPrs, 40, 32, 1);
-    display->setTextSize(3); 
-    display->setCursor(72,6);
-    display->println(oilPrs, 0);         
+
+    if (units == 0){    // Metric Units
+      oilPrsDisp = oilPrs/100; // convert kpa to bar
+      display->setTextSize(3); 
+      display->setCursor(47,6);
+      display->println(oilPrsDisp, 1);      
+      display->setCursor(103,16);
+      display->setTextSize(1);
+      display->println("bar");
+               
+    } 
+    else {              // 'Merican units
+      oilPrsDisp = oilPrs * 0.1450377; //convert kpa to PSI  
+      display->setTextSize(3); 
+      display->setCursor(53,6);
+      display->println(oilPrsDisp, 0); 
+      display->setCursor(91,10);
+      display->setTextSize(2);
+      display->println("PSI");          
+    }
+          
     display->display();
 }
 
@@ -1249,8 +1296,11 @@ void dispBattVoltGfx (Adafruit_SSD1306 *display) {
     display->clearDisplay();             //clear buffer
     display->drawBitmap(0, 0, img_battVolt, 35, 32, 1);
     display->setTextSize(3); 
-    display->setCursor(50,6);
-    display->println(vBatt, 1);         
+    display->setCursor(42,6);
+    display->println(vBatt, 1);
+    display->setTextSize(2);
+    display->setCursor(116,12); 
+    display->println("V");         
     display->display();
 }
 
@@ -1260,11 +1310,111 @@ void dispFuelLvlGfx (Adafruit_SSD1306 *display) {
     display->drawBitmap(0, 0, img_fuelLvl, 32, 32, 1);
     display->setTextSize(3); 
     display->setCursor(56,6);
-    display->print(fuelLvl, 0);
+    float fuelLvlPct = (fuelLvl/fuelCap)*100;
+    display->print(fuelLvlPct, 0);
     display->println("%");         
     display->display();
 }
 
+void dispTripOdo (Adafruit_SSD1306 *display) {
+    float odoDisp;
+    display->setTextColor(WHITE); 
+    display->clearDisplay();             //clear buffer
+        
+    if (units == 0){    // Metric Units
+      odoDisp = odo; 
+      display->setCursor(100,6);
+      display->setTextSize(2);
+      display->println("mi");         
+    } 
+    else {              // 'Merican units
+      odoDisp = odo * 0.6213712; //convert km to miles  
+      display->setCursor(100,6);
+      display->setTextSize(2);
+      display->println("mi");          
+    }
+
+    display->setCursor(35,6);
+    display->setTextSize(2); 
+    // right justify
+    if (odoDisp < 10) {
+      display->setTextColor(BLACK); 
+      display->print("00");
+    }
+    else if (odoDisp < 100){
+      display->setTextColor(BLACK); 
+      display->print("0");
+    }
+    
+    display->setTextColor(WHITE);
+    // remove tenths once 1000 is reached
+    if (odoDisp < 1000) { 
+      display->println(odoDisp, 1);
+    }
+    else {
+      display->println(odoDisp, 0);
+    }
+    
+    display->setTextSize(1);
+    display->setCursor(1,3);
+    display->println("Trip");
+    display->setCursor(1,13);
+    display->println("Odo:"); 
+    display->display();  
+}
+
+void dispIgnAng (Adafruit_SSD1306 *display) {
+    display->setTextColor(WHITE); 
+    display->clearDisplay();             //clear buffer
+    display->setTextSize(2);             // text size
+    display->setCursor(6,0);
+    display->println("IGN");
+    display->setCursor(2,15);
+    display->println("BTDC");            
+    display->setTextSize(3); 
+    display->setCursor(66,6);
+    display->print(ignAngCAN/10); 
+    display->write(0xF7);  
+    display->println();      
+    display->display();
+}
+
+void dispInjDuty (Adafruit_SSD1306 *display) {
+    display->setTextColor(WHITE); 
+    display->clearDisplay();             //clear buffer
+    display->setTextSize(2);             // text size
+    display->setCursor(6,0);
+    display->println("INJ");
+    display->setCursor(2,15);
+    display->println("DUTY");            
+    display->setTextSize(3); 
+    display->setCursor(66,6);
+    display->print(injDutyCAN/10);  
+    display->println("%");      
+    display->display();
+}
+
+void dispClock (Adafruit_SSD1306 *display){
+    byte hourDisp;
+    display->clearDisplay();             //clear buffer
+    if (clockOffset + hour > 23) {        // ensure hours don't exceed 23
+      hourDisp = clockOffset + hour - 24;
+    }
+    else {
+      hourDisp = clockOffset + hour;
+    }
+
+    if (hourDisp < 10) {display->setCursor(32,6);} // Center the numbers
+    else {display->setCursor(22,6);}
+    
+    display->setTextColor(WHITE);
+    display->setTextSize(3);             // text size
+    display->print(hourDisp); 
+    display->print(':');
+    if (minute < 10) { display->print('0'); } //keep time format for minutes
+    display->println(minute);
+    display->display();
+}
 
 ///// CAN BUS FUNCTIONS /////
 
@@ -1521,7 +1671,8 @@ void fetchGPSdata(){
             float vFloat = GPS.speed*115.0779;       // x100 to preserve hundredth MPH accuracy
             v_100 = (unsigned long)vFloat;           // convert to unsigned long       
             v_new = (v_100*alpha_0 + v_old*(256-alpha_0))>>8; //filtered velocity value
-                        
+            hour = GPS.hour;
+            minute = GPS.minute;            
       }
   }
 }
