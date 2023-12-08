@@ -1,6 +1,6 @@
 // Gauge Control Module 
 // Jesse Davis
-// 11/27/2023
+// 12/7/2023
 
 
 ///// LIBRARIES /////
@@ -49,7 +49,7 @@
 #define ODO_STEPS 32        // number of steps in one ODO revolution
 
 // GPS
-#define GPSECHO  false        // do not send raw GPS data to serial monitor 
+#define GPSECHO  true        // do not send raw GPS data to serial monitor 
 
 
 //Rotary Encoder switch
@@ -141,33 +141,43 @@ bool usingInterrupt = false;
 int lagGPS;
 int v_g;
 float odo;
+float odoTrip;
+float distLast;
 byte hour;
 byte minute;
+
+// Stepper Motor Variables
+unsigned int spd_g;
+unsigned int fuelLevelPct_g;
+unsigned int coolantTemp_g;
 
 // Rotary Encoder Variables
 bool stateSW = 1;
 bool lastStateSW = 1;
-unsigned long lastStateChangeTime = 0;  // the last time the output pin was toggled
-unsigned long debounceDelay = 50;       // the debounce time; increase if the output flickers
+unsigned int lastStateChangeTime = 0;  // the last time the output pin was toggled
+unsigned int debounceDelay = 50;       // the debounce time; increase if the output flickers
 bool debounceFlag = 0;
 bool button = 0;
 
 // timers and refresh rates
-long unsigned timer0, timerDispUpdate, timerCANsend, timerSensorRead, timerTachUpdate, timerTachFlash, timerCheckGPS, timerGPSupdate;
+unsigned int timer0, timerDispUpdate, timerCANsend;
+unsigned int timerSensorRead, timerTachUpdate, timerTachFlash;
+unsigned int timerCheckGPS, timerGPSupdate, timerAngleUpdate;
 
 //long unsigned dispMenuRate = 20;
-long unsigned CANsendRate = 50;
-long unsigned dispUpdateRate = 75;
-long unsigned sensorReadRate = 100;
-long unsigned tachUpdateRate = 50;
-long unsigned tachFlashRate = 50;
-long unsigned GPSupdateRate = 100; // might not be needed
-long unsigned checkGPSRate = 1;
-int splashTime = 1500; //how long should the splash screens show?
+unsigned int CANsendRate = 50;
+unsigned int dispUpdateRate = 75;
+unsigned int sensorReadRate = 100;
+unsigned int tachUpdateRate = 50;
+unsigned int tachFlashRate = 50;
+unsigned int GPSupdateRate = 100; // might not be needed
+unsigned int checkGPSRate = 1;
+unsigned int angleUpdateRate = 20;
+unsigned int splashTime = 1500; //how long should the splash screens show?
 
 // LED Tach variables
-int tachMax = 6000;
-int tachMin = 3000;
+unsigned int tachMax = 6000;
+unsigned int tachMin = 3000;
 bool tachFlashState = 0;
 
 //Engine Parameters from CAN Bus
@@ -201,6 +211,7 @@ int RPM = 0;
 int spd = 25;
 float spdMph = 0;
 
+
 // CAN Bus variables
 byte data[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 byte canMessageData [8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
@@ -218,11 +229,14 @@ float thermTable_l[thermTable_length] = { 150,  105,   75,   25,   -5,  -40};
 const int fuelLvlTable_length = 9;
 float fuelLvlTable_x[fuelLvlTable_length] = {2.30, 2.25, 2.21, 1.97, 1.60, 1.40, 1.21, 1.03, 0.87};
 float fuelLvlTable_l[fuelLvlTable_length] = {   0,    2,    4,    6,    8,   10,   12,   14,   16};
+float fuelCapacity = 16;
 
 // EEPROM Variables
-byte dispArray1Address = 0;   // starting EEPEOM address for display 1, length is 4 
-byte dispArray2Address = 4;   // EEPROM Address for display 2, length is 1
-byte clockOffsetAddress = 5;  // EEPROM Address for 
+byte dispArray1Address = 0;   // starting EEPEOM address for display 1, length is 4 bytes
+byte dispArray2Address = 4;   // EEPROM Address for display 2, length is 1 byte
+byte clockOffsetAddress = 5;  // EEPROM Address for clock offset, length is 1 byte
+byte odoAddress = 6;          // EEPROM address for odometer, length is 4 bytes
+byte odoTripAddress = 10;     // EEPROM address for odometer, length is 4 bytes
 int *input;               //this is a memory address
 int output = 0;
 
@@ -500,7 +514,11 @@ void setup() {
   dispArray2[0] = EEPROM.read(dispArray2Address);
 
   //fetch last known clock offset from EEPROM
-  clockOffset = EEPROM.read(clockOffsetAddress);  
+  clockOffset = EEPROM.read(clockOffsetAddress); 
+
+  //fetch odometer values from EEPROM
+  EEPROM.get(odoAddress, odo);
+  EEPROM.get(odoTripAddress, odoTrip);  
   
   // Initialize MCP2515 running at 8MHz with a baudrate of 500kb/s and the masks and filters disabled.
   if(CAN0.begin(MCP_ANY, CAN_500KBPS, MCP_8MHZ) == CAN_OK) Serial.println("MCP2515 Initialized Successfully!");
@@ -526,8 +544,6 @@ void loop() {
   if (millis() - timerSensorRead > sensorReadRate) {
     vBattRaw = readSensor(vBattPin, vBattRaw, filter_vBatt);
     vBatt = (float)vBattRaw*vBattScaler;
-    // Serial.println(vBattRaw);
-    // Serial.println(vBatt);
     fuelSensor = readSensor(analogPin3,fuelSensor,filter_fuel);
     fuelLvl = curveLookup(fuelSensor, fuelLvlTable_x, fuelLvlTable_l, fuelLvlTable_length);
     thermSensor = readThermSensor(analogPin4, thermSensor, filter_therm);
@@ -574,6 +590,19 @@ void loop() {
     disp2();
     timerDispUpdate = millis();
   }
+
+  if(millis() - timerAngleUpdate > angleUpdateRate){
+    int angle1 = speedometerAngle(M1_SWEEP);
+    int angle2 = fuelLvlAngle(M2_SWEEP);
+    int angle3 = coolantTempAngle(M3_SWEEP);
+    motor1.setPosition(angle1);
+    motor2.setPosition(angle2);
+    motor3.setPosition(angle3);
+  }
+  
+  motor1.update();
+  motor2.update();
+  motor3.update();
 
   // Check for key off, if switched voltage supply is below 1v, turn off control module
   if (vBatt < 1){
@@ -729,11 +758,11 @@ void dispMenu() {
       dispClock(&display1);
       break;  
 
-    case 7:                //dispArray1 {7 0 0 0} Odometer
+    case 7:                //dispArray1 {7 0 0 0} TripOdometer
       if (menuLevel == 0 && button == 1) {  //if button is pressed, do nothing
         goToLevel0(); 
       }
-      //Serial.println("Odometer");
+      //Serial.println("Trip Odometer");
       dispTripOdo(&display1);
       break;    
     
@@ -1091,7 +1120,7 @@ void dispDisp2Select (Adafruit_SSD1306 *display) {
     display->clearDisplay();             //clear buffer
     display->setTextSize(2);             // text size
     display->setCursor(15,8);
-    display->println("Display 2");                 
+    display->println("DISPLAY 2");                 
     display->display();
 }
 
@@ -1109,7 +1138,7 @@ void dispClockOffset (Adafruit_SSD1306 *display) {
     display->clearDisplay();             //clear buffer
     display->setTextSize(2);             // text size
     display->setCursor(0,8);
-    display->println("Clock Offset");                 
+    display->println("CLOCK OFFSET");                 
     display->display();
 }
 
@@ -1427,13 +1456,13 @@ void dispTripOdo (Adafruit_SSD1306 *display) {
     display->clearDisplay();             //clear buffer
         
     if (units == 0){    // Metric Units
-      odoDisp = odo; 
+      odoDisp = odoTrip; 
       display->setCursor(100,6);
       display->setTextSize(2);
       display->println("mi");         
     } 
     else {              // 'Merican units
-      odoDisp = odo * 0.6213712; //convert km to miles  
+      odoDisp = odoTrip * 0.6213712; //convert km to miles  
       display->setCursor(100,6);
       display->setTextSize(2);
       display->println("mi");          
@@ -1789,10 +1818,15 @@ void fetchGPSdata(){
               t_new = millis();                  // record time of GPS update
               v_old = v_new;                     // save previous value of velocity                       
               lagGPS = t_new-t_old;                 // time between updated
-            v = GPS.speed*3.6;              // fetch velocity from GPS object, convert to km/h             
-            float vFloat = GPS.speed*360;       // x100 to preserve hundredth km/h accuracy
+            v = GPS.speed*1.852;              // fetch velocity from GPS object, convert to km/h from knots            
+            float vFloat = GPS.speed*185.2;       // x100 to preserve hundredth km/h accuracy
             v_100 = (unsigned long)vFloat;           // convert to unsigned long       
             v_new = (v_100*alpha_0 + v_old*(256-alpha_0))>>8; //filtered velocity value
+            // Odometer calculations
+            distLast = v * lagGPS * 2.77778e-7;      // km traveled since last GPS message
+            odo = odo + distLast;
+            odoTrip = odoTrip + distLast;
+            // fetch GMT for clock
             hour = GPS.hour;
             minute = GPS.minute;            
       //}
@@ -1830,19 +1864,37 @@ void useInterrupt(boolean v) {
 ////// STEPPER MOTORS /////
 
 //  Speedometer Needle Angle Function  //
-int speedometer (int spd_g) {
+int speedometerAngle(int sweep) {
 
-  spd_g = map(millis()-lagGPS, t_old, t_new, v_old, v_new);               // interpolate values between GPS data fix
- 
+  float spd_g_float = map(millis()-lagGPS, t_old, t_new, v_old, v_new)*60.213712;   // interpolate values between GPS data fix
+  spd_g = (int)spd_g_float;
   
   if (spd_g < 50) spd_g = 0;                                  // if speed is below 0.5 mph set to zero
   if (spd_g > speedoMax) spd_g = speedoMax;                   // set max pointer rotation
   
-  int angle = map( spd_g, 0, speedoMax, 0, M1_SWEEP);         // calculate angle of gauge 
+  int angle = map( spd_g, 0, speedoMax, 0, sweep);         // calculate angle of gauge 
   return angle;                                               // return angle of motor
   
 }
 
+int fuelLvlAngle(int sweep) {
+  float fuelLvlPct = (fuelLvl/fuelCapacity)*1000;
+  fuelLevelPct_g = (unsigned int)fuelLvlPct;
+  int angle = map(fuelLevelPct_g, 0, 1000, 0, sweep);
+  return angle;
+} 
+
+int coolantTempAngle(int sweep) {
+  int angle;
+  if (coolantTemp < 95){
+    angle = map((long)coolantTemp, 60, 95, 0, sweep/2);
+  }
+  else {
+    angle = map((long)coolantTemp, 95, 110, sweep/2, sweep);
+  }
+  constrain (angle, 0, sweep);
+  return angle;
+}
 
 /////  SHUTDOWN  /////
 
@@ -1855,6 +1907,10 @@ void shutdown (void){
   
   // Write dispArray2 values from into EEPROM for disp array 2
   EEPROM.update(dispArray2Address, dispArray2[0]);
+
+  EEPROM.put(odoAddress, odo);
+  EEPROM.put(odoTripAddress, odoTrip);
+
 
   // Display 
   dispFalconScript(&display1);
