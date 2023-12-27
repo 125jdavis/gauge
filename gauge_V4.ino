@@ -49,7 +49,7 @@
 #define ODO_STEPS 32        // number of steps in one ODO revolution
 
 // GPS
-#define GPSECHO  true        // do not send raw GPS data to serial monitor 
+#define GPSECHO  false        // do not send raw GPS data to serial monitor 
 
 
 //Rotary Encoder switch
@@ -96,38 +96,37 @@ Adafruit_GPS GPS(&Serial2);   // set serial2 to GPS object
 
 // Analog inputs to Dash Control Module
 // vBatt, on pin 0
-float vBatt;
-int vBattRaw;
-int filter_vBatt = 6; // out of 16, 16 = no filter
+float vBatt = 12;
+int vBattRaw = 12;
+int filter_vBatt = 8; // out of 64, 64 = no filter
 int vBattPin = A0;
-float vBattScaler = 0.04; // voltage divider factor (in this case 4/100: r1 = 10k, r2 = 3.3k, 100 is the multiplier from ADC)
+float vBattScaler = 0.040923; // voltage divider factor (in this case 4/100: r1 = 10k, r2 = 3.3k, 100 is the multiplier from ADC)
 
 // fuel, on pin 3
-float fuelSensor;
-int filter_fuel = 1; // out of 16, 16 = no filter
-int analogPin3 = A3;
-float fuelCap = 16;
+int fuelSensorRaw;
+int filter_fuel = 6; // out of 64, 64 = no filter
+int fuelPin = A3;
 
 // therm, on pin 4
 float therm;
 float thermSensor;
 int filter_therm = 50; // out of 100, 100 = no filter
-int analogPin4 = A4;
+int thermPin = A4;
 int thermCAN;
 
 // sensor a (baro), on pin 5
-int baro;
-int filter_baro = 6; // out of 16, 16 = no filter
-int analogPin5 = A5;
+unsigned long baro;
+byte filter_baro = 4; // out of 16, 16 = no filter
+int baroPin = A5;
 
 // sensor b, on pin 6
 float sensor_b;
-int filter_b = 12;
+byte filter_b = 12;
 int analogPin6 = A6;
 
 // sensor c, on pin 7
 float sensor_c;
-int filter_c = 12;
+byte filter_c = 12;
 int analogPin7 = A7;
 
 // GPS Speed
@@ -167,7 +166,7 @@ unsigned int timerCheckGPS, timerGPSupdate, timerAngleUpdate;
 //long unsigned dispMenuRate = 20;
 unsigned int CANsendRate = 50;
 unsigned int dispUpdateRate = 75;
-unsigned int sensorReadRate = 100;
+unsigned int sensorReadRate = 10;
 unsigned int tachUpdateRate = 50;
 unsigned int tachFlashRate = 50;
 unsigned int GPSupdateRate = 100; // might not be needed
@@ -197,18 +196,21 @@ int oilTempCAN;
 int transTempCAN;
 int fuelCompCAN;
 int fuelLvlCAN;
+int baroCAN;
+int spdCAN;
+int pumpPressureCAN;
 
 //Engine Parameters for Display
 float oilPrs = 25;
-float coolantTemp = 180;
+float coolantTemp = 0;
 float fuelPrs = 43;
 float oilTemp = 0;
-float fuelLvl = 50;
+float fuelLvl = 0;
 float battVolt = 12.6;
 float afr = 14.2;
 float fuelComp = 0;
 int RPM = 0;
-int spd = 25;
+int spd = 0;
 float spdMph = 0;
 
 
@@ -227,8 +229,8 @@ float thermTable_l[thermTable_length] = { 150,  105,   75,   25,   -5,  -40};
 
 // Fuel Level lookup table
 const int fuelLvlTable_length = 9;
-float fuelLvlTable_x[fuelLvlTable_length] = {2.30, 2.25, 2.21, 1.97, 1.60, 1.40, 1.21, 1.03, 0.87};
-float fuelLvlTable_l[fuelLvlTable_length] = {   0,    2,    4,    6,    8,   10,   12,   14,   16};
+float fuelLvlTable_x[fuelLvlTable_length] = {0.87, 1.03, 1.21, 1.40, 1.60, 1.97, 2.21, 2.25, 2.30};
+float fuelLvlTable_l[fuelLvlTable_length] = {  16,   14,   12,   10,    8,    6,    4,    2,    0};
 float fuelCapacity = 16;
 
 // EEPROM Variables
@@ -237,6 +239,8 @@ byte dispArray2Address = 4;   // EEPROM Address for display 2, length is 1 byte
 byte clockOffsetAddress = 5;  // EEPROM Address for clock offset, length is 1 byte
 byte odoAddress = 6;          // EEPROM address for odometer, length is 4 bytes
 byte odoTripAddress = 10;     // EEPROM address for odometer, length is 4 bytes
+byte fuelSensorRawAddress = 14;
+byte unitsAddress = 18;
 int *input;               //this is a memory address
 int output = 0;
 
@@ -245,7 +249,7 @@ byte menuLevel = 0;
 byte units = 0;  // 0 = metric, 1 = 'Merican
 unsigned int nMenuLevel = 15; //This should be the number of menu items on the given level
 byte dispArray1[4] = { 1, 0, 0, 0 };  //should be written to EEPROM 0-3
-unsigned int clockOffset;
+byte clockOffset = 0;
 byte dispArray2[1] = {1};
 
 
@@ -437,13 +441,15 @@ int analogSwitch = 0;
 void sigSelect (void) {
     spd = v_new; //km/h * 100
     //spdMph = spd *0.6213712;
+    spdCAN = (int)(v*16);
     RPM = rpmCAN;
     coolantTemp = (coolantTempCAN/10)-273.15; // convert kelvin to C;
     oilPrs = (oilPrsCAN/10)-101.3;   //kPa, convert to gauge pressure
     fuelPrs = (fuelPrsCAN/10)-101.3;  //kPa, convert to gauge pressure
-    afr = afr1CAN/1000;
+    oilTemp = therm;
+    afr = (float)afr1CAN/1000;
     fuelComp = fuelCompCAN/10;
-    fuelLvlCAN = (int)fuelLvl;
+    fuelLvlCAN = (int)((fuelLvl/fuelCapacity)*100);
 
 }
 
@@ -466,7 +472,7 @@ void setup() {
 
   useInterrupt(true);                             // allow use of interrupts for GPS data fetching
 
-
+  Serial.println("1");
   // Initialize Stepper Motors
   motor1.setPosition(0);
   motor2.setPosition(0);
@@ -480,7 +486,7 @@ void setup() {
   motor1.currentStep = 0;
   motor2.currentStep = 0;
   motor3.currentStep = 0;
-
+  Serial.println("2");
   // sweep motors through full range of motion
   motor1.targetStep = M1_SWEEP;
   motor2.targetStep = M2_SWEEP;
@@ -491,16 +497,16 @@ void setup() {
       motor2.update();
       motor3.update();
   }
-
+    Serial.println("3");
   // Initialize LED Tach
   FastLED.addLeds<WS2812, TACH_DATA_PIN, GRB>(leds, NUM_LEDS);
-  
+    Serial.println("2");
   // Initialize displays
   display1.begin(SSD1306_SWITCHCAPVCC);  // initialize with SPI
   display2.begin(SSD1306_SWITCHCAPVCC);  // initialize with SPI
   dispFalconScript(&display1);
   disp302CID(&display2);
-
+    Serial.println("4");
   // Set up rotary switch interrupts
   attachInterrupt(0, rotate, CHANGE);
   attachInterrupt(1, rotate, CHANGE);
@@ -515,15 +521,20 @@ void setup() {
 
   //fetch last known clock offset from EEPROM
   clockOffset = EEPROM.read(clockOffsetAddress); 
-
+  Serial.println("5");
   //fetch odometer values from EEPROM
   EEPROM.get(odoAddress, odo);
-  EEPROM.get(odoTripAddress, odoTrip);  
+  EEPROM.get(odoTripAddress, odoTrip);
+  EEPROM.get(fuelSensorRawAddress, fuelSensorRaw); 
+  EEPROM.get(unitsAddress, units); 
+
+  Serial.print("clockOffset: ");
+  Serial.println(clockOffset);
   
   // Initialize MCP2515 running at 8MHz with a baudrate of 500kb/s and the masks and filters disabled.
   if(CAN0.begin(MCP_ANY, CAN_500KBPS, MCP_8MHZ) == CAN_OK) Serial.println("MCP2515 Initialized Successfully!");
   else Serial.println("Error Initializing MCP2515...");
-
+    Serial.println("6");
   // Set up CAN interrupt pin
   pinMode(CAN0_INT, INPUT); 
   CAN0.setMode(MCP_NORMAL);   // Change to normal mode to allow messages to be transmitted
@@ -532,9 +543,8 @@ void setup() {
   while (millis() < splashTime){
   }
 
-
+    Serial.println("7");
 }
-
 
 
 ///// MAIN LOOP //////////////////////////////////////////////////////////////////
@@ -542,56 +552,103 @@ void loop() {
     
   //read analog voltage and get filtered value
   if (millis() - timerSensorRead > sensorReadRate) {
+    // Serial.print("sensorRead: ");
+    int s = micros();
+
     vBattRaw = readSensor(vBattPin, vBattRaw, filter_vBatt);
     vBatt = (float)vBattRaw*vBattScaler;
-    fuelSensor = readSensor(analogPin3,fuelSensor,filter_fuel);
+    
+    fuelSensorRaw = readSensor(fuelPin,fuelSensorRaw,filter_fuel);
+    float fuelSensor = (float)fuelSensorRaw*0.01;
     fuelLvl = curveLookup(fuelSensor, fuelLvlTable_x, fuelLvlTable_l, fuelLvlTable_length);
-    thermSensor = readThermSensor(analogPin4, thermSensor, filter_therm);
+    
+    thermSensor = readThermSensor(thermPin, thermSensor, filter_therm);
     therm = curveLookup(thermSensor, thermTable_x, thermTable_l, thermTable_length);
-    thermCAN = therm*10;
-    baro = read30PSIAsensor(analogPin5,baro,filter_baro);  
+    thermCAN = (int)(therm*10);
+    
+    baro = read30PSIAsensor(baroPin,baro,filter_baro); //baro x 10 
+    baro = constrain(baro, 600, 1050);  // limit baro pressure to elevations between -300m to 4000m
+    baroCAN = baro; 
   //sensor_b = readSensor(analogPin6,sensor_b,filter_b); 
   //sensor_c = readSensor(analogPin7,sensor_c,filter_c); 
     timerSensorRead = millis();
+
+    int time =  micros() - s;
+    // Serial.println(time);
+
   }
 
 
   //Send CAN messages at specified rate
   if (millis() - timerCANsend > CANsendRate) {  
-    //sendCAN_200(sensor_a);
-    sendCAN_203(thermCAN, fuelLvlCAN, baro, 1000);
+        // Serial.print("CANsend: ");
+    int s = micros();
+
+    sendCAN_BE(0x200, 0, spdCAN, 0, 0);
+    sendCAN_LE(0x201, thermCAN, fuelLvlCAN, baroCAN, 555);
+    //sendCAN_LE(0x201, 255, 50, 988, 555);
+    //sendCAN_BE(0x301, 333, 444, 1010, 2020);
     timerCANsend = millis();
+
+    int time =  micros() - s;
+    // Serial.println(time);
+
   }
 
 
   //Read CAN messages as they come in
   if(!digitalRead(CAN0_INT)){     // If CAN0_INT pin is low, read receive buffer
+    // Serial.print("CAN recieve: ");
+    int s = micros();
     receiveCAN ();
     parseCAN( rxId, rxBuf);
+
+    int time =  micros() - s;
+    // Serial.println(time);
   }
 
   //Check for new GPS and process if new data is present
   if (millis() - timerCheckGPS > checkGPSRate) {
+    // Serial.print("GPS recieve: ");
+    int s = micros(); 
+    
     fetchGPSdata();
+    int time =  micros() - s;
+    // Serial.println(time);
   }
   
   //Tach update timer
   if (millis() - timerTachUpdate > tachUpdateRate) {     
+    // Serial.print("tach: ");
+    int s = micros();
+    
     // demoRPM = generateRPM();    
     ledShiftLight(RPM);
     timerTachUpdate = millis();        // reset timer1 
+    int time =  micros() - s;
+    // Serial.println(time);
   }
 
   sigSelect();
   //OLED Displays
   swRead();
   if(millis() - timerDispUpdate > dispUpdateRate){
+    // Serial.print("display: ");
+    int s = micros();
+    
     dispMenu();
     disp2();
+    //Serial.println(button);
     timerDispUpdate = millis();
+
+    int time =  micros() - s;
+    // Serial.println(time);
   }
 
   if(millis() - timerAngleUpdate > angleUpdateRate){
+    // Serial.print("motors: ");
+    int s = micros();
+    
     int angle1 = speedometerAngle(M1_SWEEP);
     int angle2 = fuelLvlAngle(M2_SWEEP);
     int angle3 = coolantTempAngle(M3_SWEEP);
@@ -605,9 +662,12 @@ void loop() {
   motor3.update();
 
   // Check for key off, if switched voltage supply is below 1v, turn off control module
-  if (vBatt < 1){
+  
+  if (vBatt < 1 && millis() > splashTime + 3000) {
     shutdown();
+    
   }
+
 }
 
 
@@ -618,20 +678,20 @@ void loop() {
 
 ////// SENSOR READING FUNCTIONS ///// 
 // Generic Sensor reader - reads, re-maps, and filters analog input values
-int readSensor(int inputPin, int oldVal, int filt)  // read voltage, map to 0-5v, and filter
+unsigned long readSensor(int inputPin, int oldVal, int filt)  // read voltage, map to 0-5v, and filter
 {
     int raw = analogRead (inputPin);
-    int newVal = map( raw, 0, 1023, 0, 500);  
-    int filtVal = ((newVal*filt) + (oldVal*(16-filt)))>>4;
+    unsigned long newVal = map( raw, 0, 1023, 0, 500);  
+    unsigned long filtVal = ((newVal*filt) + (oldVal*(64-filt)))>>6;
     return filtVal; 
 }
 
 // Reads 30 PSI Absolute Sensor
-int read30PSIAsensor(int inputPin, int oldVal, int filt)  // read voltage, map to 0-30 PSIA, and filter
+unsigned long read30PSIAsensor(int inputPin, int oldVal, int filt)  // read voltage, map to 0-30 PSIA, and filter
 {
     int raw = analogRead (inputPin);
-    int newVal = map( raw, 102, 921, 0, 2068);  
-    int filtVal = ((newVal*filt) + (oldVal*(16-filt)))>>4;
+    unsigned long newVal = map( raw, 102, 921, 0, 2068); 
+    unsigned long filtVal = ((newVal*filt) + (oldVal*(16-filt)))>>4;
     return filtVal; 
 }
 
@@ -713,120 +773,144 @@ void dispMenu() {
   switch (dispArray1[0]) {  // Level 0
     case 1:                //dispArray1 {1 0 0 0} Oil Pressure
       if (menuLevel == 0 && button == 1) {  //if button is pressed, go down one level
-        goToLevel0();
+        button = 0; // reset button state
       }
-      //Serial.println("Oil Pressure");
+      // Serial.println("Oil Pressure");
       dispOilPrsGfx(&display1);
       break;
     
     case 2:                //dispArray1 {2 0 0 0} Coolant Temp
       if (menuLevel == 0 && button == 1) {  //if button is pressed, do nothing
-        goToLevel0();
+        button = 0; // reset button state
       }
-      //Serial.println("Coolant Temp");
+      // Serial.println("Coolant Temp");
       dispCoolantTempGfx(&display1);
       break;
     
     case 3:                //dispArray1 {3 0 0 0} Oil Temp
       if (menuLevel == 0 && button == 1) {  //if button is pressed, do nothing
-        goToLevel0();      }
-      //Serial.println("Oil Temp");
+        button = 0; // reset button state     
+      }
+      // Serial.println("Oil Temp");
       dispOilTempGfx(&display1);
       break;
     
     case 4:                //dispArray1 {4 0 0 0} Fuel Level
       if (menuLevel == 0 && button == 1) {  //if button is pressed, do nothing
-        goToLevel0();
+        button = 0; // reset button state
       }
-      //Serial.println("Fuel Level");
+      // Serial.println("Fuel Level");
       dispFuelLvlGfx(&display1);
       break;
     
     case 5:               //dispArray1 {5 0 0 0} Battery Voltage
       if (menuLevel == 0 && button == 1) {  //if button is pressed, do nothing
-        goToLevel0();
+        button = 0; // reset button state
       }
-      //Serial.println("batt voltage");
+      // Serial.println("batt voltage");
       dispBattVoltGfx(&display1);
       break;
 
     case 6:               //dispArray1 {6 0 0 0} Clock
       if (menuLevel == 0 && button == 1) {  //if button is pressed, do nothing
-        goToLevel0();
+        button = 0; // reset button state
       }
-      //Serial.println("Clock");
+      // Serial.println("Clock");
       dispClock(&display1);
       break;  
 
     case 7:                //dispArray1 {7 0 0 0} TripOdometer
-      if (menuLevel == 0 && button == 1) {  //if button is pressed, do nothing
-        goToLevel0(); 
-      }
-      //Serial.println("Trip Odometer");
-      dispTripOdo(&display1);
+	  if (menuLevel == 0 && button == 1) {  //if button is pressed, change menu level
+        button = 0;
+        menuLevel = 1; // menu level 1 (0 indexed)
+        nMenuLevel = 1; // number of screens on this level - 1 (0 indexed)
+      } 
+      else if (menuLevel == 0) {  //if no button is pressed, display trip odometer
+        dispTripOdo(&display1);
+        // Serial.println("Trip Odo");
+      } 
+      else {  // proceed to Level 0 screen 3 deeper levels
+        switch (dispArray1[1]) {
+          case 0: //Select screen for display2                  dispArray1 {0 0 0 0}
+            dispOdoResetYes(&display1); // display odo reset: yes
+			      if (button == 1) {
+			        odoTrip = 0;
+			        goToLevel0();
+			        dispArray1[0] = 7;
+            } 
+            break;
+		      case 1:
+			      dispOdoResetNo(&display1); // display odo reset: no
+			      if (button == 1) {
+				      goToLevel0();
+				      dispArray1[0] = 7;
+			      } 
+          break;
+		    } 
+	    }
       break;    
     
     case 8:                //dispArray1 {8 0 0 0} Speed
       if (menuLevel == 0 && button == 1) {  //if button is pressed, do nothing
-        goToLevel0();
+        button = 0; // reset button state
       }
-      //Serial.println("Speed");
+      // Serial.println("Speed");
       dispSpd(&display1);
       break;  
     
     case 9:                //dispArray1 {9 0 0 0} RPM
       if (menuLevel == 0 && button == 1) {  //if button is pressed, do nothing
-        goToLevel0();
+        button = 0; // reset button state
       }
-      //Serial.println("RPM");
+      // Serial.println("RPM");
       dispRPM(&display1);
       break;  
     
     case 10:                //dispArray1 {10 0 0 0} Ignition Timing
       if (menuLevel == 0 && button == 1) {  //if button is pressed, do nothing
-        goToLevel0();
+        button = 0; // reset button state
       }
-      //Serial.println("ignition timing");
+      // Serial.println("ignition timing");
       dispIgnAng(&display1);
       break;
     
     case 11:                //dispArray1 {11 0 0 0} AFR
       if (menuLevel == 0 && button == 1) {  //if button is pressed, do nothing
-        goToLevel0();
+        button = 0; // reset button state
       }
-      //Serial.println("AFR");
+      // Serial.println("AFR");
       dispAFR(&display1);
       break;  
     
     case 12:               //dispArray1 {12 0 0 0} Fuel Pressure
       if (menuLevel == 0 && button == 1) {  //if button is pressed, do nothing
-        goToLevel0();
+        button = 0; // reset button state
       }
-      //Serial.println("Fuel Pressure");
+      // Serial.println("Fuel Pressure");
       dispFuelPrs(&display1);
       break;  
 
     case 13:               //dispArray1 {13 0 0 0} Fuel Composition
       if (menuLevel == 0 && button == 1) {  //if button is pressed, do nothing
-        goToLevel0();
+        button = 0; // reset button state
       }
-      //Serial.println("ethanol %");
+      // Serial.println("ethanol %");
       dispFuelComp(&display1);
       break;  
 
     case 14:               //dispArray1 {14 0 0 0} INJ DUTY
       if (menuLevel == 0 && button == 1) {  //if button is pressed, do nothing
-        goToLevel0();
+        button = 0; // reset button state
       }
-      //Serial.println("Inj Duty");
+      // Serial.println("Inj Duty");
       dispInjDuty(&display1);
       break;
       
     case 15:               //dispArray1 {15 0 0 0} Falcon Script
       if (menuLevel == 0 && button == 1) {  //if button is pressed, do nothing
-        goToLevel0();
+        //goToLevel0();
       }
-      //Serial.println("falcon Script");
+      // Serial.println("falcon Script");
       dispFalconScript(&display1);
       break;  
 
@@ -838,7 +922,7 @@ void dispMenu() {
         nMenuLevel = 3 ; // number of screens on this level - 1 (0 indexed)
       } 
       else if (menuLevel == 0) {  //if no button is pressed, display settings
-        //Serial.println("settings");
+        // Serial.println("settings");
         dispSettings(&display1);
       } 
       else {  // proceed to Level 0 screen 3 deeper levels
@@ -943,7 +1027,7 @@ void dispMenu() {
             }
             break;
  
-          case 1: //Select screen for display2                  dispArray1 {0 1 0 0}
+          case 1: //Select units to display                  dispArray1 {0 1 0 0}
             if (menuLevel == 1 && button == 1) {
               button = 0;
               menuLevel = 2;
@@ -993,17 +1077,12 @@ void dispMenu() {
               dispClockOffset(&display1);
             } else {
               if (button == 1) {
-                button = 0;
-                dispArray1[0] = 0;
-                dispArray1[1] = 0;
-                dispArray1[2] = 0;
-                menuLevel = 0;
-                nMenuLevel = 4;
                 detachInterrupt(0);
                 detachInterrupt(1);
                 attachInterrupt(0, rotate, CHANGE);
                 attachInterrupt(1, rotate, CHANGE);
                 EEPROM.write(clockOffset, clockOffsetAddress);
+                goToLevel0();
               } else {
                 
                 //Need code here to make the rotary encoder change the offset value
@@ -1011,8 +1090,6 @@ void dispMenu() {
                 detachInterrupt(1);
                 attachInterrupt(0, incrementOffset, CHANGE);
                 attachInterrupt(1, incrementOffset, CHANGE);
-                // Serial.print("clock Offset: ");
-                // Serial.println(clockOffset);
                 dispClock(&display1);
 
               }
@@ -1137,8 +1214,8 @@ void dispClockOffset (Adafruit_SSD1306 *display) {
     display->setTextColor(WHITE); 
     display->clearDisplay();             //clear buffer
     display->setTextSize(2);             // text size
-    display->setCursor(0,8);
-    display->println("CLOCK OFFSET");                 
+    display->setCursor(0,9);
+    display->println("SET CLOCK");                 
     display->display();
 }
 
@@ -1459,7 +1536,7 @@ void dispTripOdo (Adafruit_SSD1306 *display) {
       odoDisp = odoTrip; 
       display->setCursor(100,6);
       display->setTextSize(2);
-      display->println("mi");         
+      display->println("km");         
     } 
     else {              // 'Merican units
       odoDisp = odoTrip * 0.6213712; //convert km to miles  
@@ -1497,6 +1574,38 @@ void dispTripOdo (Adafruit_SSD1306 *display) {
     display->display();  
 }
 
+void dispOdoResetYes(Adafruit_SSD1306 *display) {
+    display->setTextColor(WHITE); 
+    display->clearDisplay();             //clear buffer
+    display->setTextSize(2);
+    display->setCursor(5,0);
+    display->println("RESET ODO?");
+    display->fillRect(13,15,38,16,1);
+    display->setCursor(15,16);
+    display->setTextColor(BLACK); 
+    display->println("YES");
+    display->setCursor(76,16);
+    display->setTextColor(WHITE); 
+    display->println("NO");
+    display->display();
+}
+
+void dispOdoResetNo(Adafruit_SSD1306 *display) {
+    display->setTextColor(WHITE); 
+    display->clearDisplay();             //clear buffer
+    display->setTextSize(2);
+    display->setCursor(5,0);
+    display->println("RESET ODO?");
+    display->setCursor(15,16);
+    display->setTextColor(WHITE); 
+    display->println("YES");
+    display->fillRect(74,15,26,16,1);
+    display->setCursor(76,16);
+    display->setTextColor(BLACK); 
+    display->println("NO");
+    display->display();
+}
+
 void dispIgnAng (Adafruit_SSD1306 *display) {
     display->setTextColor(WHITE); 
     display->clearDisplay();             //clear buffer
@@ -1529,21 +1638,22 @@ void dispInjDuty (Adafruit_SSD1306 *display) {
 }
 
 void dispClock (Adafruit_SSD1306 *display){
-    byte hourDisp;
+    byte hourAdj;
     display->clearDisplay();             //clear buffer
     if (clockOffset + hour > 23) {        // ensure hours don't exceed 23
-      hourDisp = clockOffset + hour - 24;
+      hourAdj = clockOffset + hour - 24;
     }
     else {
-      hourDisp = clockOffset + hour;
+      hourAdj = clockOffset + hour;
     }
 
-    if (hourDisp < 10) {display->setCursor(32,6);} // Center the numbers
-    else {display->setCursor(22,6);}
+    byte nDig = digits(hourAdj)+3;
+    byte center = 63;
     
     display->setTextColor(WHITE);
     display->setTextSize(3);             // text size
-    display->print(hourDisp); 
+    display->setCursor(center-((nDig*18)/2),6);
+    display->print(hourAdj); 
     display->print(':');
     if (minute < 10) { display->print('0'); } //keep time format for minutes
     display->println(minute);
@@ -1569,63 +1679,43 @@ byte digits(float val){
 
 ///// CAN BUS FUNCTIONS /////
 
-void sendCAN_200(int inputVal) //Send input value to CAN BUS at address 0x200
+void sendCAN_LE(int CANaddress, int inputVal_1, int inputVal_2, int inputVal_3, int inputVal_4) //Send input value to CAN BUS
 {
-  // send data:  ID = 0x100, Standard CAN Frame, Data length = 8 bytes, 'data' = array of data bytes to send
-
-       //BIG ENDIAN 
-        data[1] = highByte(inputVal);
-        data[0] = lowByte(inputVal);
-//        byte sndStat = CAN0.sendMsgBuf(0x100, 0, 8, data);
-        byte sndStat = CAN0.sendMsgBuf(0x200, 0, 8, data);
-//        if(sndStat == CAN_OK){
-//          Serial.println("Message Sent Successfully!");
-//        } 
-//        else {
-//          Serial.println("Error Sending Message...");
-//        }
-}
-
-void sendCAN_201(int inputVal) //Send input value to CAN BUS
-{
-        // BIG  ENDIAN
-        //data[2] = highByte(inputVal);
-        //data[3] = lowByte(inputVal);
         // LITTLE  ENDIAN
-        data[1] = highByte(inputVal);
-        data[0] = lowByte(inputVal);
-
-        byte sndStat = CAN0.sendMsgBuf(0x201, 0, 8, data);
-}
-
-void sendCAN_202(int inputVal) //Send input value to CAN BUS
-{
-        // BIG  ENDIAN
-        //data[2] = highByte(inputVal);
-        //data[3] = lowByte(inputVal);
-        // LITTLE  ENDIAN
-        data[1] = highByte(inputVal);
-        data[0] = lowByte(inputVal);
-        byte sndStat = CAN0.sendMsgBuf(0x202, 0, 8, data);
-}
-
-void sendCAN_203(int inputVal_1, int inputVal_2, int inputVal_3, int inputVal_4) //Send input value to CAN BUS
-{
-        // LITTLE  ENDIAN 
+        // Word 1 
         data[0] = lowByte(inputVal_1);
         data[1] = highByte(inputVal_1);
-        // LITTLE  ENDIAN 
+        // Word 2 
         data[2] = lowByte(inputVal_2);
         data[3] = highByte(inputVal_2);
-        // LITTLE  ENDIAN 
+        // Word 3
         data[4] = lowByte(inputVal_3);
         data[5] = highByte(inputVal_3);
-        // LITTLE  ENDIAN 
+        // Word 4 
         data[6] = lowByte(inputVal_4);
         data[7] = highByte(inputVal_4);
 
         //Serial.println(inputVal_1);
-        byte sndStat = CAN0.sendMsgBuf(0x203, 0, 8, data);
+        byte sndStat = CAN0.sendMsgBuf(CANaddress, 0, 8, data);
+}
+
+void sendCAN_BE(int CANaddress, int inputVal_1, int inputVal_2, int inputVal_3, int inputVal_4) //Send input value to CAN BUS
+{
+        // BIG ENDIAN
+        // Word 1
+        data[0] = highByte(inputVal_1);
+        data[1] = lowByte(inputVal_1);
+        // Word 2 
+        data[2] = highByte(inputVal_2);
+        data[3] = lowByte(inputVal_2);
+        // Word 3 
+        data[4] = highByte(inputVal_3);
+        data[5] = lowByte(inputVal_3);
+        // Word 4
+        data[6] = highByte(inputVal_4);
+        data[7] = lowByte(inputVal_4);
+
+        byte sndStat = CAN0.sendMsgBuf(CANaddress, 0, 8, data);
 }
 
 void receiveCAN ()  //Recive message from CAN BUS
@@ -1664,12 +1754,8 @@ void parseCAN( unsigned long id, unsigned long msg)
 {
   int var1 = 0;
   
-  if (id == 0x200) {  //test 
-    Serial.print("Address 0x200 recognized ");
-    var1 = (rxBuf[2]<<8) + rxBuf[3];
-    // Serial.print("Speed:");
-    // float dispVal = var1/16;
-    // Serial.println(dispVal);
+  if (id == 0x301) {  //test 
+    pumpPressureCAN = (rxBuf[0]<<8) + rxBuf[1];
   }
   else if (id == 0x360){  //Haltech Protocol
     rpmCAN = (rxBuf[0]<<8) + rxBuf[1];
@@ -1828,7 +1914,7 @@ void fetchGPSdata(){
             odoTrip = odoTrip + distLast;
             // fetch GMT for clock
             hour = GPS.hour;
-            minute = GPS.minute;            
+            minute = GPS.minute;          
       //}
   }
 }
@@ -1907,9 +1993,10 @@ void shutdown (void){
   
   // Write dispArray2 values from into EEPROM for disp array 2
   EEPROM.update(dispArray2Address, dispArray2[0]);
-
+  EEPROM.update(unitsAddress, units);
   EEPROM.put(odoAddress, odo);
   EEPROM.put(odoTripAddress, odoTrip);
+  EEPROM.put(fuelSensorRawAddress, fuelSensorRaw);
 
 
   // Display 
@@ -1920,11 +2007,11 @@ void shutdown (void){
   motor1.setPosition(0);
   motor2.setPosition(0);
   motor3.setPosition(0);
-    while (motor1.currentStep > 0 || motor2.currentStep > 0 || motor3.currentStep > 0)
-  {
-      motor1.update();
-      motor2.update();
-      motor3.update();
+
+  while (motor1.currentStep > 0 || motor2.currentStep > 0 || motor3.currentStep > 0){
+    if (motor1.currentStep > 0) {motor1.update();}
+    if (motor2.currentStep > 0) {motor2.update();}
+    if (motor3.currentStep > 0) {motor3.update();}
   }
 
   // delay
