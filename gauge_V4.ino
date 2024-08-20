@@ -1,20 +1,21 @@
 // Gauge Control Module 
 // Jesse Davis
-// 12/7/2023
+// 8/19/2024
 
 
 ///// LIBRARIES /////
-#include <Adafruit_SSD1306.h>
-#include <Adafruit_GFX.h>
-#include <SPI.h>
-#include <mcp_can.h>
-#include <Rotary.h>
+#include <Adafruit_SSD1306.h> //https://github.com/adafruit/Adafruit_SSD1306
+#include <Adafruit_GFX.h>     //https://github.com/adafruit/Adafruit-GFX-Library
+#include <SPI.h>          // included in arduino IDE
+#include <mcp_can.h>      //https://downloads.arduino.cc/libraries/github.com/coryjfowler/mcp_can-1.5.1.zip
+#include <Rotary.h>       //https://github.com/brianlow/Rotary/blob/master/Rotary.cpp
 #include <EEPROM.h>
-#include <FastLED.h>
-#include <Adafruit_GPS.h>
-#include <SwitecX25.h>
-#include <SwitecX12.h>
-#include <TimerOne.h> // not certain this is needed
+#include <FastLED.h>      //https://github.com/FastLED/FastLED
+#include <Adafruit_GPS.h> //https://github.com/adafruit/Adafruit_GPS
+#include <SwitecX25.h>    //https://github.com/clearwater/SwitecX25
+#include <SwitecX12.h>    //https://github.com/clearwater/SwitecX25
+#include <TimerOne.h>     // not certain this is needed
+#include <Stepper.h>      // included in arduino IDE
 
 
 
@@ -28,25 +29,25 @@
 #define pwrPin 49           // pin to keep power alive after key is off 
 #define speedoMax (100)     // maximum mph x10
 
-#define RESET_1 30          // motor driver reset pin
+#define MOTOR_RST 36          // motor driver reset pin
 
-#define M1_SWEEP (110*12)     // range of motion for gauge motor 1 standard X25.168 range 315 degrees at 1/3 degree steps
-#define M1_STEP  41         // motor 1 step command
-#define M1_DIR   40         // motor 1 direction command
+#define M1_SWEEP (58*12)     // range of motion for gauge motor 1 standard X25.168 range 315 degrees at 1/3 degree steps
+#define M1_STEP  37         // motor 1 step command
+#define M1_DIR   38         // motor 1 direction command
 
-#define M2_SWEEP (60*12)    // range of motion for gauge motor 2
-#define M2_STEP  39         // motor 2 step command
-#define M2_DIR   38         // motor 2 direction command
+#define M2_SWEEP (58*12)    // range of motion for gauge motor 2
+#define M2_STEP  34         // motor 2 step command
+#define M2_DIR   35         // motor 2 direction command
 
-#define M3_SWEEP (60*12)    // range of motion for gauge motor 3
-#define M3_STEP  44         // motor 3 step command
-#define M3_DIR   45         // motor 3 direction command
+#define M3_SWEEP (118*12)    // range of motion for gauge motor 3
+#define M3_STEP  33         // motor 3 step command
+#define M3_DIR   32         // motor 3 direction command
 
-#define M4_SWEEP (135*12)    // range of motion for gauge motor 4
-#define M4_STEP  42         // motor 4 step command
-#define M4_DIR   43         // motor 4 direction command
+#define M4_SWEEP (58*12)    // range of motion for gauge motor 4
+#define M4_STEP  40         // motor 4 step command
+#define M4_DIR   41         // motor 4 direction command
 
-#define ODO_STEPS 32        // number of steps in one ODO revolution
+//#define ODO_STEPS 32        // number of steps in one ODO revolution
 
 // GPS
 #define GPSECHO  false        // do not send raw GPS data to serial monitor 
@@ -89,7 +90,12 @@ SwitecX12 motor1(M1_SWEEP, M1_STEP, M1_DIR); // initialize motor 1 as Speedomete
 SwitecX12 motor2(M2_SWEEP, M2_STEP, M2_DIR); // initialize motor 2 Coolant temp
 SwitecX12 motor3(M3_SWEEP, M3_STEP, M3_DIR); // initialize motor 3 fuel level
 SwitecX12 motor4(M4_SWEEP, M4_STEP, M4_DIR); // initialize motor 4
-SwitecX25 odoMotor(ODO_STEPS, 10, 11, 12, 13);          // initialize odometer motor
+#define odoSteps 32
+#define odoPin1 10
+#define odoPin2 11
+#define odoPin3 12
+#define odoPin4 13          // initialize odometer motor
+Stepper odoMotor(odoSteps, odoPin1, odoPin2, odoPin3, odoPin4); 
 Adafruit_GPS GPS(&Serial2);   // set serial2 to GPS object
 
 ///// GLOBAL VARIABLES /////
@@ -471,42 +477,29 @@ void setup() {
   GPS.sendCommand(PMTK_API_SET_FIX_CTL_5HZ);      // set GPS module position fix to 5Hz
 
   useInterrupt(true);                             // allow use of interrupts for GPS data fetching
-
-  Serial.println("1");
-  // Initialize Stepper Motors
-  motor1.setPosition(0);
-  motor2.setPosition(0);
-  motor3.setPosition(0);
-    while (motor1.currentStep > 0 || motor2.currentStep > 0 || motor3.currentStep > 0)
-  {
-      motor1.update();
-      motor2.update();
-      motor3.update();
-  }
-  motor1.currentStep = 0;
-  motor2.currentStep = 0;
-  motor3.currentStep = 0;
-  Serial.println("2");
-  // sweep motors through full range of motion
-  motor1.targetStep = M1_SWEEP;
-  motor2.targetStep = M2_SWEEP;
-  motor3.targetStep = M3_SWEEP;
-  while (motor1.currentStep < M1_SWEEP || motor2.currentStep < M2_SWEEP || motor3.currentStep < M3_SWEEP)  
-  {
-      motor1.update();
-      motor2.update();
-      motor3.update();
-  }
-    Serial.println("3");
-  // Initialize LED Tach
-  FastLED.addLeds<WS2812, TACH_DATA_PIN, GRB>(leds, NUM_LEDS);
-    Serial.println("2");
+ 
   // Initialize displays
   display1.begin(SSD1306_SWITCHCAPVCC);  // initialize with SPI
   display2.begin(SSD1306_SWITCHCAPVCC);  // initialize with SPI
   dispFalconScript(&display1);
   disp302CID(&display2);
-    Serial.println("4");
+  
+  // Initialize Stepper Motors
+  pinMode(MOTOR_RST, OUTPUT);
+  digitalWrite(MOTOR_RST, HIGH);
+  
+  // Sweep gauges through range of motion
+  motorSweepSynchronous();
+  
+  // Setup the Odometer
+  pinMode(odoPin1, OUTPUT);
+  pinMode(odoPin2, OUTPUT);
+  pinMode(odoPin3, OUTPUT);
+  pinMode(odoPin4, OUTPUT);
+
+  // Initialize LED Tach
+  FastLED.addLeds<WS2812, TACH_DATA_PIN, GRB>(leds, NUM_LEDS);
+
   // Set up rotary switch interrupts
   attachInterrupt(0, rotate, CHANGE);
   attachInterrupt(1, rotate, CHANGE);
@@ -521,7 +514,7 @@ void setup() {
 
   //fetch last known clock offset from EEPROM
   clockOffset = EEPROM.read(clockOffsetAddress); 
-  Serial.println("5");
+
   //fetch odometer values from EEPROM
   EEPROM.get(odoAddress, odo);
   EEPROM.get(odoTripAddress, odoTrip);
@@ -534,7 +527,6 @@ void setup() {
   // Initialize MCP2515 running at 8MHz with a baudrate of 500kb/s and the masks and filters disabled.
   if(CAN0.begin(MCP_ANY, CAN_500KBPS, MCP_8MHZ) == CAN_OK) Serial.println("MCP2515 Initialized Successfully!");
   else Serial.println("Error Initializing MCP2515...");
-    Serial.println("6");
   // Set up CAN interrupt pin
   pinMode(CAN0_INT, INPUT); 
   CAN0.setMode(MCP_NORMAL);   // Change to normal mode to allow messages to be transmitted
@@ -543,7 +535,6 @@ void setup() {
   while (millis() < splashTime){
   }
 
-    Serial.println("7");
 }
 
 
@@ -649,24 +640,28 @@ void loop() {
     // Serial.print("motors: ");
     int s = micros();
     
-    int angle1 = speedometerAngle(M1_SWEEP);
+    int angle1 = fuelLvlAngle(M1_SWEEP);
     int angle2 = fuelLvlAngle(M2_SWEEP);
-    int angle3 = coolantTempAngle(M3_SWEEP);
+    int angle3 = speedometerAngle(M3_SWEEP);
+    int angle4 = coolantTempAngle(M4_SWEEP);
     motor1.setPosition(angle1);
     motor2.setPosition(angle2);
     motor3.setPosition(angle3);
+    motor4.setPosition(angle4);
   }
   
   motor1.update();
   motor2.update();
   motor3.update();
+  motor4.update();
 
-  // Check for key off, if switched voltage supply is below 1v, turn off control module
-  
+  // Check for key off, if switched voltage supply is below 1v, turn off control module 
   if (vBatt < 1 && millis() > splashTime + 3000) {
     shutdown();
     
   }
+
+  //serialInputFunc();  // Debugging only
 
 }
 
@@ -1843,27 +1838,27 @@ void ledShiftLight(int ledRPM){
  
   //tach normal range 
     for (int i = 0;i <= midPoint - WARN_LEDS; i++){
-      leds[i] = CRGB(100, 38 , 0);
+      leds[i] = CRGB(30, 15 , 0);
     }
     for (int i = midPoint + WARN_LEDS + 1; i < NUM_LEDS; i++){
-      leds[i] = CRGB(100, 38 , 0);
+      leds[i] = CRGB(30, 15 , 0);
     }
 
 
   // tach warning range
     for (int i = midPoint - WARN_LEDS - 1;i <= midPoint - SHIFT_LEDS; i++){
-      leds[i] = CRGB(255, 30 , 0);
+      leds[i] = CRGB(80, 10 , 0);
     }
     for (int i = midPoint + SHIFT_LEDS + 1; i <= midPoint + WARN_LEDS; i++){
-      leds[i] = CRGB(255, 30 , 0);
+      leds[i] = CRGB(80, 10 , 0);
     }
 
   // tach shift light range
     for (int i = midPoint - SHIFT_LEDS - 1;i <= midPoint; i++){
-      leds[i] = CRGB(255, 0 , 0);
+      leds[i] = CRGB(80, 0 , 0);
     }
     for (int i = midPoint; i <= midPoint + SHIFT_LEDS; i++){
-      leds[i] = CRGB(255, 0 , 0);
+      leds[i] = CRGB(80, 0 , 0);
     }
     
   // black out unused range  
@@ -1909,7 +1904,11 @@ void fetchGPSdata(){
             v_100 = (unsigned long)vFloat;           // convert to unsigned long       
             v_new = (v_100*alpha_0 + v_old*(256-alpha_0))>>8; //filtered velocity value
             // Odometer calculations
-            distLast = v * lagGPS * 2.77778e-7;      // km traveled since last GPS message
+            if (v > 2) {  // only integrate speed for ODO if speed exceeds 2 km/h, to avoid false incrementing due to GPS inaccuracy 
+              distLast = v * lagGPS * 2.77778e-7;      // km traveled since last GPS message
+            } else {
+              distLast = 0;
+            }
             odo = odo + distLast;
             odoTrip = odoTrip + distLast;
             // fetch GMT for clock
@@ -1951,34 +1950,34 @@ void useInterrupt(boolean v) {
 
 //  Speedometer Needle Angle Function  //
 int speedometerAngle(int sweep) {
-
   float spd_g_float = map(millis()-lagGPS, t_old, t_new, v_old, v_new)*60.213712;   // interpolate values between GPS data fix
   spd_g = (int)spd_g_float;
   
   if (spd_g < 50) spd_g = 0;                                  // if speed is below 0.5 mph set to zero
   if (spd_g > speedoMax) spd_g = speedoMax;                   // set max pointer rotation
   
-  int angle = map( spd_g, 0, speedoMax, 0, sweep);         // calculate angle of gauge 
+  int angle = map( spd_g, 0, speedoMax, 1, sweep-1);         // calculate angle of gauge 
+  angle = constrain(angle, 1, sweep-1);
   return angle;                                               // return angle of motor
-  
 }
 
 int fuelLvlAngle(int sweep) {
   float fuelLvlPct = (fuelLvl/fuelCapacity)*1000;
   fuelLevelPct_g = (unsigned int)fuelLvlPct;
-  int angle = map(fuelLevelPct_g, 0, 1000, 0, sweep);
+  int angle = map(fuelLevelPct_g, 100, 1000, 1, sweep-1);
+  angle = constrain(angle, 1, sweep-1);
   return angle;
 } 
 
 int coolantTempAngle(int sweep) {
   int angle;
   if (coolantTemp < 95){
-    angle = map((long)coolantTemp, 60, 95, 0, sweep/2);
+    angle = map((long)coolantTemp, 60, 98, 1, sweep/2);
   }
   else {
-    angle = map((long)coolantTemp, 95, 110, sweep/2, sweep);
+    angle = map((long)coolantTemp, 98, 115, sweep/2, sweep-1);
   }
-  constrain (angle, 0, sweep);
+  angle = constrain(angle, 1, sweep-1);
   return angle;
 }
 
@@ -2004,15 +2003,7 @@ void shutdown (void){
   disp302CID(&display2);
 
   // Zero the motors
-  motor1.setPosition(0);
-  motor2.setPosition(0);
-  motor3.setPosition(0);
-
-  while (motor1.currentStep > 0 || motor2.currentStep > 0 || motor3.currentStep > 0){
-    if (motor1.currentStep > 0) {motor1.update();}
-    if (motor2.currentStep > 0) {motor2.update();}
-    if (motor3.currentStep > 0) {motor3.update();}
-  }
+  motorZeroSynchronous();
 
   // delay
   delay(2000);
@@ -2024,6 +2015,58 @@ void shutdown (void){
 
   // cut power to Dash control unit
     digitalWrite(pwrPin, LOW);
+}
+
+void motorZeroSynchronous(void){
+  motor1.currentStep = M1_SWEEP;
+  motor2.currentStep = M2_SWEEP;
+  motor3.currentStep = M3_SWEEP;
+  motor4.currentStep = M4_SWEEP;
+  motor1.setPosition(0);
+  motor2.setPosition(0);
+  motor3.setPosition(0);
+  motor4.setPosition(0);
+    while (motor1.currentStep > 0 || motor2.currentStep > 0 || motor3.currentStep > 0 || motor4.currentStep > 0)
+  {
+      motor1.update();
+      motor2.update();
+      motor3.update();
+      motor4.update();
+  }
+  motor1.currentStep = 0;
+  motor2.currentStep = 0;
+  motor3.currentStep = 0;
+  motor4.currentStep = 0;
+}
+
+
+void motorSweepSynchronous(void){
+  motorZeroSynchronous();
+  Serial.println("zeroed");
+  motor1.setPosition(M1_SWEEP);
+  motor2.setPosition(M2_SWEEP);
+  motor3.setPosition(M3_SWEEP);
+  motor4.setPosition(M4_SWEEP);
+    while (motor1.currentStep < M1_SWEEP-1  || motor2.currentStep < M2_SWEEP-1 || motor3.currentStep < M3_SWEEP-1 || motor4.currentStep < M4_SWEEP-1)
+  {
+      motor1.update();
+      motor2.update();
+      motor3.update();
+      motor4.update();
+  }
+
+  Serial.println("full sweep");
+  motor1.setPosition(0);
+  motor2.setPosition(0);
+  motor3.setPosition(0);
+  motor4.setPosition(0);
+    while (motor1.currentStep > 0 || motor2.currentStep > 0 || motor3.currentStep > 0 || motor4.currentStep > 0)
+  {
+      motor1.update();
+      motor2.update();
+      motor3.update();
+      motor4.update();
+  }
 }
 
 
@@ -2047,4 +2090,24 @@ void generateRPM(void){
     // }
     // if (analog > 1022) analogSwitch = 1;
     // if (analog < 1) analogSwitch = 0;
+}
+
+void serialInputFunc(void){
+  // SERIAL INPUT FOR TESTING ONLY
+  if (Serial.available() > 0) {
+    // Read the incoming data as a string
+    String inputSer = Serial.readStringUntil('\n');
+    
+    // Convert the input string to an integer
+    int newValue = inputSer.toInt();
+    
+    // Update the variable with the new value
+    //coolantTempCAN = (newValue+273.15)*10 ;
+    //fuelLvl = newValue;
+    
+    
+    // Print the new value of the variable
+    Serial.println("Updated value of fuel level: " + String(fuelLvl));
+    Serial.println("Please enter a new value:");
+  }
 }
