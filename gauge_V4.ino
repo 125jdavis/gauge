@@ -1,7 +1,7 @@
 // Gauge Control Module 
 // Jesse Davis
-// 8/19/2024
-
+// 8/24/2024
+// STATUS: Fully functional except mechanical ODO
 
 ///// LIBRARIES /////
 #include <Adafruit_SSD1306.h> //https://github.com/adafruit/Adafruit_SSD1306
@@ -9,7 +9,7 @@
 #include <SPI.h>          // included in arduino IDE
 #include <mcp_can.h>      //https://downloads.arduino.cc/libraries/github.com/coryjfowler/mcp_can-1.5.1.zip
 #include <Rotary.h>       //https://github.com/brianlow/Rotary/blob/master/Rotary.cpp
-#include <EEPROM.h>
+#include <EEPROM.h>       // included in arduino IDE
 #include <FastLED.h>      //https://github.com/FastLED/FastLED
 #include <Adafruit_GPS.h> //https://github.com/adafruit/Adafruit_GPS
 #include <SwitecX25.h>    //https://github.com/clearwater/SwitecX25
@@ -27,7 +27,7 @@
 
 // GAUGE SETUP //
 #define pwrPin 49           // pin to keep power alive after key is off 
-#define speedoMax (100)     // maximum mph x10
+#define speedoMax (100*100)     // maximum mph x100
 
 #define MOTOR_RST 36          // motor driver reset pin
 
@@ -110,7 +110,7 @@ float vBattScaler = 0.040923; // voltage divider factor (in this case 4/100: r1 
 
 // fuel, on pin 3
 int fuelSensorRaw;
-int filter_fuel = 6; // out of 64, 64 = no filter
+int filter_fuel = 1; // out of 64, 64 = no filter
 int fuelPin = A3;
 
 // therm, on pin 4
@@ -1894,14 +1894,14 @@ void fetchGPSdata(){
   
     //if (millis() - timerGPSupdate > GPSupdateRate) { 
       //timerGPSupdate = millis();        // reset timer2
-            unsigned long alpha_0 = 192; // filter coefficeint to set speedometer response rate
+            unsigned long alpha_0 = 256; // filter coefficeint to set speedometer response rate 256 = no filter
               t_old = t_new;                     // save previous time value
               t_new = millis();                  // record time of GPS update
               v_old = v_new;                     // save previous value of velocity                       
               lagGPS = t_new-t_old;                 // time between updated
             v = GPS.speed*1.852;              // fetch velocity from GPS object, convert to km/h from knots            
             float vFloat = GPS.speed*185.2;       // x100 to preserve hundredth km/h accuracy
-            v_100 = (unsigned long)vFloat;           // convert to unsigned long       
+            v_100 = (unsigned long)vFloat;           // convert to unsigned long,        
             v_new = (v_100*alpha_0 + v_old*(256-alpha_0))>>8; //filtered velocity value
             // Odometer calculations
             if (v > 2) {  // only integrate speed for ODO if speed exceeds 2 km/h, to avoid false incrementing due to GPS inaccuracy 
@@ -1950,9 +1950,9 @@ void useInterrupt(boolean v) {
 
 //  Speedometer Needle Angle Function  //
 int speedometerAngle(int sweep) {
-  float spd_g_float = map(millis()-lagGPS, t_old, t_new, v_old, v_new)*60.213712;   // interpolate values between GPS data fix
-  spd_g = (int)spd_g_float;
-  
+  unsigned long t_curr =  millis()-lagGPS;
+  float spd_g_float = map(t_curr, t_old, t_new, v_old, v_new)*0.6213712;   // interpolate values between GPS data fix, convert from km/h x100 to mph x100
+  spd_g = (unsigned long)spd_g_float;
   if (spd_g < 50) spd_g = 0;                                  // if speed is below 0.5 mph set to zero
   if (spd_g > speedoMax) spd_g = speedoMax;                   // set max pointer rotation
   
