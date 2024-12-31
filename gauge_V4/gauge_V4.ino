@@ -1957,6 +1957,11 @@ int speedometerAngle(int sweep) {
   if (spd_g > speedoMax) spd_g = speedoMax;                   // set max pointer rotation
   
   int angle = map( spd_g, 0, speedoMax, 1, sweep-1);         // calculate angle of gauge 
+  Serial.print(millis());
+  Serial.print(",");
+  Serial.print(v);
+  Serial.print(",");
+  Serial.println(angle);
   angle = constrain(angle, 1, sweep-1);
   return angle;                                               // return angle of motor
 }
