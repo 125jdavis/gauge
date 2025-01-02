@@ -14,7 +14,7 @@
 #include <Rotary.h>       //https://github.com/brianlow/Rotary/blob/master/Rotary.cpp
 #include <EEPROM.h>       // included in arduino IDE
 #include <FastLED.h>      //https://github.com/FastLED/FastLED
-#include <Adafruit_GPS.h> //https://github.com/adafruit/Adafruit_GPS
+#include <Adafruit_SSD1306.h>
 #include <SwitecX25.h>    //https://github.com/clearwater/SwitecX25
 #include <SwitecX12.h>    //https://github.com/clearwater/SwitecX25
 #include <TimerOne.h>     // not certain this is needed
@@ -30,13 +30,11 @@
 ///// DEFINE /////
 //#define OLED_RESET 4  // OLED display reset pin
 
-//Rotary Encoder switch
-#define SWITCH 24 
+
 
 ///// INITIALIZE /////
 MCP_CAN CAN0(CAN0_CS);     // Set CS to pin 53
-Adafruit_SSD1306 display1(SCREEN_W, SCREEN_H, &SPI, OLED_DC_1, OLED_RST_1, OLED_CS_1);
-Adafruit_SSD1306 display2(SCREEN_W, SCREEN_H, &SPI, OLED_DC_2, OLED_RST_2, OLED_CS_2);
+
 Rotary rotary = Rotary(2, 3);  // rotary encoder ipnput pins (2 and 3 are interrupts)
 CRGB leds[NUM_LEDS];
 
@@ -443,38 +441,7 @@ void loop() {
 /////  SHUTDOWN  /////
 
 // save settings, display shutdown screens, and zero out the gauges
-void shutdown (void){
-  // Write dispArray1 values from into EEPROM address 0-3
-  for (int i = dispArray1Address; i < sizeof(dispArray1); i++) {
-    EEPROM.update(i, dispArray1[i]);
-  }
-  
-  // Write dispArray2 values from into EEPROM for disp array 2
-  EEPROM.update(dispArray2Address, dispArray2[0]);
-  EEPROM.update(unitsAddress, units);
-  EEPROM.put(odoAddress, odo);
-  EEPROM.put(odoTripAddress, odoTrip);
-  EEPROM.put(fuelSensorRawAddress, fuelSensorRaw);
 
-
-  // Display 
-  dispFalconScript(&display1);
-  disp302CID(&display2);
-
-  // Zero the motors
-  motorZeroSynchronous();
-
-  // delay
-  delay(2000);
-
-  // check again for key off
-  if (vBatt > 1){
-    return;
-  }
-
-  // cut power to Dash control unit
-    digitalWrite(pwrPin, LOW);
-}
 
 void motorZeroSynchronous(void){
   motor1.currentStep = M1_SWEEP;

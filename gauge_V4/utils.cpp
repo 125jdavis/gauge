@@ -15,3 +15,36 @@ void sigSelect (void) {
     fuelLvlCAN = (int)((fuelLvl/fuelCapacity)*100);
 
 }
+
+void shutdown (void){
+  // Write dispArray1 values from into EEPROM address 0-3
+  for (int i = dispArray1Address; i < sizeof(dispArray1); i++) {
+    EEPROM.update(i, dispArray1[i]);
+  }
+  
+  // Write dispArray2 values from into EEPROM for disp array 2
+  EEPROM.update(dispArray2Address, dispArray2[0]);
+  EEPROM.update(unitsAddress, units);
+  EEPROM.put(odoAddress, odo);
+  EEPROM.put(odoTripAddress, odoTrip);
+  EEPROM.put(fuelSensorRawAddress, fuelSensorRaw);
+
+
+  // Display 
+  dispFalconScript(&display1);
+  disp302CID(&display2);
+
+  // Zero the motors
+  motorZeroSynchronous();
+
+  // delay
+  delay(2000);
+
+  // check again for key off
+  if (vBatt > 1){
+    return;
+  }
+
+  // cut power to Dash control unit
+    digitalWrite(pwrPin, LOW);
+}

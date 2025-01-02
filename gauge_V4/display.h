@@ -1,7 +1,8 @@
 #ifndef DISPLAY_H
 #define DISPLAY_H
 
-#include <Adafruit_SSD1306.h>
+//Rotary Encoder switch
+#define SWITCH 24 
 
 // OLED Screen 1
 #define SCREEN_W 128 // OLED display width, in pixels
@@ -18,6 +19,9 @@
 #define OLED_DC_2  28
 #define OLED_CS_2  29
 #define OLED_RST_2 26
+
+Adafruit_SSD1306 display1(SCREEN_W, SCREEN_H, &SPI, OLED_DC_1, OLED_RST_1, OLED_CS_1);
+Adafruit_SSD1306 display2(SCREEN_W, SCREEN_H, &SPI, OLED_DC_2, OLED_RST_2, OLED_CS_2);
 
 void updateDisplay();
 void dispMenu();

@@ -37,3 +37,5 @@
 #define WARN_LEDS 6     // how many warning LEDS on each side of midpoint (shift LEDS included)
 #define SHIFT_LEDS 2    // how many shift light LEDS on each side of midpoint
 #define TACH_DATA_PIN 22     // which pin sends data to LED tachometer
+
+#endif //GAUGES_H
