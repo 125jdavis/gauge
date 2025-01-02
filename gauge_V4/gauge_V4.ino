@@ -21,72 +21,17 @@
 #include <Stepper.h>      // included in arduino IDE
 
 #include "sensors.h"
+#include "gauges.h"
 #include "display.h"
 #include "can_bus.h"
 #include "images.h"
 #include "utils.h"
 
-
-
 ///// DEFINE /////
 //#define OLED_RESET 4  // OLED display reset pin
-#define CAN0_CS 53  // CAN Bus Chip Select pin
-#define CAN0_INT 18  // CAN Bus Interrupt pin
-
-
-// GAUGE SETUP //
-#define pwrPin 49           // pin to keep power alive after key is off 
-#define speedoMax (100*100)     // maximum mph x100
-
-#define MOTOR_RST 36          // motor driver reset pin
-
-#define M1_SWEEP (58*12)     // range of motion for gauge motor 1 standard X25.168 range 315 degrees at 1/3 degree steps
-#define M1_STEP  37         // motor 1 step command
-#define M1_DIR   38         // motor 1 direction command
-
-#define M2_SWEEP (58*12)    // range of motion for gauge motor 2
-#define M2_STEP  34         // motor 2 step command
-#define M2_DIR   35         // motor 2 direction command
-
-#define M3_SWEEP (118*12)    // range of motion for gauge motor 3
-#define M3_STEP  33         // motor 3 step command
-#define M3_DIR   32         // motor 3 direction command
-
-#define M4_SWEEP (58*12)    // range of motion for gauge motor 4
-#define M4_STEP  40         // motor 4 step command
-#define M4_DIR   41         // motor 4 direction command
-
-//#define ODO_STEPS 32        // number of steps in one ODO revolution
-
-// GPS
-#define GPSECHO  false        // do not send raw GPS data to serial monitor 
-
 
 //Rotary Encoder switch
 #define SWITCH 24 
-
-// OLED Screen 1
-#define SCREEN_W 128 // OLED display width, in pixels
-#define SCREEN_H 32 // OLED display height, in pixels
-//#define MOSI  51    // SPI Master Out Pin
-//#define CLK   52    // SPI Clock Pin
-#define OLED_DC_1    6
-#define OLED_CS_1  5
-#define OLED_RST_1 7
-
-// OLED Screen 2
-//#define SCREEN_W_2 128 // both screens are the same size, use only one width definition
-//#define SCREEN_H_2 32 // both screens are the same size, use only one height definition
-#define OLED_DC_2  28
-#define OLED_CS_2  29
-#define OLED_RST_2 26
-
-// LED Tach
-// How many leds in your strip?
-#define NUM_LEDS 26     // how many warning leds
-#define WARN_LEDS 6     // how many warning LEDS on each side of midpoint (shift LEDS included)
-#define SHIFT_LEDS 2    // how many shift light LEDS on each side of midpoint
-#define TACH_DATA_PIN 22     // which pin sends data to LED tachometer
 
 ///// INITIALIZE /////
 MCP_CAN CAN0(CAN0_CS);     // Set CS to pin 53
@@ -99,11 +44,7 @@ SwitecX12 motor1(M1_SWEEP, M1_STEP, M1_DIR); // initialize motor 1 as Speedomete
 SwitecX12 motor2(M2_SWEEP, M2_STEP, M2_DIR); // initialize motor 2 Coolant temp
 SwitecX12 motor3(M3_SWEEP, M3_STEP, M3_DIR); // initialize motor 3 fuel level
 SwitecX12 motor4(M4_SWEEP, M4_STEP, M4_DIR); // initialize motor 4
-#define odoSteps 32
-#define odoPin1 10
-#define odoPin2 11
-#define odoPin3 12
-#define odoPin4 13          // initialize odometer motor
+
 Stepper odoMotor(odoSteps, odoPin1, odoPin2, odoPin3, odoPin4); 
 Adafruit_GPS GPS(&Serial2);   // set serial2 to GPS object
 
@@ -237,16 +178,7 @@ unsigned char len = 0;
 unsigned char rxBuf[8];
 char msgString[128]; 
 
-// Thermistor lookup table
-const int thermTable_length = 6;
-float thermTable_x[thermTable_length] = {0.23, 0.67, 1.43, 3.70, 4.63, 4.95};
-float thermTable_l[thermTable_length] = { 150,  105,   75,   25,   -5,  -40};
 
-// Fuel Level lookup table
-const int fuelLvlTable_length = 9;
-float fuelLvlTable_x[fuelLvlTable_length] = {0.87, 1.03, 1.21, 1.40, 1.60, 1.97, 2.21, 2.25, 2.30};
-float fuelLvlTable_l[fuelLvlTable_length] = {  16,   14,   12,   10,    8,    6,    4,    2,    0};
-float fuelCapacity = 16;
 
 // EEPROM Variables
 byte dispArray1Address = 0;   // starting EEPEOM address for display 1, length is 4 bytes
@@ -274,21 +206,7 @@ int gRPM;
 int analog = 2;
 int analogSwitch = 0;
 
-// Signal selection  //
-void sigSelect (void) {
-    spd = v_new; //km/h * 100
-    //spdMph = spd *0.6213712;
-    spdCAN = (int)(v*16);
-    RPM = rpmCAN;
-    coolantTemp = (coolantTempCAN/10)-273.15; // convert kelvin to C;
-    oilPrs = (oilPrsCAN/10)-101.3;   //kPa, convert to gauge pressure
-    fuelPrs = (fuelPrsCAN/10)-101.3;  //kPa, convert to gauge pressure
-    oilTemp = therm;
-    afr = (float)afr1CAN/1000;
-    fuelComp = fuelCompCAN/10;
-    fuelLvlCAN = (int)((fuelLvl/fuelCapacity)*100);
 
-}
 
 ///// SETUP LOOP //////////////////////////////////////////////////////////////////
 void setup() {
@@ -513,64 +431,7 @@ void loop() {
 
 
 ///// LED TACH AND SHIFT LIGHT FUNCTION /////
-void ledShiftLight(int ledRPM){
-  if (ledRPM < tachMin) {
-      // black out unused range  
-    for (int i = 0; i < NUM_LEDS; i++){
-      leds[i] = CRGB::Black;
-    }
-    return;
-  }
-  int midPoint = NUM_LEDS/2;
-  int blackout_val = map(ledRPM, tachMin, tachMax, midPoint, 0);
- 
-  //tach normal range 
-    for (int i = 0;i <= midPoint - WARN_LEDS; i++){
-      leds[i] = CRGB(30, 15 , 0);
-    }
-    for (int i = midPoint + WARN_LEDS + 1; i < NUM_LEDS; i++){
-      leds[i] = CRGB(30, 15 , 0);
-    }
 
-
-  // tach warning range
-    for (int i = midPoint - WARN_LEDS - 1;i <= midPoint - SHIFT_LEDS; i++){
-      leds[i] = CRGB(80, 10 , 0);
-    }
-    for (int i = midPoint + SHIFT_LEDS + 1; i <= midPoint + WARN_LEDS; i++){
-      leds[i] = CRGB(80, 10 , 0);
-    }
-
-  // tach shift light range
-    for (int i = midPoint - SHIFT_LEDS - 1;i <= midPoint; i++){
-      leds[i] = CRGB(80, 0 , 0);
-    }
-    for (int i = midPoint; i <= midPoint + SHIFT_LEDS; i++){
-      leds[i] = CRGB(80, 0 , 0);
-    }
-    
-  // black out unused range  
-    for (int i = midPoint - blackout_val; i <= midPoint + blackout_val-1; i++){
-      leds[i] = CRGB::Black;
-    }
-
-    // Flash LEDs when shift point is exceeded
-    if (RPM > tachMax ){
-      if (millis() - timerTachFlash > tachFlashRate){
-        
-        //Black out the shift LEDs if they are on
-        if(tachFlashState == 0){
-          for (int i = midPoint - SHIFT_LEDS - 1; i <= midPoint + SHIFT_LEDS; i++){
-            leds[i] = CRGB::Black;
-          }
-        }
-        
-        timerTachFlash =  millis();             //reset the timer
-        tachFlashState = 1 - tachFlashState;    //change the state
-      }
-    }
-  FastLED.show();
-}
 
 ///// GPS FUNCTIONS /////
 
@@ -578,43 +439,6 @@ void ledShiftLight(int ledRPM){
 
 ////// STEPPER MOTORS /////
 
-//  Speedometer Needle Angle Function  //
-int speedometerAngle(int sweep) {
-  unsigned long t_curr =  millis()-lagGPS;
-  float spd_g_float = map(t_curr, t_old, t_new, v_old, v_new)*0.6213712;   // interpolate values between GPS data fix, convert from km/h x100 to mph x100
-  spd_g = (unsigned long)spd_g_float;
-  if (spd_g < 50) spd_g = 0;                                  // if speed is below 0.5 mph set to zero
-  if (spd_g > speedoMax) spd_g = speedoMax;                   // set max pointer rotation
-  
-  int angle = map( spd_g, 0, speedoMax, 1, sweep-1);         // calculate angle of gauge 
-  Serial.print(millis());
-  Serial.print(",");
-  Serial.print(v);
-  Serial.print(",");
-  Serial.println(angle);
-  angle = constrain(angle, 1, sweep-1);
-  return angle;                                               // return angle of motor
-}
-
-int fuelLvlAngle(int sweep) {
-  float fuelLvlPct = (fuelLvl/fuelCapacity)*1000;
-  fuelLevelPct_g = (unsigned int)fuelLvlPct;
-  int angle = map(fuelLevelPct_g, 100, 1000, 1, sweep-1);
-  angle = constrain(angle, 1, sweep-1);
-  return angle;
-} 
-
-int coolantTempAngle(int sweep) {
-  int angle;
-  if (coolantTemp < 95){
-    angle = map((long)coolantTemp, 60, 98, 1, sweep/2);
-  }
-  else {
-    angle = map((long)coolantTemp, 98, 115, sweep/2, sweep-1);
-  }
-  angle = constrain(angle, 1, sweep-1);
-  return angle;
-}
 
 /////  SHUTDOWN  /////
 

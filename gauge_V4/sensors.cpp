@@ -1,5 +1,16 @@
 #include "sensors.h"
 
+// Thermistor lookup table
+const int thermTable_length = 6;
+float thermTable_x[thermTable_length] = {0.23, 0.67, 1.43, 3.70, 4.63, 4.95};
+float thermTable_l[thermTable_length] = { 150,  105,   75,   25,   -5,  -40};
+
+// Fuel Level lookup table
+const int fuelLvlTable_length = 9;
+float fuelLvlTable_x[fuelLvlTable_length] = {0.87, 1.03, 1.21, 1.40, 1.60, 1.97, 2.21, 2.25, 2.30};
+float fuelLvlTable_l[fuelLvlTable_length] = {  16,   14,   12,   10,    8,    6,    4,    2,    0};
+float fuelCapacity = 16;
+
 // Generic Sensor reader - reads, re-maps, and filters analog input values
 unsigned long readSensor(int inputPin, int oldVal, int filt)  // read voltage, map to 0-5v, and filter
 {
