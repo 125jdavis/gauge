@@ -14,6 +14,9 @@
 #include "GlobalVariables.h"
 #include "ImageData.h"
 
+// Forward declaration of helper function
+byte digits(float val);
+
 void dispSettings (Adafruit_SSD1306 *display) {
     display->setTextColor(WHITE); 
     display->clearDisplay();
