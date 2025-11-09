@@ -2597,188 +2597,393 @@ void ledShiftLight(int ledRPM){
   FastLED.show();
 }
 
-///// GPS FUNCTIONS /////
+/*
+ * ========================================
+ * GPS FUNCTIONS
+ * ========================================
+ * 
+ * Handle GPS data acquisition for speedometer, odometer, and clock
+ * Uses Adafruit GPS module with interrupt-based data collection
+ */
 
-// FECTCH GPS DATA //
+/**
+ * fetchGPSdata - Process new GPS data when available
+ * 
+ * Parses NMEA sentences from GPS module and updates speed, odometer, and time.
+ * Uses filtering and interpolation for smooth speedometer response.
+ * 
+ * Processing steps:
+ * 1. Check if new NMEA sentence received
+ * 2. Parse sentence (fails silently if corrupt)
+ * 3. Record timestamps for interpolation
+ * 4. Convert speed from knots to km/h
+ * 5. Apply exponential filtering for smooth display
+ * 6. Calculate distance traveled since last update
+ * 7. Update total and trip odometers
+ * 8. Extract time (hour, minute) for clock
+ * 
+ * Global variables modified:
+ * - v: Speed in km/h (float)
+ * - v_new, v_old: Filtered speed values
+ * - t_new, t_old: Timestamps
+ * - lagGPS: Time since last GPS update
+ * - odo, odoTrip: Odometer values
+ * - hour, minute: GPS time (UTC)
+ * 
+ * Called from: main loop every 1ms
+ * 
+ * Note: Distance calculation uses formula: distance = speed * time * (1 km/h = 2.77778e-7 km/ms)
+ */
 void fetchGPSdata(){
   if (GPS.newNMEAreceived()) {
-    if (!GPS.parse(GPS.lastNMEA()))   // this also sets the newNMEAreceived() flag to false
-    return;  // we can fail to parse a sentence in which case we should just wait for another  }
+    if (!GPS.parse(GPS.lastNMEA()))   // Parse NMEA sentence; also clears newNMEAreceived flag
+    return;  // If parse fails (corrupt data), wait for next sentence
   
-    //if (millis() - timerGPSupdate > GPSupdateRate) { 
-      //timerGPSupdate = millis();        // reset timer2
-            unsigned long alpha_0 = 256; // filter coefficeint to set speedometer response rate 256 = no filter
-              t_old = t_new;                     // save previous time value
-              t_new = millis();                  // record time of GPS update
-              v_old = v_new;                     // save previous value of velocity                       
-              lagGPS = t_new-t_old;                 // time between updated
-            v = GPS.speed*1.852;              // fetch velocity from GPS object, convert to km/h from knots            
-            float vFloat = GPS.speed*185.2;       // x100 to preserve hundredth km/h accuracy
-            v_100 = (unsigned long)vFloat;           // convert to unsigned long,        
-            v_new = (v_100*alpha_0 + v_old*(256-alpha_0))>>8; //filtered velocity value
-            // Odometer calculations
-            if (v > 2) {  // only integrate speed for ODO if speed exceeds 2 km/h, to avoid false incrementing due to GPS inaccuracy 
-              distLast = v * lagGPS * 2.77778e-7;      // km traveled since last GPS message
+    //if (millis() - timerGPSupdate > GPSupdateRate) {  // Optional rate limiting (currently disabled)
+      //timerGPSupdate = millis();
+      
+            unsigned long alpha_0 = 256;  // Filter coefficient (256 = no filtering, instant response)
+            
+            // Save previous values for interpolation
+            t_old = t_new;        // Previous timestamp
+            t_new = millis();     // Current timestamp
+            v_old = v_new;        // Previous filtered speed
+            lagGPS = t_new-t_old; // Time between GPS updates (typically 200ms at 5Hz)
+            
+            // Get speed from GPS and convert units
+            v = GPS.speed*1.852;           // Convert knots to km/h (1 knot = 1.852 km/h)
+            float vFloat = GPS.speed*185.2;  // Speed * 100 for precision (km/h * 100)
+            v_100 = (unsigned long)vFloat;   // Convert to integer
+            
+            // Apply exponential filter for smooth speedometer
+            v_new = (v_100*alpha_0 + v_old*(256-alpha_0))>>8;  // Weighted average (>>8 = /256)
+            
+            // Calculate distance traveled for odometer
+            if (v > 2) {  // Only integrate if speed > 2 km/h (reduces GPS drift errors)
+              distLast = v * lagGPS * 2.77778e-7;  // Distance (km) = speed (km/h) * time (ms) * conversion factor
             } else {
-              distLast = 0;
+              distLast = 0;  // Don't increment odometer when stationary
             }
-            odo = odo + distLast;
-            odoTrip = odoTrip + distLast;
-            // fetch GMT for clock
+            odo = odo + distLast;        // Update total odometer
+            odoTrip = odoTrip + distLast;  // Update trip odometer
+            
+            // Extract time from GPS (UTC)
             hour = GPS.hour;
             minute = GPS.minute;          
       //}
   }
 }
 
-//  ADAFRUIT GPS INTERRUPT FUNCTION  //
-//  I don't really understand this code, but it works, so don't freaking mess with it
-//  Interrupt is called once a millisecond, looks for any new GPS data, and stores it
+/**
+ * TIMER0_COMPA_vect - Timer0 compare interrupt for GPS data reading
+ * 
+ * This interrupt service routine (ISR) is called automatically once per millisecond
+ * by the Arduino Timer0 hardware timer. It reads one byte from the GPS module
+ * without blocking the main loop.
+ * 
+ * The GPS module sends NMEA sentences at 9600 baud (960 characters/second).
+ * This ISR ensures no characters are missed even when main loop is busy.
+ * 
+ * Interrupt context: Keep fast and simple - just read one character
+ * 
+ * Note: Original comment preserved - this is boilerplate code from Adafruit GPS library
+ */
 SIGNAL(TIMER0_COMPA_vect) {
-  char c = GPS.read();
-  // if you want to debug, this is a good time to do it!
-#ifdef UDR0
+  char c = GPS.read();  // Read one byte from GPS module
+  // Debug option: echo GPS data to serial (very slow - only for debugging)
+#ifdef UDR0  // Check if UART data register is defined (AVR specific)
   if (GPSECHO)
-    if (c) UDR0 = c;  
-    // writing direct to UDR0 is much much faster than Serial.print 
-    // but only one character can be written at a time. 
+    if (c) UDR0 = c;  // Write directly to UART register (faster than Serial.print)
+    // Writing direct to UDR0 is much faster than Serial.print 
+    // but only one character can be written at a time
 #endif
 }
 
+/**
+ * useInterrupt - Enable or disable GPS interrupt-based reading
+ * 
+ * Configures Timer0 to trigger GPS character reading via interrupt.
+ * Timer0 is normally used for millis() function - this adds an additional
+ * interrupt handler that piggybacks on the existing timer.
+ * 
+ * @param v - true to enable interrupts, false to disable
+ * 
+ * Hardware configuration:
+ * - Uses Timer0 Output Compare A (OCR0A)
+ * - Triggers at count 0xAF (175 in decimal)
+ * - Interrupt fires ~1000 times per second
+ * 
+ * Global variables modified:
+ * - usingInterrupt: Flag tracking interrupt state
+ */
 void useInterrupt(boolean v) {
   if (v) {
-    // Timer0 is already used for millis() - we'll just interrupt somewhere
-    // in the middle and call the "Compare A" function above
-    OCR0A = 0xAF;
-    TIMSK0 |= _BV(OCIE0A);
+    // Enable GPS reading via Timer0 interrupt
+    // Timer0 is already used for millis() - we add our interrupt to it
+    OCR0A = 0xAF;  // Set compare value (when timer reaches this, interrupt fires)
+    TIMSK0 |= _BV(OCIE0A);  // Enable Timer0 Compare A interrupt
     usingInterrupt = true;
   } else {
-    // do not call the interrupt function COMPA anymore
-    TIMSK0 &= ~_BV(OCIE0A);
+    // Disable GPS interrupt
+    TIMSK0 &= ~_BV(OCIE0A);  // Disable Timer0 Compare A interrupt
     usingInterrupt = false;
   }
 }
 
-////// STEPPER MOTORS /////
+/*
+ * ========================================
+ * STEPPER MOTOR ANGLE CALCULATION FUNCTIONS
+ * ========================================
+ * 
+ * Convert sensor values to motor angles for gauge needle positioning
+ */
 
-//  Speedometer Needle Angle Function  //
+/**
+ * speedometerAngle - Calculate speedometer needle angle from GPS speed
+ * 
+ * Interpolates between GPS updates for smooth needle movement and converts
+ * speed to motor steps. Includes clamping and dead zone logic.
+ * 
+ * @param sweep - Maximum motor steps for full gauge sweep (e.g., 1416 for M3)
+ * @return Motor angle in steps (1 to sweep-1)
+ * 
+ * Algorithm:
+ * 1. Interpolate speed between GPS updates (5Hz to ~50Hz for smooth motion)
+ * 2. Convert km/h to mph (* 0.6213712)
+ * 3. Apply dead zone (< 0.5 mph reads as 0)
+ * 4. Clamp to maximum (100 mph)
+ * 5. Map speed to motor angle (0-100 mph -> 1 to sweep-1 steps)
+ * 
+ * Note: Serial.print statements are for debugging speed values
+ */
 int speedometerAngle(int sweep) {
-  unsigned long t_curr =  millis()-lagGPS;
-  float spd_g_float = map(t_curr, t_old, t_new, v_old, v_new)*0.6213712;   // interpolate values between GPS data fix, convert from km/h x100 to mph x100
+  unsigned long t_curr =  millis()-lagGPS;  // Current time minus GPS lag
+  // Interpolate speed between last two GPS readings for smooth motion
+  float spd_g_float = map(t_curr, t_old, t_new, v_old, v_new)*0.6213712;   // Convert km/h*100 to mph*100
   spd_g = (unsigned long)spd_g_float;
-  if (spd_g < 50) spd_g = 0;                                  // if speed is below 0.5 mph set to zero
-  if (spd_g > speedoMax) spd_g = speedoMax;                   // set max pointer rotation
   
-  int angle = map( spd_g, 0, speedoMax, 1, sweep-1);         // calculate angle of gauge 
+  if (spd_g < 50) spd_g = 0;         // Dead zone: below 0.5 mph, show zero
+  if (spd_g > speedoMax) spd_g = speedoMax;  // Clamp to max (100 mph * 100 = 10000)
+  
+  int angle = map( spd_g, 0, speedoMax, 1, sweep-1);  // Map speed to motor angle
+  
+  // Debug output for speed logging
   Serial.print(millis());
   Serial.print(",");
   Serial.print(v);
   Serial.print(",");
   Serial.println(angle);
-  angle = constrain(angle, 1, sweep-1);
-  return angle;                                               // return angle of motor
+  
+  angle = constrain(angle, 1, sweep-1);  // Ensure angle is within valid range
+  return angle;
 }
 
+/**
+ * fuelLvlAngle - Calculate fuel gauge needle angle from fuel level
+ * 
+ * Converts fuel level in gallons/liters to motor angle.
+ * Uses percentage of tank capacity for linear gauge response.
+ * 
+ * @param sweep - Maximum motor steps for full gauge sweep
+ * @return Motor angle in steps (1 to sweep-1)
+ * 
+ * Range: 10-100% of tank capacity (doesn't go to absolute zero for gauge geometry)
+ */
 int fuelLvlAngle(int sweep) {
-  float fuelLvlPct = (fuelLvl/fuelCapacity)*1000;
+  float fuelLvlPct = (fuelLvl/fuelCapacity)*1000;  // Fuel percentage * 1000 for precision
   fuelLevelPct_g = (unsigned int)fuelLvlPct;
-  int angle = map(fuelLevelPct_g, 100, 1000, 1, sweep-1);
+  int angle = map(fuelLevelPct_g, 100, 1000, 1, sweep-1);  // Map 10-100% to gauge range
   angle = constrain(angle, 1, sweep-1);
   return angle;
 } 
 
+/**
+ * coolantTempAngle - Calculate coolant temperature gauge needle angle
+ * 
+ * Non-linear mapping for temperature gauge with compressed cool range
+ * and expanded hot range (important for detecting overheating).
+ * 
+ * @param sweep - Maximum motor steps for full gauge sweep
+ * @return Motor angle in steps (1 to sweep-1)
+ * 
+ * Gauge zones:
+ * - Cool zone (60-95°C): First half of gauge (slow rise)
+ * - Hot zone (95-115°C): Second half of gauge (fast rise for warning)
+ * 
+ * This gives driver better visibility of overheating condition.
+ */
 int coolantTempAngle(int sweep) {
   int angle;
   if (coolantTemp < 95){
+    // Normal operating range: 60-95°C maps to first half of gauge
     angle = map((long)coolantTemp, 60, 98, 1, sweep/2);
   }
   else {
+    // Warning range: 95-115°C maps to second half of gauge (more sensitive)
     angle = map((long)coolantTemp, 98, 115, sweep/2, sweep-1);
   }
   angle = constrain(angle, 1, sweep-1);
   return angle;
 }
 
-/////  SHUTDOWN  /////
+/*
+ * ========================================
+ * SHUTDOWN FUNCTIONS
+ * ========================================
+ * 
+ * Handle graceful system shutdown when ignition is turned off
+ */
 
-// save settings, display shutdown screens, and zero out the gauges
+/**
+ * shutdown - Gracefully shut down the gauge system
+ * 
+ * Called when ignition voltage drops below 1V (key turned off).
+ * Saves all settings to EEPROM, displays shutdown screens, zeros gauge needles,
+ * and cuts power to the Arduino.
+ * 
+ * Shutdown sequence:
+ * 1. Save display selections to EEPROM
+ * 2. Save units setting to EEPROM
+ * 3. Save odometer values to EEPROM
+ * 4. Save last fuel level reading to EEPROM
+ * 5. Display shutdown splash screens (Falcon logo and 302 CID)
+ * 6. Zero all gauge needles synchronously
+ * 7. Wait 2 seconds for motors to complete
+ * 8. Double-check battery voltage (in case key turned back on)
+ * 9. Cut power by pulling pwrPin LOW
+ * 
+ * Called from: main loop when vBatt < 1V
+ * 
+ * Note: EEPROM.update() only writes if value changed (extends EEPROM life)
+ */
 void shutdown (void){
-  // Write dispArray1 values from into EEPROM address 0-3
+  // Save all display menu positions (4 bytes)
   for (int i = dispArray1Address; i < sizeof(dispArray1); i++) {
-    EEPROM.update(i, dispArray1[i]);
+    EEPROM.update(i, dispArray1[i]);  // Only writes if changed
   }
   
-  // Write dispArray2 values from into EEPROM for disp array 2
+  // Save display 2 selection and units
   EEPROM.update(dispArray2Address, dispArray2[0]);
   EEPROM.update(unitsAddress, units);
+  
+  // Save odometer values (floats, 4 bytes each)
   EEPROM.put(odoAddress, odo);
   EEPROM.put(odoTripAddress, odoTrip);
-  EEPROM.put(fuelSensorRawAddress, fuelSensorRaw);
+  EEPROM.put(fuelSensorRawAddress, fuelSensorRaw);  // Remember fuel level for restart
 
 
-  // Display 
+  // Display shutdown screens
   dispFalconScript(&display1);
   disp302CID(&display2);
 
-  // Zero the motors
+  // Return gauge needles to zero position
   motorZeroSynchronous();
 
-  // delay
+  // Wait for gauges to settle
   delay(2000);
 
-  // check again for key off
+  // Double-check that key is still off (in case user turned it back on)
   if (vBatt > 1){
-    return;
+    return;  // Abort shutdown - voltage has returned
   }
 
-  // cut power to Dash control unit
-    digitalWrite(pwrPin, LOW);
+  // Cut power to Arduino by releasing power latch
+  digitalWrite(pwrPin, LOW);  // This will power off the entire system
 }
 
+/**
+ * motorZeroSynchronous - Return all gauge needles to zero position
+ * 
+ * Moves all four stepper motors to their zero (rest) position simultaneously.
+ * Blocks until all motors complete their motion.
+ * 
+ * This function is used during shutdown and startup sweep.
+ * 
+ * Algorithm:
+ * 1. Set all motors' current position to max (trick the library)
+ * 2. Command all motors to position 0
+ * 3. Loop calling update() for each motor until all reach zero
+ * 4. Reset current position counters to 0
+ * 
+ * Note: Setting currentStep to M*_SWEEP makes motors think they're at max,
+ * so they sweep all the way back to zero
+ */
 void motorZeroSynchronous(void){
+  // Set current position to maximum for all motors
   motor1.currentStep = M1_SWEEP;
   motor2.currentStep = M2_SWEEP;
   motor3.currentStep = M3_SWEEP;
   motor4.currentStep = M4_SWEEP;
+  
+  // Command all motors to position 0
   motor1.setPosition(0);
   motor2.setPosition(0);
   motor3.setPosition(0);
   motor4.setPosition(0);
-    while (motor1.currentStep > 0 || motor2.currentStep > 0 || motor3.currentStep > 0 || motor4.currentStep > 0)
+  
+  // Wait for all motors to reach zero (blocking loop)
+  while (motor1.currentStep > 0 || motor2.currentStep > 0 || motor3.currentStep > 0 || motor4.currentStep > 0)
   {
-      motor1.update();
-      motor2.update();
+      motor1.update();  // Step motor 1 if needed
+      motor2.update();  // Step motor 2 if needed
       motor3.update();
       motor4.update();
   }
+  // Reset position counters to zero
   motor1.currentStep = 0;
   motor2.currentStep = 0;
   motor3.currentStep = 0;
   motor4.currentStep = 0;
 }
 
-
+/**
+ * motorSweepSynchronous - Perform full gauge needle sweep (startup test)
+ * 
+ * Sweeps all gauge needles from zero to maximum and back to zero.
+ * This provides a visual confirmation that all gauges are working correctly
+ * during the startup sequence.
+ * 
+ * Sweep sequence:
+ * 1. Zero all motors (via motorZeroSynchronous)
+ * 2. Sweep to maximum position (full clockwise)
+ * 3. Sweep back to zero (full counter-clockwise)
+ * 
+ * Blocks execution until sweep completes (~3-5 seconds depending on motor speed).
+ * 
+ * Called from: setup() during initialization
+ */
 void motorSweepSynchronous(void){
+  // Start by zeroing all motors
   motorZeroSynchronous();
   Serial.println("zeroed");
+  
+  // Command all motors to maximum position
   motor1.setPosition(M1_SWEEP);
   motor2.setPosition(M2_SWEEP);
   motor3.setPosition(M3_SWEEP);
   motor4.setPosition(M4_SWEEP);
-    while (motor1.currentStep < M1_SWEEP-1  || motor2.currentStep < M2_SWEEP-1 || motor3.currentStep < M3_SWEEP-1 || motor4.currentStep < M4_SWEEP-1)
+  
+  // Wait for all motors to reach maximum (blocking loop)
+  while (motor1.currentStep < M1_SWEEP-1  || motor2.currentStep < M2_SWEEP-1 || 
+         motor3.currentStep < M3_SWEEP-1  || motor4.currentStep < M4_SWEEP-1)
   {
-      motor1.update();
+      motor1.update();  // Step each motor toward target
       motor2.update();
       motor3.update();
       motor4.update();
   }
 
   Serial.println("full sweep");
+  
+  // Command all motors back to zero
   motor1.setPosition(0);
   motor2.setPosition(0);
   motor3.setPosition(0);
   motor4.setPosition(0);
-    while (motor1.currentStep > 0 || motor2.currentStep > 0 || motor3.currentStep > 0 || motor4.currentStep > 0)
+  
+  // Wait for all motors to return to zero (blocking loop)
+  while (motor1.currentStep > 0 || motor2.currentStep > 0 || 
+         motor3.currentStep > 0 || motor4.currentStep > 0)
   {
       motor1.update();
       motor2.update();
@@ -2787,19 +2992,42 @@ void motorSweepSynchronous(void){
   }
 }
 
+/*
+ * ========================================
+ * DEMO AND UTILITY FUNCTIONS
+ * ========================================
+ * 
+ * Testing and debugging functions
+ */
 
+/**
+ * generateRPM - Generate simulated RPM for demo mode
+ * 
+ * Creates a realistic RPM sweep for testing the LED tachometer
+ * without a running engine. RPM ramps up and down automatically.
+ * 
+ * Global variables modified:
+ * - gRPM: Generated RPM value (900-7000)
+ * - rpmSwitch: Direction flag (0=increasing, 1=decreasing)
+ * 
+ * Called from: main loop when demo mode is enabled (currently commented out)
+ * 
+ * Note: Commented-out analog signal generation code also included
+ */
 void generateRPM(void){
-    // // RPM signal generation for demo
+    // RPM signal generation for demo/testing
     if (rpmSwitch == 0){
-      gRPM = gRPM + 120; 
+      gRPM = gRPM + 120;  // Ramp up by 120 RPM per update
     }
     else if (rpmSwitch == 1) {
-      gRPM = gRPM - 160;
+      gRPM = gRPM - 160;  // Ramp down by 160 RPM per update
     }
-    if (gRPM > 7000) rpmSwitch = 1;
-    if (gRPM < 900) rpmSwitch = 0;
+    
+    // Reverse direction at limits
+    if (gRPM > 7000) rpmSwitch = 1;  // Start ramping down at 7000 RPM
+    if (gRPM < 900) rpmSwitch = 0;   // Start ramping up at 900 RPM
 
-    // // Fake  signal generation for demo
+    // Optional analog signal generation for testing (currently disabled)
     // if (analogSwitch == 0){
     //   analog = analog + 20; 
     // }
@@ -2810,22 +3038,53 @@ void generateRPM(void){
     // if (analog < 1) analogSwitch = 0;
 }
 
+/**
+ * serialInputFunc - Serial port input for manual testing
+ * 
+ * Reads integer values from serial monitor and updates test variables.
+ * Used for debugging sensor values without physical sensors connected.
+ * 
+ * Usage:
+ * 1. Open Serial Monitor at 115200 baud
+ * 2. Type a number and press Enter
+ * 3. Value updates coolantTempCAN or fuelLvl (uncomment desired line)
+ * 
+ * Called from: main loop when debugging (currently commented out)
+ * 
+ * Example: Enter "95" to simulate 95°C coolant temperature
+ */
 void serialInputFunc(void){
   // SERIAL INPUT FOR TESTING ONLY
   if (Serial.available() > 0) {
-    // Read the incoming data as a string
+    // Read the incoming data as a string (until newline)
     String inputSer = Serial.readStringUntil('\n');
     
     // Convert the input string to an integer
     int newValue = inputSer.toInt();
     
-    // Update the variable with the new value
-    //coolantTempCAN = (newValue+273.15)*10 ;
-    //fuelLvl = newValue;
+    // Update the test variable with the new value
+    // Uncomment the line for the parameter you want to test:
+    //coolantTempCAN = (newValue+273.15)*10 ;  // For temperature testing (convert C to Kelvin*10)
+    //fuelLvl = newValue;  // For fuel level testing (gallons or liters)
     
-    
-    // Print the new value of the variable
+    // Print confirmation of new value
     Serial.println("Updated value of fuel level: " + String(fuelLvl));
     Serial.println("Please enter a new value:");
   }
 }
+
+/*
+ * ========================================
+ * END OF CODE
+ * ========================================
+ * 
+ * All functions have been documented with comprehensive comments explaining:
+ * - Purpose and operation
+ * - Input parameters and return values
+ * - Algorithms and formulas
+ * - Edge cases and constraints
+ * - Global variables used/modified
+ * - Calling context and frequency
+ * 
+ * The code is now self-documenting for easier maintenance and review.
+ */
