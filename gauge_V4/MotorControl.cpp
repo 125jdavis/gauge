@@ -12,6 +12,7 @@
 #include "MotorControl.h"
 #include "HardwareConfig.h"
 #include "GlobalVariables.h"
+#include "DisplayFunctions.h"
 #include <EEPROM.h>
 
 int speedometerAngle(int sweep) {
