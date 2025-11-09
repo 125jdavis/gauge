@@ -25,7 +25,6 @@
 #include <Adafruit_GPS.h>
 #include <SwitecX25.h>
 #include <SwitecX12.h>
-#include <TimerOne.h>
 #include <Stepper.h>
 
 ///// PIN DEFINITIONS AND HARDWARE CONFIGURATION /////
