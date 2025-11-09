@@ -1,266 +1,359 @@
-// Gauge Control Module 
-// Jesse Davis
-// 8/24/2024
-// STATUS: Fully functional except mechanical ODO
+/*
+ * ========================================
+ * GAUGE CONTROL MODULE
+ * ========================================
+ * 
+ * Arduino-based instrument panel controller for vintage vehicles
+ * 
+ * Author: Jesse Davis
+ * Date: 8/24/2024
+ * Status: Fully functional except mechanical ODO
+ * 
+ * OVERVIEW:
+ * This system receives inputs from GPS, analog sensors, and CAN bus, then outputs to:
+ * - 4x stepper motors for gauge pointers (speedometer, fuel, coolant temp, etc.)
+ * - LED warning lights and LED tachometer strip
+ * - 2x OLED displays for various vehicle data
+ * - CAN bus messages to other microcontrollers
+ * 
+ * The design is modular to simplify retrofitting vintage instrument panels with modern internals.
+ * 
+ * HARDWARE:
+ * - Arduino Mega 2560 (or compatible)
+ * - MCP2515 CAN bus controller
+ * - Adafruit GPS module
+ * - 2x SSD1306 OLED displays (128x32 pixels)
+ * - 4x SwitecX12 stepper motors for gauge needles
+ * - WS2812 LED strip for tachometer
+ * - Rotary encoder for menu navigation
+ * - Various analog sensors (fuel level, thermistor, barometric pressure, battery voltage)
+ * 
+ * COMMUNICATION PROTOCOLS:
+ * - CAN bus at 500kbps (Haltech ECU protocol)
+ * - GPS at 9600 baud, NMEA RMC messages at 5Hz
+ * - SPI for displays and CAN controller
+ * - I2C available for future expansion
+ * 
+ * ========================================
+ */
 
 ///// LIBRARIES /////
-#include <Adafruit_SSD1306.h> //https://github.com/adafruit/Adafruit_SSD1306
-#include <Adafruit_GFX.h>     //https://github.com/adafruit/Adafruit-GFX-Library
-#include <SPI.h>          // included in arduino IDE
-#include <mcp_can.h>      //https://downloads.arduino.cc/libraries/github.com/coryjfowler/mcp_can-1.5.1.zip
-#include <Rotary.h>       //https://github.com/brianlow/Rotary/blob/master/Rotary.cpp
-#include <EEPROM.h>       // included in arduino IDE
-#include <FastLED.h>      //https://github.com/FastLED/FastLED
-#include <Adafruit_GPS.h> //https://github.com/adafruit/Adafruit_GPS
-#include <SwitecX25.h>    //https://github.com/clearwater/SwitecX25
-#include <SwitecX12.h>    //https://github.com/clearwater/SwitecX25
-#include <TimerOne.h>     // not certain this is needed
-#include <Stepper.h>      // included in arduino IDE
+// This section includes all required libraries for the gauge system
+
+// Display libraries - for OLED screens
+#include <Adafruit_SSD1306.h> // SSD1306 OLED driver - https://github.com/adafruit/Adafruit_SSD1306
+#include <Adafruit_GFX.h>     // Graphics primitives library - https://github.com/adafruit/Adafruit-GFX-Library
+
+// Communication libraries
+#include <SPI.h>          // SPI bus for displays and CAN controller (included in Arduino IDE)
+#include <mcp_can.h>      // MCP2515 CAN bus controller - https://downloads.arduino.cc/libraries/github.com/coryjfowler/mcp_can-1.5.1.zip
+
+// Input libraries
+#include <Rotary.h>       // Rotary encoder debouncing and state tracking - https://github.com/brianlow/Rotary/blob/master/Rotary.cpp
+
+// Storage library
+#include <EEPROM.h>       // Non-volatile storage for settings and odometer (included in Arduino IDE)
+
+// LED library
+#include <FastLED.h>      // WS2812 addressable LED control for tachometer - https://github.com/FastLED/FastLED
+
+// GPS library
+#include <Adafruit_GPS.h> // GPS parsing and NMEA sentence handling - https://github.com/adafruit/Adafruit_GPS
+
+// Stepper motor libraries
+#include <SwitecX25.h>    // X25.168 stepper motor driver for gauges - https://github.com/clearwater/SwitecX25
+#include <SwitecX12.h>    // X12.017 stepper motor driver (alternative to X25) - https://github.com/clearwater/SwitecX25
+#include <TimerOne.h>     // Hardware timer (may not be needed - consider removing if unused)
+#include <Stepper.h>      // Generic stepper library for odometer motor (included in Arduino IDE)
 
 
 
-///// DEFINE /////
-//#define OLED_RESET 4  // OLED display reset pin
-#define CAN0_CS 53  // CAN Bus Chip Select pin
-#define CAN0_INT 18  // CAN Bus Interrupt pin
+///// PIN DEFINITIONS AND HARDWARE CONFIGURATION /////
+// This section defines all pin assignments and hardware-specific constants
+
+// CAN Bus Configuration
+//#define OLED_RESET 4    // OLED display reset pin (unused - left for reference)
+#define CAN0_CS 53        // MCP2515 CAN controller chip select pin (SPI)
+#define CAN0_INT 18       // MCP2515 interrupt pin - triggers when CAN message received
 
 
-// GAUGE SETUP //
-#define pwrPin 49           // pin to keep power alive after key is off 
-#define speedoMax (100*100)     // maximum mph x100
+// GAUGE HARDWARE SETUP //
+#define pwrPin 49              // Power control pin - keeps system alive after ignition is off
+#define speedoMax (100*100)    // Maximum speedometer reading: 100 mph * 100 (stored as integer for precision)
 
-#define MOTOR_RST 36          // motor driver reset pin
+#define MOTOR_RST 36           // Stepper motor driver reset pin - shared by all motor drivers
 
-#define M1_SWEEP (58*12)     // range of motion for gauge motor 1 standard X25.168 range 315 degrees at 1/3 degree steps
-#define M1_STEP  37         // motor 1 step command
-#define M1_DIR   38         // motor 1 direction command
+// Motor 1 Configuration (typically speedometer or fuel gauge)
+#define M1_SWEEP (58*12)       // Total steps for full sweep: 58 degrees * 12 steps/degree = 696 steps
+                               // X25.168 motors have 315° range at 1/3° per step
+#define M1_STEP  37            // Motor 1 step pulse pin
+#define M1_DIR   38            // Motor 1 direction control pin
 
-#define M2_SWEEP (58*12)    // range of motion for gauge motor 2
-#define M2_STEP  34         // motor 2 step command
-#define M2_DIR   35         // motor 2 direction command
+// Motor 2 Configuration (typically coolant temp or secondary gauge)
+#define M2_SWEEP (58*12)       // Total steps: 58 degrees * 12 steps/degree = 696 steps
+#define M2_STEP  34            // Motor 2 step pulse pin
+#define M2_DIR   35            // Motor 2 direction control pin
 
-#define M3_SWEEP (118*12)    // range of motion for gauge motor 3
-#define M3_STEP  33         // motor 3 step command
-#define M3_DIR   32         // motor 3 direction command
+// Motor 3 Configuration (typically speedometer - note larger sweep angle)
+#define M3_SWEEP (118*12)      // Total steps: 118 degrees * 12 steps/degree = 1416 steps (wider range)
+#define M3_STEP  33            // Motor 3 step pulse pin
+#define M3_DIR   32            // Motor 3 direction control pin
 
-#define M4_SWEEP (58*12)    // range of motion for gauge motor 4
-#define M4_STEP  40         // motor 4 step command
-#define M4_DIR   41         // motor 4 direction command
+// Motor 4 Configuration (typically fuel level or coolant temp)
+#define M4_SWEEP (58*12)       // Total steps: 58 degrees * 12 steps/degree = 696 steps
+#define M4_STEP  40            // Motor 4 step pulse pin
+#define M4_DIR   41            // Motor 4 direction control pin
 
-//#define ODO_STEPS 32        // number of steps in one ODO revolution
+//#define ODO_STEPS 32         // Odometer stepper steps per revolution (unused - defined inline instead)
 
-// GPS
-#define GPSECHO  false        // do not send raw GPS data to serial monitor 
+// GPS Configuration
+#define GPSECHO  false         // Set to true to echo raw GPS data to serial monitor (debug only)
 
 
-//Rotary Encoder switch
-#define SWITCH 24 
+// Rotary Encoder Configuration
+#define SWITCH 24              // Rotary encoder push button pin (for menu selection)
 
-// OLED Screen 1
-#define SCREEN_W 128 // OLED display width, in pixels
-#define SCREEN_H 32 // OLED display height, in pixels
-//#define MOSI  51    // SPI Master Out Pin
-//#define CLK   52    // SPI Clock Pin
-#define OLED_DC_1    6
-#define OLED_CS_1  5
-#define OLED_RST_1 7
+// OLED Display 1 Configuration (SPI interface)
+#define SCREEN_W 128           // OLED display width in pixels
+#define SCREEN_H 32            // OLED display height in pixels
+//#define MOSI  51             // SPI Master Out Slave In (hardware SPI - not needed to define)
+//#define CLK   52             // SPI Clock (hardware SPI - not needed to define)
+#define OLED_DC_1    6         // Display 1 Data/Command pin
+#define OLED_CS_1  5           // Display 1 Chip Select pin
+#define OLED_RST_1 7           // Display 1 Reset pin
 
-// OLED Screen 2
-//#define SCREEN_W_2 128 // both screens are the same size, use only one width definition
-//#define SCREEN_H_2 32 // both screens are the same size, use only one height definition
-#define OLED_DC_2  28
-#define OLED_CS_2  29
-#define OLED_RST_2 26
+// OLED Display 2 Configuration (SPI interface)
+//#define SCREEN_W_2 128       // Both screens are same size - use SCREEN_W instead
+//#define SCREEN_H_2 32        // Both screens are same size - use SCREEN_H instead
+#define OLED_DC_2  28          // Display 2 Data/Command pin
+#define OLED_CS_2  29          // Display 2 Chip Select pin
+#define OLED_RST_2 26          // Display 2 Reset pin
 
-// LED Tach
-// How many leds in your strip?
-#define NUM_LEDS 26     // how many warning leds
-#define WARN_LEDS 6     // how many warning LEDS on each side of midpoint (shift LEDS included)
-#define SHIFT_LEDS 2    // how many shift light LEDS on each side of midpoint
-#define TACH_DATA_PIN 22     // which pin sends data to LED tachometer
+// LED Tachometer Configuration
+#define NUM_LEDS 26            // Total number of LEDs in the tachometer strip
+#define WARN_LEDS 6            // Warning zone LEDs on each side of center (turns yellow/orange)
+#define SHIFT_LEDS 2           // Shift light LEDs on each side of center (turns red at shift point)
+#define TACH_DATA_PIN 22       // WS2812 data pin for LED tachometer strip
 
-///// INITIALIZE /////
-MCP_CAN CAN0(CAN0_CS);     // Set CS to pin 53
-Adafruit_SSD1306 display1(SCREEN_W, SCREEN_H, &SPI, OLED_DC_1, OLED_RST_1, OLED_CS_1);
-Adafruit_SSD1306 display2(SCREEN_W, SCREEN_H, &SPI, OLED_DC_2, OLED_RST_2, OLED_CS_2);
-Rotary rotary = Rotary(2, 3);  // rotary encoder ipnput pins (2 and 3 are interrupts)
-CRGB leds[NUM_LEDS];
+///// HARDWARE OBJECT INITIALIZATION /////
+// Create instances of all hardware interface objects
 
-SwitecX12 motor1(M1_SWEEP, M1_STEP, M1_DIR); // initialize motor 1 as Speedometer
-SwitecX12 motor2(M2_SWEEP, M2_STEP, M2_DIR); // initialize motor 2 Coolant temp
-SwitecX12 motor3(M3_SWEEP, M3_STEP, M3_DIR); // initialize motor 3 fuel level
-SwitecX12 motor4(M4_SWEEP, M4_STEP, M4_DIR); // initialize motor 4
-#define odoSteps 32
-#define odoPin1 10
-#define odoPin2 11
-#define odoPin3 12
-#define odoPin4 13          // initialize odometer motor
+MCP_CAN CAN0(CAN0_CS);         // CAN bus controller object with CS pin 53
+Adafruit_SSD1306 display1(SCREEN_W, SCREEN_H, &SPI, OLED_DC_1, OLED_RST_1, OLED_CS_1);  // Left display
+Adafruit_SSD1306 display2(SCREEN_W, SCREEN_H, &SPI, OLED_DC_2, OLED_RST_2, OLED_CS_2);  // Right display
+Rotary rotary = Rotary(2, 3);  // Rotary encoder on interrupt pins 2 and 3 for responsive menu navigation
+CRGB leds[NUM_LEDS];           // LED array for tachometer strip
+
+// Initialize stepper motors with sweep range and control pins
+SwitecX12 motor1(M1_SWEEP, M1_STEP, M1_DIR); // Motor 1 - typically fuel level gauge
+SwitecX12 motor2(M2_SWEEP, M2_STEP, M2_DIR); // Motor 2 - typically secondary gauge
+SwitecX12 motor3(M3_SWEEP, M3_STEP, M3_DIR); // Motor 3 - typically speedometer (wider sweep)
+SwitecX12 motor4(M4_SWEEP, M4_STEP, M4_DIR); // Motor 4 - typically coolant temperature gauge
+
+// Odometer motor configuration (mechanical digit roller - currently non-functional)
+#define odoSteps 32        // Steps per revolution for odometer motor
+#define odoPin1 10         // Odometer motor coil 1 pin
+#define odoPin2 11         // Odometer motor coil 2 pin
+#define odoPin3 12         // Odometer motor coil 3 pin
+#define odoPin4 13         // Odometer motor coil 4 pin
 Stepper odoMotor(odoSteps, odoPin1, odoPin2, odoPin3, odoPin4); 
-Adafruit_GPS GPS(&Serial2);   // set serial2 to GPS object
+
+Adafruit_GPS GPS(&Serial2);    // GPS object using hardware serial port 2
 
 ///// GLOBAL VARIABLES /////
+// These variables store sensor readings, configuration, and state throughout the program
 
-// Analog inputs to Dash Control Module
-// vBatt, on pin 0
-float vBatt = 12;
-int vBattRaw = 12;
-int filter_vBatt = 8; // out of 64, 64 = no filter
-int vBattPin = A0;
-float vBattScaler = 0.040923; // voltage divider factor (in this case 4/100: r1 = 10k, r2 = 3.3k, 100 is the multiplier from ADC)
+// ===== ANALOG SENSOR INPUTS =====
+// All analog sensors are read through Arduino's ADC (0-1023 raw values, mapped to appropriate ranges)
 
-// fuel, on pin 3
-int fuelSensorRaw;
-int filter_fuel = 1; // out of 64, 64 = no filter
-int fuelPin = A3;
+// Battery Voltage Sensor (Analog Pin A0)
+// Measures vehicle battery voltage through a voltage divider to protect Arduino's 5V ADC
+float vBatt = 12;              // Current battery voltage in volts (filtered)
+int vBattRaw = 12;             // Raw battery reading (0-500, representing 0-5V after mapping)
+int filter_vBatt = 8;          // Filter coefficient out of 64 (8/64 = light filtering, 64 = no filter)
+int vBattPin = A0;             // Analog input pin for battery voltage
+float vBattScaler = 0.040923;  // Voltage divider scaling factor: accounts for R1=10k, R2=3.3k divider
+                               // Formula: Vbatt = ADC_reading * (5.0/1023) * ((R1+R2)/R2) = ADC * 0.040923
 
-// therm, on pin 4
-float therm;
-float thermSensor;
-int filter_therm = 50; // out of 100, 100 = no filter
-int thermPin = A4;
-int thermCAN;
+// Fuel Level Sensor (Analog Pin A3)
+// Reads resistance-based fuel sender (typically 0-90 ohms or 240-33 ohms depending on sender type)
+int fuelSensorRaw;             // Raw fuel sensor ADC reading (0-500)
+int filter_fuel = 1;           // Light filter: 1/64 = very responsive to changes
+int fuelPin = A3;              // Analog input pin for fuel level sensor
 
-// sensor a (baro), on pin 5
-unsigned long baro;
-byte filter_baro = 4; // out of 16, 16 = no filter
-int baroPin = A5;
+// Coolant/Oil Temperature Thermistor Sensor (Analog Pin A4)
+// GM-style thermistor with non-linear resistance vs. temperature curve
+float therm;                   // Current temperature in Celsius (after lookup table conversion)
+float thermSensor;             // Voltage reading from thermistor (0-5V)
+int filter_therm = 50;         // Medium filter: 50/100 for stable temp reading
+int thermPin = A4;             // Analog input pin for thermistor
+int thermCAN;                  // Temperature formatted for CAN transmission (temp * 10)
 
-// sensor b, on pin 6
-float sensor_b;
-byte filter_b = 12;
-int analogPin6 = A6;
+// Barometric Pressure Sensor (Analog Pin A5)
+// 30 PSI absolute pressure sensor (0.5-4.5V = 0-30 PSIA)
+unsigned long baro;            // Barometric pressure in kPa * 10
+byte filter_baro = 4;          // Filter coefficient out of 16 (4/16 = moderate filtering)
+int baroPin = A5;              // Analog input pin for barometric sensor
 
-// sensor c, on pin 7
-float sensor_c;
-byte filter_c = 12;
-int analogPin7 = A7;
+// Reserved Analog Sensors B and C (future expansion)
+float sensor_b;                // Reserved sensor B value
+byte filter_b = 12;            // Filter coefficient for sensor B (12/16)
+int analogPin6 = A6;           // Analog pin 6
 
-// GPS Speed
-unsigned long v_old = 0;
-unsigned long v_new = 1;
-unsigned long t_old = 0;
-unsigned long t_new = 1;
-unsigned long v_100 = 0;
-float v = 0;
-bool usingInterrupt = false;
-int lagGPS;
-int v_g;
-float odo;
-float odoTrip;
-float distLast;
-byte hour;
-byte minute;
+float sensor_c;                // Reserved sensor C value
+byte filter_c = 12;            // Filter coefficient for sensor C (12/16)
+int analogPin7 = A7;           // Analog pin 7
 
-// Stepper Motor Variables
-unsigned int spd_g;
-unsigned int fuelLevelPct_g;
-unsigned int coolantTemp_g;
+// ===== GPS SPEED AND ODOMETER VARIABLES =====
+// GPS provides speed and time data for speedometer and odometer calculations
+unsigned long v_old = 0;       // Previous GPS speed reading (km/h * 100)
+unsigned long v_new = 1;       // Current GPS speed reading (km/h * 100)
+unsigned long t_old = 0;       // Previous GPS timestamp (milliseconds)
+unsigned long t_new = 1;       // Current GPS timestamp (milliseconds)
+unsigned long v_100 = 0;       // Speed value * 100 for integer math precision
+float v = 0;                   // Current speed in km/h (floating point)
+bool usingInterrupt = false;   // Flag indicating if GPS uses interrupt-based reading
+int lagGPS;                    // Time delay since last GPS update (milliseconds)
+int v_g;                       // GPS speed (alternate variable)
+float odo;                     // Total odometer reading in kilometers (saved to EEPROM)
+float odoTrip;                 // Trip odometer in kilometers (resettable, saved to EEPROM)
+float distLast;                // Distance traveled since last GPS update (km)
+byte hour;                     // Current GPS hour (UTC, 0-23)
+byte minute;                   // Current GPS minute (0-59)
 
-// Rotary Encoder Variables
-bool stateSW = 1;
-bool lastStateSW = 1;
-unsigned int lastStateChangeTime = 0;  // the last time the output pin was toggled
-unsigned int debounceDelay = 50;       // the debounce time; increase if the output flickers
-bool debounceFlag = 0;
-bool button = 0;
+// ===== STEPPER MOTOR POSITION VARIABLES =====
+// Target positions calculated from sensor data for smooth needle movement
+unsigned int spd_g;            // Speedometer target value (mph * 100)
+unsigned int fuelLevelPct_g;   // Fuel level percentage * 10
+unsigned int coolantTemp_g;    // Coolant temperature for gauge calculation
 
-// timers and refresh rates
+// ===== ROTARY ENCODER VARIABLES =====
+// Handle menu navigation via rotary encoder with debouncing
+bool stateSW = 1;                      // Current state of encoder switch (1 = not pressed)
+bool lastStateSW = 1;                  // Previous state of encoder switch
+unsigned int lastStateChangeTime = 0;  // Timestamp of last switch state change (ms)
+unsigned int debounceDelay = 50;       // Debounce time in milliseconds
+bool debounceFlag = 0;                 // Flag to prevent multiple triggers during debounce
+bool button = 0;                       // Button press event flag (set when press completes)
+
+// ===== TIMING VARIABLES =====
+// Manage update rates for different subsystems to balance performance and responsiveness
 unsigned int timer0, timerDispUpdate, timerCANsend;
 unsigned int timerSensorRead, timerTachUpdate, timerTachFlash;
 unsigned int timerCheckGPS, timerGPSupdate, timerAngleUpdate;
 
-//long unsigned dispMenuRate = 20;
-unsigned int CANsendRate = 50;
-unsigned int dispUpdateRate = 75;
-unsigned int sensorReadRate = 10;
-unsigned int tachUpdateRate = 50;
-unsigned int tachFlashRate = 50;
-unsigned int GPSupdateRate = 100; // might not be needed
-unsigned int checkGPSRate = 1;
-unsigned int angleUpdateRate = 20;
-unsigned int splashTime = 1500; //how long should the splash screens show?
+// Update rate periods (in milliseconds)
+//long unsigned dispMenuRate = 20;       // Unused - commented out
+unsigned int CANsendRate = 50;          // Send CAN messages every 50ms (20Hz)
+unsigned int dispUpdateRate = 75;       // Update displays every 75ms (~13Hz)
+unsigned int sensorReadRate = 10;       // Read analog sensors every 10ms (100Hz for responsive readings)
+unsigned int tachUpdateRate = 50;       // Update LED tachometer every 50ms (20Hz)
+unsigned int tachFlashRate = 50;        // Flash shift light every 50ms when over redline
+unsigned int GPSupdateRate = 100;       // GPS update check rate (might not be needed)
+unsigned int checkGPSRate = 1;          // Check for GPS data every 1ms
+unsigned int angleUpdateRate = 20;      // Update motor angles every 20ms (50Hz)
+unsigned int splashTime = 1500;         // Duration of startup splash screens (milliseconds)
 
-// LED Tach variables
-unsigned int tachMax = 6000;
-unsigned int tachMin = 3000;
-bool tachFlashState = 0;
+// ===== LED TACHOMETER VARIABLES =====
+// Control the LED strip tachometer display
+unsigned int tachMax = 6000;            // RPM at which shift light activates and flashes
+unsigned int tachMin = 3000;            // Minimum RPM to show on tach (below this LEDs are off)
+bool tachFlashState = 0;                // Current state of shift light flashing (0=off, 1=on)
 
-//Engine Parameters from CAN Bus
-int rpmCAN;
-int mapCAN;
-int tpsCAN;
-int fuelPrsCAN;
-int oilPrsCAN;
-int injDutyCAN;
-int ignAngCAN;
-int afr1CAN;
-int knockCAN;
-int coolantTempCAN;
-int airTempCAN;
-int fuelTempCAN;
-int oilTempCAN;
-int transTempCAN;
-int fuelCompCAN;
-int fuelLvlCAN;
-int baroCAN;
-int spdCAN;
-int pumpPressureCAN;
+// ===== CAN BUS ENGINE PARAMETERS =====
+// Raw values received from Haltech ECU via CAN bus
+// These are stored as integers to preserve precision from the CAN protocol
+int rpmCAN;                // Engine RPM (direct value, 0-10000+)
+int mapCAN;                // Manifold Absolute Pressure in kPa * 10 (e.g., 1000 = 100.0 kPa)
+int tpsCAN;                // Throttle Position Sensor percentage * 10 (e.g., 750 = 75.0%)
+int fuelPrsCAN;            // Fuel pressure in kPa * 10 (absolute pressure)
+int oilPrsCAN;             // Oil pressure in kPa * 10 (absolute pressure)
+int injDutyCAN;            // Injector duty cycle percentage * 10 (e.g., 800 = 80.0%)
+int ignAngCAN;             // Ignition timing in degrees BTDC * 10 (e.g., 150 = 15.0°)
+int afr1CAN;               // Air/Fuel Ratio * 1000 (e.g., 14700 = 14.700 AFR)
+int knockCAN;              // Knock sensor level (higher = more knock detected)
+int coolantTempCAN;        // Coolant temperature in Kelvin * 10 (convert to C: (value/10) - 273.15)
+int airTempCAN;            // Intake Air Temperature in Kelvin * 10
+int fuelTempCAN;           // Fuel temperature in Kelvin * 10
+int oilTempCAN;            // Oil temperature in Celsius * 10 (or Kelvin - check ECU config)
+int transTempCAN;          // Transmission temperature in Celsius * 10
+int fuelCompCAN;           // Fuel composition (ethanol %) * 10 (e.g., 850 = 85.0% E85)
+int fuelLvlCAN;            // Fuel level percentage (0-100)
+int baroCAN;               // Barometric pressure in kPa * 10 (sent TO other modules)
+int spdCAN;                // Vehicle speed sent to CAN bus (km/h * 16 for protocol compatibility)
+int pumpPressureCAN;       // Fuel pump pressure (test variable)
 
-//Engine Parameters for Display
-float oilPrs = 25;
-float coolantTemp = 0;
-float fuelPrs = 43;
-float oilTemp = 0;
-float fuelLvl = 0;
-float battVolt = 12.6;
-float afr = 14.2;
-float fuelComp = 0;
-int RPM = 0;
-int spd = 0;
-float spdMph = 0;
+// ===== PROCESSED ENGINE PARAMETERS FOR DISPLAY =====
+// Converted from CAN values to human-readable units
+float oilPrs = 25;         // Oil pressure in kPa (gauge pressure, atmospheric offset removed)
+float coolantTemp = 0;     // Coolant temperature in Celsius
+float fuelPrs = 43;        // Fuel pressure in kPa (gauge pressure)
+float oilTemp = 0;         // Oil temperature in Celsius
+float fuelLvl = 0;         // Fuel level in gallons (or liters if metric)
+float battVolt = 12.6;     // Battery voltage in volts
+float afr = 14.2;          // Air/Fuel Ratio (stoichiometric for gasoline ~14.7)
+float fuelComp = 0;        // Ethanol percentage (0-100%)
+int RPM = 0;               // Engine RPM for display
+int spd = 0;               // Vehicle speed in km/h * 100 (for integer precision)
+float spdMph = 0;          // Vehicle speed in miles per hour
 
 
-// CAN Bus variables
-byte data[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-byte canMessageData [8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-unsigned long rxId;
-unsigned char len = 0;
-unsigned char rxBuf[8];
-char msgString[128]; 
+// ===== CAN BUS COMMUNICATION BUFFERS =====
+// Buffers for sending and receiving CAN messages
+byte data[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};           // Outgoing CAN message buffer (8 bytes)
+byte canMessageData [8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}; // Received CAN message data
+unsigned long rxId;                // Received CAN message ID (11-bit or 29-bit)
+unsigned char len = 0;             // Length of received CAN message (0-8 bytes)
+unsigned char rxBuf[8];            // Raw receive buffer from CAN controller
+char msgString[128];               // String buffer for serial debug output 
 
-// Thermistor lookup table
+// ===== LOOKUP TABLES =====
+// These tables convert non-linear sensor readings to physical values using interpolation
+
+// Thermistor Temperature Lookup Table
+// Converts voltage reading (x-axis) to temperature in Celsius (y-axis)
+// GM thermistors have a non-linear resistance curve that varies with temperature
 const int thermTable_length = 6;
-float thermTable_x[thermTable_length] = {0.23, 0.67, 1.43, 3.70, 4.63, 4.95};
-float thermTable_l[thermTable_length] = { 150,  105,   75,   25,   -5,  -40};
+float thermTable_x[thermTable_length] = {0.23, 0.67, 1.43, 3.70, 4.63, 4.95};  // Voltage breakpoints (0-5V)
+float thermTable_l[thermTable_length] = { 150,  105,   75,   25,   -5,  -40};  // Temperature values in Celsius
 
-// Fuel Level lookup table
+// Fuel Level Lookup Table
+// Converts voltage reading (x-axis) to fuel quantity in gallons (y-axis)
+// Fuel tank sender has non-linear float arm resistance
 const int fuelLvlTable_length = 9;
-float fuelLvlTable_x[fuelLvlTable_length] = {0.87, 1.03, 1.21, 1.40, 1.60, 1.97, 2.21, 2.25, 2.30};
-float fuelLvlTable_l[fuelLvlTable_length] = {  16,   14,   12,   10,    8,    6,    4,    2,    0};
-float fuelCapacity = 16;
+float fuelLvlTable_x[fuelLvlTable_length] = {0.87, 1.03, 1.21, 1.40, 1.60, 1.97, 2.21, 2.25, 2.30};  // Voltage breakpoints
+float fuelLvlTable_l[fuelLvlTable_length] = {  16,   14,   12,   10,    8,    6,    4,    2,    0};  // Gallons remaining
+float fuelCapacity = 16;  // Total fuel tank capacity in gallons (used for percentage calculations)
 
-// EEPROM Variables
-byte dispArray1Address = 0;   // starting EEPEOM address for display 1, length is 4 bytes
-byte dispArray2Address = 4;   // EEPROM Address for display 2, length is 1 byte
-byte clockOffsetAddress = 5;  // EEPROM Address for clock offset, length is 1 byte
-byte odoAddress = 6;          // EEPROM address for odometer, length is 4 bytes
-byte odoTripAddress = 10;     // EEPROM address for odometer, length is 4 bytes
-byte fuelSensorRawAddress = 14;
-byte unitsAddress = 18;
-int *input;               //this is a memory address
-int output = 0;
+// ===== EEPROM STORAGE ADDRESSES =====
+// Non-volatile memory locations for saving settings between power cycles
+byte dispArray1Address = 0;      // Display 1 menu selections (4 bytes: addresses 0-3)
+byte dispArray2Address = 4;      // Display 2 selection (1 byte: address 4)
+byte clockOffsetAddress = 5;     // Time zone offset for clock (1 byte: address 5)
+byte odoAddress = 6;             // Total odometer value (4 bytes: addresses 6-9)
+byte odoTripAddress = 10;        // Trip odometer value (4 bytes: addresses 10-13)
+byte fuelSensorRawAddress = 14;  // Last fuel sensor reading (for fuel level memory, addresses 14-17)
+byte unitsAddress = 18;          // Unit system selection: 0=metric, 1=imperial (1 byte: address 18)
+int *input;                      // Pointer for EEPROM operations
+int output = 0;                  // Output buffer for EEPROM operations
 
-// Menu Navigation Variables
-byte menuLevel = 0;
-byte units = 0;  // 0 = metric, 1 = 'Merican
-unsigned int nMenuLevel = 15; //This should be the number of menu items on the given level
-byte dispArray1[4] = { 1, 0, 0, 0 };  //should be written to EEPROM 0-3
-byte clockOffset = 0;
-byte dispArray2[1] = {1};
+// ===== MENU NAVIGATION VARIABLES =====
+// Track current position in the multi-level menu system
+byte menuLevel = 0;              // Current menu depth (0=top level, 1=submenu, 2=sub-submenu)
+byte units = 0;                  // Unit system: 0=metric (km/h, C, bar), 1=imperial (mph, F, PSI)
+unsigned int nMenuLevel = 15;    // Number of items in current menu level (0-indexed, so 15 = 16 items)
+byte dispArray1[4] = { 1, 0, 0, 0 };  // Menu position array for display 1 [level0, level1, level2, level3]
+byte clockOffset = 0;            // Hours to add to UTC time for local time zone (-12 to +12)
+byte dispArray2[1] = {1};        // Menu selection for display 2 (single level)
 
 
-///// IMAGES /////
+///// IMAGE DATA /////
+// Bitmap images stored in program memory (PROGMEM) for OLED displays
+// Each image is 128x32 pixels (1 bit per pixel = 512 bytes)
+// Generated from graphics using image2cpp or similar tool
+
 // 'falcon_script', 128x32px
+// Falcon logo in script font - displayed on startup splash screen
 const unsigned char img_falcon_script [] PROGMEM = {
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
@@ -298,6 +391,7 @@ const unsigned char img_falcon_script [] PROGMEM = {
 };
 
 // '302_CID', 128x32px
+// Engine displacement designation: 302 Cubic Inch Displacement
 const unsigned char img_302_CID [] PROGMEM = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
@@ -334,6 +428,7 @@ const unsigned char img_302_CID [] PROGMEM = {
 };
 
 // '302V', 128x32px
+// Alternative engine badge - 302 with V8 symbol
 const unsigned char img_302V [] PROGMEM = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
@@ -370,6 +465,7 @@ const unsigned char img_302V [] PROGMEM = {
 };
 
 // 'Oil Pressure Icon', 40x32px
+// Icon showing oil can symbol - displayed alongside oil pressure reading
 const unsigned char img_oilPrs [] PROGMEM = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
@@ -384,6 +480,7 @@ const unsigned char img_oilPrs [] PROGMEM = {
 };
 
 // 'Oil Temp Icon', 40x32px
+// Icon combining oil can and thermometer - for oil temperature display
 const unsigned char img_oilTemp [] PROGMEM = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x00, 0xc0, 0x00, 0x00, 0x00, 0x01, 0xe0, 0x00, 0x00, 0x00, 0x01, 0xe0, 0x00, 0x00, 0x00, 0x01, 
@@ -398,6 +495,7 @@ const unsigned char img_oilTemp [] PROGMEM = {
 };
 
 // 'Battery Icon', 38x32px
+// Battery symbol with + and - terminals - for voltage display
 const unsigned char img_battVolt [] PROGMEM = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x78, 0x00, 0x78, 0x00, 0x00, 0x78, 
@@ -412,6 +510,7 @@ const unsigned char img_battVolt [] PROGMEM = {
 };
 
 // 'Eng Temp Icon', 35x32px
+// Thermometer icon for coolant/engine temperature display
 const unsigned char img_coolantTemp [] PROGMEM = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x00, 0x60, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x00, 0x00, 0x00, 0x00, 
@@ -426,6 +525,7 @@ const unsigned char img_coolantTemp [] PROGMEM = {
 };
 
 // 'Gas Icon', 32x32px
+// Gas pump icon for fuel level display
 const unsigned char img_fuelLvl [] PROGMEM = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0xff, 0xe6, 0x00, 
 	0x07, 0xff, 0xf7, 0x80, 0x07, 0xff, 0xf3, 0xc0, 0x07, 0x00, 0x71, 0xe0, 0x07, 0x00, 0x70, 0xe0, 
@@ -437,329 +537,605 @@ const unsigned char img_fuelLvl [] PROGMEM = {
 	0x0f, 0xff, 0xf8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
 
-// DEMO VARIABLES
-bool rpmSwitch = 0;
-int gRPM;
-int analog = 2;
-int analogSwitch = 0;
+// ===== DEMO/TEST VARIABLES =====
+// Variables used for testing gauge sweep and display without real engine data
+bool rpmSwitch = 0;         // Direction flag for demo RPM sweep (0=increasing, 1=decreasing)
+int gRPM;                   // Generated RPM value for demo mode
+int analog = 2;             // Test analog value
+int analogSwitch = 0;       // Direction flag for analog test sweep
 
-// Signal selection  //
+/*
+ * ========================================
+ * SIGNAL SELECTION AND PROCESSING
+ * ========================================
+ */
+
+/**
+ * sigSelect - Process and route sensor data
+ * 
+ * This function acts as the central data router, converting raw CAN bus and sensor
+ * readings into the appropriate units and formats for display and gauge output.
+ * 
+ * Processing steps:
+ * 1. Convert GPS speed from km/h to appropriate formats
+ * 2. Extract RPM from CAN bus
+ * 3. Convert temperatures from Kelvin to Celsius
+ * 4. Convert absolute pressures to gauge pressures (subtract atmospheric)
+ * 5. Scale AFR and fuel composition values
+ * 6. Calculate fuel level percentage for CAN transmission
+ * 
+ * Called from: main loop (every cycle)
+ * Modifies: spd, spdCAN, RPM, coolantTemp, oilPrs, fuelPrs, oilTemp, afr, fuelComp, fuelLvlCAN
+ */
 void sigSelect (void) {
-    spd = v_new; //km/h * 100
-    //spdMph = spd *0.6213712;
-    spdCAN = (int)(v*16);
-    RPM = rpmCAN;
-    coolantTemp = (coolantTempCAN/10)-273.15; // convert kelvin to C;
-    oilPrs = (oilPrsCAN/10)-101.3;   //kPa, convert to gauge pressure
-    fuelPrs = (fuelPrsCAN/10)-101.3;  //kPa, convert to gauge pressure
-    oilTemp = therm;
-    afr = (float)afr1CAN/1000;
-    fuelComp = fuelCompCAN/10;
-    fuelLvlCAN = (int)((fuelLvl/fuelCapacity)*100);
+    spd = v_new; // Speed in km/h * 100 from GPS
+    //spdMph = spd *0.6213712;  // Unused conversion to mph
+    spdCAN = (int)(v*16);  // Speed formatted for CAN bus transmission (km/h * 16 per Haltech protocol)
+    RPM = rpmCAN;  // Direct copy of RPM from CAN bus
+    coolantTemp = (coolantTempCAN/10)-273.15; // Convert from Kelvin*10 to Celsius (K to C: subtract 273.15)
+    oilPrs = (oilPrsCAN/10)-101.3;   // Convert from absolute kPa to gauge pressure (subtract atmospheric ~101.3 kPa)
+    fuelPrs = (fuelPrsCAN/10)-101.3;  // Convert from absolute kPa to gauge pressure
+    oilTemp = therm;  // Oil temperature from thermistor sensor (already in Celsius)
+    afr = (float)afr1CAN/1000;  // Air/Fuel Ratio - divide by 1000 (e.g., 14700 becomes 14.7)
+    fuelComp = fuelCompCAN/10;  // Fuel composition - divide by 10 (e.g., 850 becomes 85%)
+    fuelLvlCAN = (int)((fuelLvl/fuelCapacity)*100);  // Calculate fuel level percentage for CAN transmission
 
 }
 
-///// SETUP LOOP //////////////////////////////////////////////////////////////////
+/*
+ * ========================================
+ * SETUP FUNCTION
+ * ========================================
+ * 
+ * Arduino setup() runs once on power-up or reset
+ * Initializes all hardware, loads saved settings, and displays splash screen
+ */
+
+/**
+ * setup - Initialize all hardware and system settings
+ * 
+ * Initialization sequence:
+ * 1. Start serial communication for debugging
+ * 2. Enable power latch to keep system on after ignition off
+ * 3. Configure GPS module (baud rate, message type, update rate)
+ * 4. Initialize OLED displays and show splash screens
+ * 5. Configure and sweep gauge motors to verify operation
+ * 6. Setup odometer stepper motor pins
+ * 7. Initialize LED tachometer strip
+ * 8. Attach rotary encoder interrupts for menu navigation
+ * 9. Load saved settings from EEPROM (display selections, clock offset, odometer values, units)
+ * 10. Initialize CAN bus controller at 500kbps
+ * 11. Wait for splash screen timeout before entering main loop
+ * 
+ * Hardware configured:
+ * - Serial port at 115200 baud
+ * - GPS at 9600 baud, 5Hz update, RMC sentences only
+ * - CAN bus at 500kbps, 8MHz crystal
+ * - 2x SSD1306 OLED displays (SPI)
+ * - 4x SwitecX12 stepper motors
+ * - WS2812 LED strip
+ * - Rotary encoder on interrupt pins 2 & 3
+ */
 void setup() {
 
-  Serial.begin(115200); // open the serial port at 115200 bps:
+  // Initialize serial communication for debugging
+  Serial.begin(115200); // 115200 baud - high speed for minimal latency in debug output
 
-  // Keep Power on until shut off by arduino
+  // Keep power enabled after ignition switch turns off
+  // This allows the system to complete shutdown procedures (save EEPROM, zero gauges)
   pinMode(pwrPin, OUTPUT);
-  digitalWrite(pwrPin, HIGH);
+  digitalWrite(pwrPin, HIGH);  // Latch power on
 
-  // GPS setup
-  GPS.begin(9600);                                // initialize GPS at 9600 baud
-  //GPS.sendCommand(PMTK_SET_BAUD_57600);         // increase baud rate to 57600
-  //GPS.begin(57600);                             // initialize GPS at 57600
-  GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCONLY);  // set GPS module to fetch NMEA RMC only data
-  GPS.sendCommand(PMTK_SET_NMEA_UPDATE_5HZ);      // set GPS module to update at 5Hz
-  GPS.sendCommand(PMTK_API_SET_FIX_CTL_5HZ);      // set GPS module position fix to 5Hz
+  // ===== GPS INITIALIZATION =====
+  GPS.begin(9600);                                // Initialize GPS at 9600 baud (default for most GPS modules)
+  //GPS.sendCommand(PMTK_SET_BAUD_57600);         // Optional: increase baud to 57600 for faster data transfer
+  //GPS.begin(57600);                             // Re-init at higher baud if command above is uncommented
+  GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCONLY);  // Request only RMC sentences (Recommended Minimum - has speed, position, time)
+  GPS.sendCommand(PMTK_SET_NMEA_UPDATE_5HZ);      // Set update rate to 5Hz (5 times per second for responsive speedometer)
+  GPS.sendCommand(PMTK_API_SET_FIX_CTL_5HZ);      // Set position fix rate to match update rate (5Hz)
 
-  useInterrupt(true);                             // allow use of interrupts for GPS data fetching
+  useInterrupt(true);                             // Enable interrupt-based GPS reading (Timer0 ISR reads GPS in background)
  
-  // Initialize displays
-  display1.begin(SSD1306_SWITCHCAPVCC);  // initialize with SPI
-  display2.begin(SSD1306_SWITCHCAPVCC);  // initialize with SPI
-  dispFalconScript(&display1);
-  disp302CID(&display2);
+  // ===== DISPLAY INITIALIZATION =====
+  display1.begin(SSD1306_SWITCHCAPVCC);  // Initialize display 1 with internal charge pump
+  display2.begin(SSD1306_SWITCHCAPVCC);  // Initialize display 2 with internal charge pump
+  dispFalconScript(&display1);           // Show Falcon logo on left display
+  disp302CID(&display2);                 // Show "302 CID" badge on right display
   
-  // Initialize Stepper Motors
+  // ===== STEPPER MOTOR INITIALIZATION =====
   pinMode(MOTOR_RST, OUTPUT);
-  digitalWrite(MOTOR_RST, HIGH);
+  digitalWrite(MOTOR_RST, HIGH);  // Take motors out of reset (active low reset)
   
-  // Sweep gauges through range of motion
-  motorSweepSynchronous();
+  // Perform full range sweep of all gauge needles for visual confirmation and homing
+  motorSweepSynchronous();  // Sweeps all motors to max, then back to zero
   
-  // Setup the Odometer
+  // ===== ODOMETER MOTOR SETUP =====
+  // Configure pins for 4-wire stepper motor (mechanical digit roller - currently non-functional)
   pinMode(odoPin1, OUTPUT);
   pinMode(odoPin2, OUTPUT);
   pinMode(odoPin3, OUTPUT);
   pinMode(odoPin4, OUTPUT);
 
-  // Initialize LED Tach
-  FastLED.addLeds<WS2812, TACH_DATA_PIN, GRB>(leds, NUM_LEDS);
+  // ===== LED TACHOMETER INITIALIZATION =====
+  FastLED.addLeds<WS2812, TACH_DATA_PIN, GRB>(leds, NUM_LEDS);  // Configure WS2812 LED strip (GRB color order)
 
-  // Set up rotary switch interrupts
-  attachInterrupt(0, rotate, CHANGE);
-  attachInterrupt(1, rotate, CHANGE);
+  // ===== ROTARY ENCODER SETUP =====
+  // Attach interrupts to encoder pins for immediate response to rotation
+  attachInterrupt(0, rotate, CHANGE);  // Interrupt 0 = pin 2
+  attachInterrupt(1, rotate, CHANGE);  // Interrupt 1 = pin 3
   
-  //read display array from EEPROM and print to Serial Monitor. 
-  // Display 1
+  // ===== LOAD SAVED SETTINGS FROM EEPROM =====
+  
+  // Read display 1 menu positions (4 bytes)
   for (int i = dispArray1Address; i < sizeof(dispArray1); i++) {
     dispArray1[i] = EEPROM.read(i);
   }
-  //Display 2
+  
+  // Read display 2 selection (1 byte)
   dispArray2[0] = EEPROM.read(dispArray2Address);
 
-  //fetch last known clock offset from EEPROM
+  // Fetch clock offset for local time zone
   clockOffset = EEPROM.read(clockOffsetAddress); 
 
-  //fetch odometer values from EEPROM
-  EEPROM.get(odoAddress, odo);
-  EEPROM.get(odoTripAddress, odoTrip);
-  EEPROM.get(fuelSensorRawAddress, fuelSensorRaw); 
-  EEPROM.get(unitsAddress, units); 
+  // Fetch odometer values (floats stored as 4 bytes each)
+  EEPROM.get(odoAddress, odo);              // Total odometer
+  EEPROM.get(odoTripAddress, odoTrip);      // Trip odometer
+  EEPROM.get(fuelSensorRawAddress, fuelSensorRaw);  // Last known fuel level (for fuel level memory on restart)
+  EEPROM.get(unitsAddress, units);          // Unit system (metric/imperial)
 
+  // Debug output for clock offset
   Serial.print("clockOffset: ");
   Serial.println(clockOffset);
   
-  // Initialize MCP2515 running at 8MHz with a baudrate of 500kb/s and the masks and filters disabled.
-  if(CAN0.begin(MCP_ANY, CAN_500KBPS, MCP_8MHZ) == CAN_OK) Serial.println("MCP2515 Initialized Successfully!");
-  else Serial.println("Error Initializing MCP2515...");
-  // Set up CAN interrupt pin
-  pinMode(CAN0_INT, INPUT); 
-  CAN0.setMode(MCP_NORMAL);   // Change to normal mode to allow messages to be transmitted
+  // ===== CAN BUS INITIALIZATION =====
+  // Initialize MCP2515 with 8MHz crystal, 500kbps baud rate
+  if(CAN0.begin(MCP_ANY, CAN_500KBPS, MCP_8MHZ) == CAN_OK) 
+    Serial.println("MCP2515 Initialized Successfully!");
+  else 
+    Serial.println("Error Initializing MCP2515...");
+  
+  // Configure CAN interrupt pin
+  pinMode(CAN0_INT, INPUT);       // CAN interrupt pin goes low when message is received
+  CAN0.setMode(MCP_NORMAL);       // Set to normal mode (vs. loopback/listen-only) to allow TX and RX
 
-  //do nothing until splash screen timer runs out
+  // ===== SPLASH SCREEN DELAY =====
+  // Hold splash screen images on displays for specified time before entering main loop
   while (millis() < splashTime){
+    // Wait for splash screen timer to expire (1500ms default)
   }
 
 }
 
 
-///// MAIN LOOP //////////////////////////////////////////////////////////////////
+/*
+ * ========================================
+ * MAIN LOOP FUNCTION
+ * ========================================
+ * 
+ * Arduino loop() runs continuously after setup() completes
+ * Manages all real-time tasks using non-blocking timers
+ */
+
+/**
+ * loop - Main execution loop
+ * 
+ * This loop coordinates all gauge system functions using time-based scheduling.
+ * Each subsystem runs at its own update rate for optimal performance:
+ * 
+ * - Sensor reading: 10ms (100Hz) - fast for responsive analog inputs
+ * - CAN transmission: 50ms (20Hz) - matches typical ECU update rates  
+ * - CAN reception: as fast as messages arrive (interrupt-driven)
+ * - GPS check: 1ms - polls for new GPS data
+ * - Tachometer update: 50ms (20Hz) - smooth LED animation
+ * - Display update: 75ms (~13Hz) - readable without flicker
+ * - Motor angle update: 20ms (50Hz) - smooth gauge needle movement
+ * - Motor step execution: every loop (~1ms) - microstepping for smooth motion
+ * - Shutdown check: every loop - monitors battery voltage for key-off
+ * 
+ * The non-blocking timer approach allows all systems to run concurrently without
+ * interfering with each other, unlike delay()-based code which would freeze everything.
+ * 
+ * Loop structure:
+ * 1. Read analog sensors if timer expired
+ * 2. Send CAN messages if timer expired
+ * 3. Receive CAN messages if data available (interrupt flag)
+ * 4. Check for GPS data if timer expired
+ * 5. Update LED tachometer if timer expired
+ * 6. Process signals and update displays
+ * 7. Calculate new motor angles if timer expired
+ * 8. Step all motors (called every loop for smooth motion)
+ * 9. Check for shutdown condition
+ */
 void loop() {
     
-  //read analog voltage and get filtered value
+  // ===== ANALOG SENSOR READING =====
+  // Read battery voltage, fuel level, temperature, barometric pressure
+  // Update rate: every 10ms (100Hz) for responsive readings
   if (millis() - timerSensorRead > sensorReadRate) {
-    // Serial.print("sensorRead: ");
-    int s = micros();
+    // Serial.print("sensorRead: ");  // Debug timing
+    int s = micros();  // Start timing for performance measurement
 
+    // Battery voltage: read, map to 0-5V range, apply light filter
     vBattRaw = readSensor(vBattPin, vBattRaw, filter_vBatt);
-    vBatt = (float)vBattRaw*vBattScaler;
+    vBatt = (float)vBattRaw*vBattScaler;  // Convert to actual voltage using calibration factor
     
+    // Fuel level: read raw sensor, convert voltage to gallons via lookup table
     fuelSensorRaw = readSensor(fuelPin,fuelSensorRaw,filter_fuel);
-    float fuelSensor = (float)fuelSensorRaw*0.01;
+    float fuelSensor = (float)fuelSensorRaw*0.01;  // Convert to voltage (0-5V)
     fuelLvl = curveLookup(fuelSensor, fuelLvlTable_x, fuelLvlTable_l, fuelLvlTable_length);
     
+    // Thermistor temperature: read voltage, convert to temp via lookup table
     thermSensor = readThermSensor(thermPin, thermSensor, filter_therm);
     therm = curveLookup(thermSensor, thermTable_x, thermTable_l, thermTable_length);
-    thermCAN = (int)(therm*10);
+    thermCAN = (int)(therm*10);  // Format for CAN transmission (temp * 10)
     
-    baro = read30PSIAsensor(baroPin,baro,filter_baro); //baro x 10 
-    baro = constrain(baro, 600, 1050);  // limit baro pressure to elevations between -300m to 4000m
-    baroCAN = baro; 
-  //sensor_b = readSensor(analogPin6,sensor_b,filter_b); 
-  //sensor_c = readSensor(analogPin7,sensor_c,filter_c); 
-    timerSensorRead = millis();
+    // Barometric pressure: read 30 PSI absolute sensor, constrain to valid range
+    baro = read30PSIAsensor(baroPin,baro,filter_baro); // Returns kPa * 10 
+    baro = constrain(baro, 600, 1050);  // Limit to elevation range -300m to 4000m (60-105 kPa)
+    baroCAN = baro;  // Store for CAN transmission
+    
+    //sensor_b = readSensor(analogPin6,sensor_b,filter_b);  // Reserved for future use
+    //sensor_c = readSensor(analogPin7,sensor_c,filter_c);  // Reserved for future use
+    
+    timerSensorRead = millis();  // Reset timer
 
-    int time =  micros() - s;
-    // Serial.println(time);
-
+    int time =  micros() - s;  // Calculate elapsed time for performance monitoring
+    // Serial.println(time);  // Debug: print execution time
   }
 
 
-  //Send CAN messages at specified rate
+  // ===== CAN BUS TRANSMISSION =====
+  // Send vehicle data to other modules on CAN bus
+  // Update rate: every 50ms (20Hz) - typical automotive CAN rate
   if (millis() - timerCANsend > CANsendRate) {  
-        // Serial.print("CANsend: ");
+    // Serial.print("CANsend: ");  // Debug timing
     int s = micros();
 
+    // Send speed data (Big Endian format for compatibility)
     sendCAN_BE(0x200, 0, spdCAN, 0, 0);
+    
+    // Send sensor data (Little Endian format): oil temp, fuel level %, baro pressure
     sendCAN_LE(0x201, thermCAN, fuelLvlCAN, baroCAN, 555);
-    //sendCAN_LE(0x201, 255, 50, 988, 555);
-    //sendCAN_BE(0x301, 333, 444, 1010, 2020);
-    timerCANsend = millis();
+    //sendCAN_LE(0x201, 255, 50, 988, 555);  // Test values (commented out)
+    //sendCAN_BE(0x301, 333, 444, 1010, 2020);  // Test values (commented out)
+    
+    timerCANsend = millis();  // Reset timer
 
     int time =  micros() - s;
-    // Serial.println(time);
-
+    // Serial.println(time);  // Debug: print execution time
   }
 
 
-  //Read CAN messages as they come in
-  if(!digitalRead(CAN0_INT)){     // If CAN0_INT pin is low, read receive buffer
-    // Serial.print("CAN recieve: ");
+  // ===== CAN BUS RECEPTION =====
+  // Read engine data from Haltech ECU via CAN bus
+  // Runs whenever CAN interrupt pin goes low (message received)
+  if(!digitalRead(CAN0_INT)){     // CAN0_INT pin is low when message is waiting
+    // Serial.print("CAN recieve: ");  // Debug timing
     int s = micros();
-    receiveCAN ();
-    parseCAN( rxId, rxBuf);
+    
+    receiveCAN();  // Read message from MCP2515 receive buffer
+    parseCAN(rxId, rxBuf);  // Parse message based on CAN ID and extract data
 
     int time =  micros() - s;
-    // Serial.println(time);
+    // Serial.println(time);  // Debug: print execution time
   }
 
-  //Check for new GPS and process if new data is present
+  // ===== GPS DATA RECEPTION =====
+  // Check for new GPS data and update speed/odometer
+  // Update rate: every 1ms - fast polling to catch GPS updates immediately
   if (millis() - timerCheckGPS > checkGPSRate) {
-    // Serial.print("GPS recieve: ");
+    // Serial.print("GPS recieve: ");  // Debug timing
     int s = micros(); 
     
-    fetchGPSdata();
+    fetchGPSdata();  // Parse GPS sentences and update speed, odometer, time
+    
     int time =  micros() - s;
-    // Serial.println(time);
+    // Serial.println(time);  // Debug: print execution time
   }
   
-  //Tach update timer
+  // ===== LED TACHOMETER UPDATE =====
+  // Update tachometer LED strip based on engine RPM
+  // Update rate: every 50ms (20Hz) for smooth animation
   if (millis() - timerTachUpdate > tachUpdateRate) {     
-    // Serial.print("tach: ");
+    // Serial.print("tach: ");  // Debug timing
     int s = micros();
     
-    // demoRPM = generateRPM();    
-    ledShiftLight(RPM);
-    timerTachUpdate = millis();        // reset timer1 
+    // demoRPM = generateRPM();  // Uncomment for demo mode (simulated RPM sweep)
+    ledShiftLight(RPM);  // Update LED colors and shift light based on RPM
+    timerTachUpdate = millis();  // Reset timer
+    
     int time =  micros() - s;
-    // Serial.println(time);
+    // Serial.println(time);  // Debug: print execution time
   }
 
-  sigSelect();
-  //OLED Displays
+  // ===== SIGNAL PROCESSING AND DISPLAY UPDATE =====
+  sigSelect();  // Convert CAN data to display units (always run to keep data fresh)
+  
+  // Read rotary encoder switch state for menu navigation
   swRead();
+  
+  // Update OLED displays with current data
+  // Update rate: every 75ms (~13Hz) - fast enough to appear real-time, slow enough to be readable
   if(millis() - timerDispUpdate > dispUpdateRate){
-    // Serial.print("display: ");
+    // Serial.print("display: ");  // Debug timing
     int s = micros();
     
-    dispMenu();
-    disp2();
-    //Serial.println(button);
-    timerDispUpdate = millis();
+    dispMenu();  // Update display 1 based on menu selection
+    disp2();     // Update display 2 based on its menu selection
+    //Serial.println(button);  // Debug: print button state
+    timerDispUpdate = millis();  // Reset timer
 
     int time =  micros() - s;
-    // Serial.println(time);
+    // Serial.println(time);  // Debug: print execution time
   }
 
+  // ===== MOTOR ANGLE CALCULATION =====
+  // Calculate target positions for all gauge motors
+  // Update rate: every 20ms (50Hz) - smooth needle movement
   if(millis() - timerAngleUpdate > angleUpdateRate){
-    // Serial.print("motors: ");
+    // Serial.print("motors: ");  // Debug timing
     int s = micros();
     
-    int angle1 = fuelLvlAngle(M1_SWEEP);
-    int angle2 = fuelLvlAngle(M2_SWEEP);
-    int angle3 = speedometerAngle(M3_SWEEP);
-    int angle4 = coolantTempAngle(M4_SWEEP);
+    // Calculate needle angles based on current sensor values
+    int angle1 = fuelLvlAngle(M1_SWEEP);      // Motor 1: Fuel level
+    int angle2 = fuelLvlAngle(M2_SWEEP);      // Motor 2: Fuel level (duplicate or alt gauge)
+    int angle3 = speedometerAngle(M3_SWEEP);  // Motor 3: Speedometer
+    int angle4 = coolantTempAngle(M4_SWEEP);  // Motor 4: Coolant temperature
+    
+    // Set new target positions (motors will step towards these in update() calls)
     motor1.setPosition(angle1);
     motor2.setPosition(angle2);
     motor3.setPosition(angle3);
     motor4.setPosition(angle4);
   }
   
+  // ===== MOTOR STEPPING =====
+  // Execute micro-steps for all motors - called every loop iteration
+  // This must run frequently (~1ms) for smooth needle movement
   motor1.update();
   motor2.update();
   motor3.update();
   motor4.update();
 
-  // Check for key off, if switched voltage supply is below 1v, turn off control module 
+  // ===== SHUTDOWN DETECTION =====
+  // Check if ignition voltage has dropped (key turned off)
+  // Shutdown when battery voltage < 1V AND system has been running for at least 3 seconds
   if (vBatt < 1 && millis() > splashTime + 3000) {
-    shutdown();
-    
+    shutdown();  // Save settings, zero gauges, display shutdown screen, cut power
   }
 
-  //serialInputFunc();  // Debugging only
+  //serialInputFunc();  // Debugging only - manual input via serial monitor (commented out)
 
 }
 
 
 
 
+/*
+ * ========================================
+ * SENSOR READING FUNCTIONS
+ * ========================================
+ * 
+ * These functions handle analog sensor reading, filtering, and curve mapping
+ */
 
-///// ALL FUNCTIONS /////////////////////////////////////////////////////////////////
-
-////// SENSOR READING FUNCTIONS ///// 
-// Generic Sensor reader - reads, re-maps, and filters analog input values
-unsigned long readSensor(int inputPin, int oldVal, int filt)  // read voltage, map to 0-5v, and filter
+/**
+ * readSensor - Generic analog sensor reader with filtering
+ * 
+ * Reads an analog input, maps it to 0-5V range, and applies exponential filtering
+ * to reduce noise while maintaining responsiveness.
+ * 
+ * @param inputPin - Arduino analog pin to read (A0-A15)
+ * @param oldVal - Previous filtered value (0-500 representing 0.00-5.00V)
+ * @param filt - Filter coefficient (0-64): 
+ *               - 64 = no filtering (instant response)
+ *               - 32 = moderate filtering
+ *               - 8 = heavy filtering (slow response, very smooth)
+ *               Formula: newFiltered = (newRaw * filt + oldVal * (64-filt)) / 64
+ * @return Filtered sensor value (0-500 representing 0-5V in 0.01V increments)
+ * 
+ * Example: Battery voltage with filt=8 means 8/64 = 12.5% new value, 87.5% old value
+ */
+unsigned long readSensor(int inputPin, int oldVal, int filt)  
 {
-    int raw = analogRead (inputPin);
-    unsigned long newVal = map( raw, 0, 1023, 0, 500);  
-    unsigned long filtVal = ((newVal*filt) + (oldVal*(64-filt)))>>6;
+    int raw = analogRead (inputPin);  // Read ADC: 0-1023 for 0-5V input
+    unsigned long newVal = map( raw, 0, 1023, 0, 500);  // Map to 0-500 (0.00-5.00V in 0.01V steps)
+    unsigned long filtVal = ((newVal*filt) + (oldVal*(64-filt)))>>6;  // Exponential filter (>>6 is divide by 64)
     return filtVal; 
 }
 
-// Reads 30 PSI Absolute Sensor
-unsigned long read30PSIAsensor(int inputPin, int oldVal, int filt)  // read voltage, map to 0-30 PSIA, and filter
+/**
+ * read30PSIAsensor - Read 30 PSI absolute pressure sensor
+ * 
+ * Reads a 30 PSIA sensor (typical barometric or MAP sensor) with 0.5-4.5V output range.
+ * Includes filtering for stable pressure readings.
+ * 
+ * @param inputPin - Arduino analog pin for pressure sensor
+ * @param oldVal - Previous filtered value (kPa * 10)
+ * @param filt - Filter coefficient (0-16): similar to readSensor but /16 instead of /64
+ * @return Filtered pressure in kPa * 10 (e.g., 1013 = 101.3 kPa = 1 atmosphere)
+ * 
+ * Sensor characteristics:
+ * - 0.5V = 0 PSIA
+ * - 4.5V = 30 PSIA (206.8 kPa)
+ * - ADC 102 (0.5V) = 0 kPa
+ * - ADC 921 (4.5V) = 2068 (206.8 kPa * 10)
+ */
+unsigned long read30PSIAsensor(int inputPin, int oldVal, int filt)
 {
-    int raw = analogRead (inputPin);
-    unsigned long newVal = map( raw, 102, 921, 0, 2068); 
-    unsigned long filtVal = ((newVal*filt) + (oldVal*(16-filt)))>>4;
+    int raw = analogRead (inputPin);  // Read ADC: 0-1023
+    unsigned long newVal = map( raw, 102, 921, 0, 2068);  // Map 0.5-4.5V to 0-30 PSIA (0-206.8 kPa)
+    unsigned long filtVal = ((newVal*filt) + (oldVal*(16-filt)))>>4;  // Filter (>>4 is divide by 16)
     return filtVal; 
 }
 
-// Reads GM CLT/IAT Thermistor
-float readThermSensor(int inputPin, float oldVal, int filt)  // read voltage, map to -40-150 deg C, and filter
+/**
+ * readThermSensor - Read GM-style thermistor temperature sensor
+ * 
+ * GM thermistors have a non-linear resistance vs. temperature curve.
+ * This function reads the voltage from a voltage divider circuit and applies filtering.
+ * Actual temperature conversion is done via curveLookup() with thermTable.
+ * 
+ * @param inputPin - Arduino analog pin for thermistor
+ * @param oldVal - Previous filtered voltage value (0.00-5.00V)
+ * @param filt - Filter coefficient (0-100): percentage of new value to use
+ *               - 100 = no filtering
+ *               - 50 = half new, half old (good for temperature - slow changing)
+ * @return Filtered voltage reading (0.00-5.00V as float)
+ * 
+ * Note: Higher filter values (e.g., 50/100) provide more stability for slowly-changing
+ * temperature readings, preventing gauge needle jitter.
+ */
+float readThermSensor(int inputPin, float oldVal, int filt)
 {
-    int raw = analogRead (inputPin);
-    float newVal = map( raw, 0, 1023, 0, 500)*0.01; 
-    float filtVal = ((newVal*filt) + (oldVal*(100-filt)))*0.01;
+    int raw = analogRead (inputPin);  // Read ADC: 0-1023
+    float newVal = map( raw, 0, 1023, 0, 500)*0.01;  // Map to 0-5V as float
+    float filtVal = ((newVal*filt) + (oldVal*(100-filt)))*0.01;  // Filter (*0.01 for percentage)
     return filtVal; 
 }
 
-// Generic Curve Lookup
+/**
+ * curveLookup - Generic lookup table with linear interpolation
+ * 
+ * Converts an input value to an output value using a piecewise-linear lookup table.
+ * Uses linear interpolation between breakpoints for smooth, accurate conversion.
+ * 
+ * This is essential for non-linear sensors like thermistors and fuel senders where
+ * the relationship between voltage and physical quantity isn't linear.
+ * 
+ * @param input - Input value (e.g., voltage from sensor)
+ * @param brkpts[] - Array of X-axis breakpoints (must be in ascending order)
+ * @param curve[] - Array of corresponding Y-axis values
+ * @param curveLength - Number of points in the table
+ * @return Interpolated output value
+ * 
+ * Behavior:
+ * - If input < first breakpoint: returns first curve value (flat extrapolation)
+ * - If input > last breakpoint: returns last curve value (flat extrapolation)
+ * - If input between breakpoints: linear interpolation between the two nearest points
+ * 
+ * Interpolation formula: y = y0 + (y1-y0)*(x-x0)/(x1-x0)
+ * where (x0,y0) and (x1,y1) are the surrounding breakpoints
+ */
 float curveLookup(float input, float brkpts[], float curve[], int curveLength){
   int index = 1;
 
-  //find input's position within the breakpoints
+  // Find input's position within the breakpoints
   for (int i = 0; i <= curveLength-1; i++){
     if (input < brkpts[0]){
+      // Input below range - return minimum value (flat extrapolation)
       float output = curve[0];
       return output;
     } 
     else if (input <= brkpts[i+1]){
+      // Found the interval containing input value
       index = i+1;
       break;
     } 
     else if (input > brkpts[curveLength-1]){
+      // Input above range - return maximum value (flat extrapolation)
       float output = curve[curveLength-1];
       return output;
     }
   } 
 
-  // interpolation
-  float x1 = brkpts[index];
-  float x0 = brkpts[index-1];
-  float y1 = curve[index];
-  float y0 = curve[index-1];
+  // Linear interpolation between breakpoints at index-1 and index
+  float x1 = brkpts[index];      // Upper breakpoint X
+  float x0 = brkpts[index-1];    // Lower breakpoint X
+  float y1 = curve[index];       // Upper breakpoint Y
+  float y0 = curve[index-1];     // Lower breakpoint Y
   
+  // Calculate interpolated value: slope * distance + offset
   float output = (((y1-y0)/(x1-x0))*(input-x0))+y0;
   return output;
 }
 
 
-///// DISPLAY AND NAVIGATION FUNCTIONS /////
-// Reads Encoder Switch and debounces
+/*
+ * ========================================
+ * DISPLAY AND NAVIGATION FUNCTIONS
+ * ========================================
+ * 
+ * Handle user interface: rotary encoder input, menu navigation, and OLED display updates
+ */
+
+/**
+ * swRead - Read and debounce rotary encoder switch
+ * 
+ * Monitors the encoder push button and implements software debouncing to prevent
+ * false triggers from mechanical switch bounce. Sets 'button' flag when a valid
+ * press-and-release is detected.
+ * 
+ * Debouncing strategy:
+ * - Ignore state changes within 50ms of last change (bounce period)
+ * - Only set button flag on rising edge (button release) after debounce
+ * 
+ * Global variables modified:
+ * - button: Set to 1 when valid button press completes
+ * - stateSW: Current switch state (1=released, 0=pressed)
+ * - lastStateSW: Previous switch state for edge detection
+ * - debounceFlag: Prevents multiple triggers during bounce period
+ * - lastStateChangeTime: Timestamp of last valid state change
+ * 
+ * Called from: main loop (every cycle before display update)
+ */
 void swRead() {       
-  stateSW = digitalRead(SWITCH);            // read the digital input pin
-  int stateChange = stateSW - lastStateSW;  // calculate state change value
+  stateSW = digitalRead(SWITCH);            // Read current state of encoder button
+  int stateChange = stateSW - lastStateSW;  // Calculate change: -1=pressed, +1=released, 0=no change
 
+  // Clear debounce flag if enough time has passed since last change
   if ((millis() - lastStateChangeTime) > debounceDelay) {
-    debounceFlag = 0;  // flag will block state change if debounce time has not elapsed
+    debounceFlag = 0;  // Allow new state changes to be registered
   }
 
-  if (stateChange < 0 && debounceFlag == 0) {  //if state change negative, button has been presed
-    lastStateChangeTime = millis();            // reset the debouncing timer
-    debounceFlag = 1;                          // set flag to block button bounce
-  } else if (stateChange > 0 && debounceFlag == 0) {
-    lastStateChangeTime = millis();    // reset the debouncing timer
-    debounceFlag = 1;                  // set flag to block button bounce
-    button = 1;
-  } else if (stateChange = 0) {  // if state change = 0, nothing has happened
+  // Detect button press (falling edge) - record time but don't trigger action yet
+  if (stateChange < 0 && debounceFlag == 0) {
+    lastStateChangeTime = millis();  // Record time of press
+    debounceFlag = 1;                // Block bounces
+  } 
+  // Detect button release (rising edge) - this is when we register the button press
+  else if (stateChange > 0 && debounceFlag == 0) {
+    lastStateChangeTime = millis();  // Record time of release
+    debounceFlag = 1;                // Block bounces
+    button = 1;                      // Set button event flag (cleared by menu handlers)
+  } 
+  else if (stateChange = 0) {  
+    // No state change - do nothing
   }
-  lastStateSW = stateSW;  // saves current switch state for next time
+  lastStateSW = stateSW;  // Save current state for next comparison
 }
 
-// General Encoder Incrementer for menu navigation 
+/**
+ * rotate - Rotary encoder interrupt handler
+ * 
+ * Called by hardware interrupt whenever encoder rotates (CHANGE on pins 2 or 3).
+ * Updates menu position (dispArray1[menuLevel]) based on rotation direction.
+ * Wraps around at menu boundaries for continuous scrolling.
+ * 
+ * The Rotary library handles quadrature decoding and debouncing, providing
+ * clean DIR_CW (clockwise) and DIR_CCW (counter-clockwise) events.
+ * 
+ * Global variables modified:
+ * - dispArray1[menuLevel]: Incremented or decremented based on rotation
+ * 
+ * Interrupt context: Keep this function fast and simple
+ */
 void rotate() {
-  //void rotate() {
-  unsigned char result = rotary.process();
+  unsigned char result = rotary.process();  // Process encoder quadrature signals
+  
   if (result == DIR_CW) {
-    if (dispArray1[menuLevel] == nMenuLevel) dispArray1[menuLevel] = 0; else dispArray1[menuLevel]++;  // increment up one within range given for current menu level
-  } else if (result == DIR_CCW) {
-    if (dispArray1[menuLevel] == 0l) dispArray1[menuLevel] = nMenuLevel; else dispArray1[menuLevel]--;  // increment down one within range given for current menu level
+    // Clockwise rotation - increment menu position
+    if (dispArray1[menuLevel] == nMenuLevel) 
+      dispArray1[menuLevel] = 0;  // Wrap to beginning
+    else 
+      dispArray1[menuLevel]++;    // Move to next item
+  } 
+  else if (result == DIR_CCW) {
+    // Counter-clockwise rotation - decrement menu position
+    if (dispArray1[menuLevel] == 0) 
+      dispArray1[menuLevel] = nMenuLevel;  // Wrap to end
+    else 
+      dispArray1[menuLevel]--;              // Move to previous item
   }
 }
 
