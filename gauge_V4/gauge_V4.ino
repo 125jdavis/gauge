@@ -228,11 +228,9 @@ unsigned int coolantTemp_g;    // Coolant temperature for gauge calculation
 
 // ===== ROTARY ENCODER VARIABLES =====
 // Handle menu navigation via rotary encoder with debouncing
-bool stateSW = 1;                      // Current state of encoder switch (1 = not pressed)
-bool lastStateSW = 1;                  // Previous state of encoder switch
-unsigned int lastStateChangeTime = 0;  // Timestamp of last switch state change (ms)
-unsigned int debounceDelay = 50;       // Debounce time in milliseconds
-bool debounceFlag = 0;                 // Flag to prevent multiple triggers during debounce
+// NOTE: stateSW, lastStateSW, lastStateChangeTime, debounceDelay, and debounceFlag
+// are now declared as static locals inside swRead() function (not globals)
+// to prevent potential interference from other parts of the code
 bool button = 0;                       // Button press event flag (set when press completes)
 
 // ===== TIMING VARIABLES =====
@@ -1086,7 +1084,15 @@ float curveLookup(float input, float brkpts[], float curve[], int curveLength){
  * 
  * Called from: main loop (every cycle before display update)
  */
-void swRead() {       
+void swRead() {
+  // Declare debounce variables as static locals to persist between function calls
+  // and prevent potential interference from other parts of the code
+  static bool stateSW = 1;                      // Current state of encoder switch (1 = not pressed)
+  static bool lastStateSW = 1;                  // Previous state of encoder switch
+  static unsigned int lastStateChangeTime = 0;  // Timestamp of last switch state change (ms)
+  static unsigned int debounceDelay = 50;       // Debounce time in milliseconds
+  static bool debounceFlag = 0;                 // Flag to prevent multiple triggers during debounce
+       
   stateSW = digitalRead(SWITCH);            // Read current state of encoder button
   int stateChange = stateSW - lastStateSW;  // Calculate change: -1=pressed, +1=released, 0=no change
 
@@ -1099,15 +1105,17 @@ void swRead() {
   if (stateChange < 0 && debounceFlag == 0) {
     lastStateChangeTime = millis();  // Record time of press
     debounceFlag = 1;                // Block bounces
-    lastStateSW = stateSW;           // Update state only on valid transition
   } 
   // Detect button release (rising edge) - this is when we register the button press
   else if (stateChange > 0 && debounceFlag == 0) {
     lastStateChangeTime = millis();  // Record time of release
     debounceFlag = 1;                // Block bounces
     button = 1;                      // Set button event flag (cleared by menu handlers)
-    lastStateSW = stateSW;           // Update state only on valid transition
+  } 
+  else if (stateChange == 0) {  
+    // No state change - do nothing
   }
+  lastStateSW = stateSW;  // Save current state for next comparison
 }
 
 /**
