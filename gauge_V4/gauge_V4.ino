@@ -1099,17 +1099,15 @@ void swRead() {
   if (stateChange < 0 && debounceFlag == 0) {
     lastStateChangeTime = millis();  // Record time of press
     debounceFlag = 1;                // Block bounces
+    lastStateSW = stateSW;           // Update state only on valid transition
   } 
   // Detect button release (rising edge) - this is when we register the button press
   else if (stateChange > 0 && debounceFlag == 0) {
     lastStateChangeTime = millis();  // Record time of release
     debounceFlag = 1;                // Block bounces
     button = 1;                      // Set button event flag (cleared by menu handlers)
-  } 
-  else if (stateChange == 0) {  
-    // No state change - do nothing
+    lastStateSW = stateSW;           // Update state only on valid transition
   }
-  lastStateSW = stateSW;  // Save current state for next comparison
 }
 
 /**
