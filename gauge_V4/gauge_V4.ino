@@ -63,7 +63,6 @@
 // Stepper motor libraries
 #include <SwitecX25.h>    // X25.168 stepper motor driver for gauges - https://github.com/clearwater/SwitecX25
 #include <SwitecX12.h>    // X12.017 stepper motor driver (alternative to X25) - https://github.com/clearwater/SwitecX25
-#include <TimerOne.h>     // Hardware timer (may not be needed - consider removing if unused)
 #include <Stepper.h>      // Generic stepper library for odometer motor (included in Arduino IDE)
 
 
