@@ -298,8 +298,11 @@ float spdMph = 0;          // Vehicle speed in miles per hour
 // ===== CAN BUS COMMUNICATION BUFFERS =====
 // Buffers for sending and receiving CAN messages
 // Note: data buffer moved to local in sendCAN_LE() and sendCAN_BE() functions
-// Note: canMessageData, rxId, len, rxBuf, msgString moved to local static in receiveCAN() and parseCAN()
-
+byte canMessageData [8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}; // Received CAN message data
+unsigned long rxId;                // Received CAN message ID (11-bit or 29-bit)
+unsigned char len = 0;             // Length of received CAN message (0-8 bytes)
+unsigned char rxBuf[8];            // Raw receive buffer from CAN controller
+char msgString[128];               // String buffer for serial debug output 
 
 // ===== LOOKUP TABLES =====
 // These tables convert non-linear sensor readings to physical values using interpolation
@@ -328,7 +331,8 @@ byte odoAddress = 6;             // Total odometer value (4 bytes: addresses 6-9
 byte odoTripAddress = 10;        // Trip odometer value (4 bytes: addresses 10-13)
 byte fuelSensorRawAddress = 14;  // Last fuel sensor reading (for fuel level memory, addresses 14-17)
 byte unitsAddress = 18;          // Unit system selection: 0=metric, 1=imperial (1 byte: address 18)
-// Note: Unused variables 'input' and 'output' removed - were never actually used
+int *input;                      // Pointer for EEPROM operations
+int output = 0;                  // Output buffer for EEPROM operations
 
 // ===== MENU NAVIGATION VARIABLES =====
 // Track current position in the multi-level menu system
@@ -806,7 +810,8 @@ void loop() {
     // Serial.print("CAN recieve: ");  // Debug timing
     int s = micros();
     
-    receiveCAN();  // Read message from MCP2515 receive buffer and parse it
+    receiveCAN();  // Read message from MCP2515 receive buffer
+    parseCAN(rxId, rxBuf);  // Parse message based on CAN ID and extract data
 
     int time =  micros() - s;
     // Serial.println(time);  // Debug: print execution time
@@ -2420,32 +2425,28 @@ void sendCAN_BE(int CANaddress, int inputVal_1, int inputVal_2, int inputVal_3, 
  * 
  * Reads a CAN message from the MCP2515 controller's receive buffer.
  * Called when CAN interrupt pin goes low (message waiting).
+ * Message data is copied to canMessageData[] for parsing.
  * 
- * Local static variables:
+ * Global variables modified:
  * - rxId: CAN message identifier
  * - len: Number of data bytes (0-8)
  * - rxBuf: Raw message data bytes
+ * - canMessageData: Copy of message data for parsing
  * 
  * The commented-out debug code can be enabled to print CAN messages to serial.
- * Note: msgString buffer for debug output is also local static (only used in commented code)
- * 
- * Returns: rxId and rxBuf are accessible via pointer/reference to parseCAN
  */
 void receiveCAN ()
 {
-    static unsigned long rxId;      // CAN message ID - local static
-    static unsigned char len = 0;   // Message length - local static
-    static unsigned char rxBuf[8];  // Raw receive buffer - local static
-    
+  
     CAN0.readMsgBuf(&rxId, &len, rxBuf);  // Read message: ID, length, and data bytes
     
-    // Parse the received CAN message
-    parseCAN(rxId, rxBuf);
+    // Copy received data to processing buffer
+    for (byte i =0; i< len; i++){
+      canMessageData[i] = rxBuf[i];
+      //Serial.println(canMessageData[i]);  // Debug: print each byte
+    }
     
     // Debug code for printing CAN messages (currently disabled)
-    // Note: msgString moved to local static since it's only used in commented debug code
-//    static char msgString[128];  // String buffer for serial debug output - local static
-//    
 //    if((rxId & 0x80000000) == 0x80000000)     // Check if extended ID (29-bit)
 //      sprintf(msgString, "Extended ID: 0x%.8lX  DLC: %1d  Data:", (rxId & 0x1FFFFFFF), len);
 //    else                                       // Standard ID (11-bit)
@@ -2470,7 +2471,7 @@ void receiveCAN ()
 }
 
 
-void parseCAN(unsigned long id, unsigned char rxBuf[])
+void parseCAN( unsigned long id, unsigned long msg)
 {
   int var1 = 0;
   
