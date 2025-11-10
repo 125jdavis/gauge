@@ -203,6 +203,19 @@ float sensor_c;                // Reserved sensor C value
 byte filter_c = 12;            // Filter coefficient for sensor C (12/16)
 int analogPin7 = A7;           // Analog pin 7
 
+// ===== HALL EFFECT SPEED SENSOR VARIABLES =====
+// Hall effect sensor can read vehicle speed through a digital input 
+const int hallPin = 20;                 // Digital speed input pin (D20, interrupt 1)
+const int revsPerMile = 6234;      // Revolutions per mile
+const int teethPerRev = 12;             // Teeth per revolution
+const float alphaHallSpeed = 0.8;       // EMA filter coefficient (lower value is more filtered)
+
+volatile unsigned long hallLastTime = 0;    // Last pulse time (micros)
+volatile float hallSpeedRaw = 0;            // Most recent calculated speed (MPH)
+float hallSpeedEMA = 0;                     // Filtered speed (MPH)
+const float hallSpeedMin = 0.5;             // Minimum reportable speed (MPH)
+const unsigned long hallPulseTimeout = 1000000UL; // Timeout (μs) for "vehicle stopped" (1 second)
+
 // ===== GPS SPEED AND ODOMETER VARIABLES =====
 // GPS provides speed and time data for speedometer and odometer calculations
 unsigned long v_old = 0;       // Previous GPS speed reading (km/h * 100)
@@ -238,6 +251,7 @@ bool button = 0;                       // Button press event flag (set when pres
 unsigned int timer0, timerDispUpdate, timerCANsend;
 unsigned int timerSensorRead, timerTachUpdate, timerTachFlash;
 unsigned int timerCheckGPS, timerGPSupdate, timerAngleUpdate;
+unsigned int timerHallUpdate;
 
 // Update rate periods (in milliseconds)
 //long unsigned dispMenuRate = 20;       // Unused - commented out
@@ -250,6 +264,7 @@ unsigned int GPSupdateRate = 100;       // GPS update check rate (might not be n
 unsigned int checkGPSRate = 1;          // Check for GPS data every 1ms
 unsigned int angleUpdateRate = 20;      // Update motor angles every 20ms (50Hz)
 unsigned int splashTime = 1500;         // Duration of startup splash screens (milliseconds)
+unsigned int hallUpdateRate = 20;       // recalculate Hall sensor speed every 20ms (50hz)     
 
 // ===== LED TACHOMETER VARIABLES =====
 // Control the LED strip tachometer display
@@ -562,9 +577,10 @@ const unsigned char img_fuelLvl [] PROGMEM = {
  * Modifies: spd, spdCAN, RPM, coolantTemp, oilPrs, fuelPrs, oilTemp, afr, fuelComp, fuelLvlCAN
  */
 void sigSelect (void) {
-    spd = v_new; // Speed in km/h * 100 from GPS
+    //spd = v_new; // Speed in km/h * 100 from GPS
+    spd = hallSpeedEMA*100; //Speed in km/h *100 from hall sensor
     //spdMph = spd *0.6213712;  // Unused conversion to mph
-    spdCAN = (int)(v*16);  // Speed formatted for CAN bus transmission (km/h * 16 per Haltech protocol)
+    //spdCAN = (int)(v*16);  // Speed formatted for CAN bus transmission (km/h * 16 per Haltech protocol)
     RPM = rpmCAN;  // Direct copy of RPM from CAN bus
     coolantTemp = (coolantTempCAN/10)-273.15; // Convert from Kelvin*10 to Celsius (K to C: subtract 273.15)
     oilPrs = (oilPrsCAN/10)-101.3;   // Convert from absolute kPa to gauge pressure (subtract atmospheric ~101.3 kPa)
@@ -630,6 +646,10 @@ void setup() {
 
   useInterrupt(true);                             // Enable interrupt-based GPS reading (Timer0 ISR reads GPS in background)
  
+  // ===== HALL SENSOR INITIALIZATION =====
+  pinMode(hallPin, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(hallPin), hallSpeedISR, FALLING); // Interrupt 3 = pin 20
+
   // ===== DISPLAY INITIALIZATION =====
   display1.begin(SSD1306_SWITCHCAPVCC);  // Initialize display 1 with internal charge pump
   display2.begin(SSD1306_SWITCHCAPVCC);  // Initialize display 2 with internal charge pump
@@ -658,8 +678,8 @@ void setup() {
   pinMode(SWITCH, INPUT_PULLUP);  // Switch pulls to ground when pressed
   
   // Attach interrupts to encoder pins for immediate response to rotation
-  attachInterrupt(0, rotate, CHANGE);  // Interrupt 0 = pin 2
-  attachInterrupt(1, rotate, CHANGE);  // Interrupt 1 = pin 3
+  attachInterrupt(digitalPinToInterrupt(2), rotate, CHANGE);  // Interrupt 0 = pin 2
+  attachInterrupt(digitalPinToInterrupt(3), rotate, CHANGE);  // Interrupt 1 = pin 3
   
   // ===== LOAD SAVED SETTINGS FROM EEPROM =====
   
@@ -780,6 +800,11 @@ void loop() {
     // Serial.println(time);  // Debug: print execution time
   }
 
+  // ===== HALL SENSOR READING ======
+  //process hall sensor input to calculate vehicle speed
+  if (millis() - timerHallUpdate > hallUpdateRate) {
+    hallSpeedUpdate();
+  }
 
   // ===== CAN BUS TRANSMISSION =====
   // Send vehicle data to other modules on CAN bus
@@ -876,7 +901,10 @@ void loop() {
     // Calculate needle angles based on current sensor values
     int angle1 = fuelLvlAngle(M1_SWEEP);      // Motor 1: Fuel level
     int angle2 = fuelLvlAngle(M2_SWEEP);      // Motor 2: Fuel level (duplicate or alt gauge)
-    int angle3 = speedometerAngle(M3_SWEEP);  // Motor 3: Speedometer
+    //int angle3 = speedometerAngle(M3_SWEEP);    // Motor 3: Speedometer
+    //int angle3 = speedometerAngleGPS(M3_SWEEP); // Motor 3: Speedometer
+    //int angle3 = speedometerAngleCAN(M3_SWEEP); // Motor 3: Speedometer
+    int angle3 = speedometerAngleHall(M3_SWEEP);  // Motor 3: Speedometer
     int angle4 = coolantTempAngle(M4_SWEEP);  // Motor 4: Coolant temperature
     
     // Set new target positions (motors will step towards these in update() calls)
@@ -903,7 +931,7 @@ void loop() {
   // Check if ignition voltage has dropped (key turned off)
   // Shutdown when battery voltage < 1V AND system has been running for at least 3 seconds
   if (vBatt < 1 && millis() > splashTime + 3000) {
-    shutdown();  // Save settings, zero gauges, display shutdown screen, cut power
+    //shutdown();  // Save settings, zero gauges, display shutdown screen, cut power
   }
 
   //serialInputFunc();  // Debugging only - manual input via serial monitor (commented out)
@@ -994,6 +1022,41 @@ float readThermSensor(int inputPin, float oldVal, int filt)
     float newVal = map( raw, 0, 1023, 0, 500)*0.01;  // Map to 0-5V as float
     float filtVal = ((newVal*filt) + (oldVal*(100-filt)))*0.01;  // Filter (*0.01 for percentage)
     return filtVal; 
+}
+
+// Hall Effect Speed Sensor Interrupt Handler
+void hallSpeedISR() {
+    unsigned long currentTime = micros();
+    unsigned long pulseInterval = currentTime - hallLastTime;
+    hallLastTime = currentTime;
+
+    // Ignore any implausibly short intervals (can set a minimum if needed, e.g. electrical noise)
+    // For 150 mph, the shortest plausible pulse interval is much less than 1ms; let's allow anything > 100 μs
+    if (pulseInterval > 100) {
+        // Calculate speed in MPH:
+        // MPH = (pulse freq [Hz] * 3600) / (teethPerRev * revsPerMile)
+        // pulse freq = 1 / (pulseInterval in seconds)
+        float pulseFreq = 1000000.0 / pulseInterval;
+        float speedRaw = (pulseFreq * 3600.0) / (teethPerRev * revsPerMile);
+        hallSpeedRaw = speedRaw;
+        // EMA filter:
+        hallSpeedEMA = (alphaHallSpeed * speedRaw) + ((1.0 - alphaHallSpeed) * hallSpeedEMA);
+        Serial.println(hallSpeedEMA);
+    }
+}
+
+// Call this in loop() to handle long times between pulses (vehicle stopped/very slow)
+void hallSpeedUpdate() {
+    unsigned long currentTime = micros();
+    // If it's been too long since last pulse, set speed to zero
+    if ((currentTime - hallLastTime) > hallPulseTimeout) {
+        hallSpeedRaw = 0;
+        hallSpeedEMA = 0;
+    }
+    // Optionally, clamp very low speeds to zero for display stability
+    if (hallSpeedEMA < hallSpeedMin) {
+        hallSpeedEMA = 0;
+    }
 }
 
 /**
@@ -2782,14 +2845,32 @@ int speedometerAngle(int sweep) {
   
   int angle = map( spd_g, 0, speedoMax, 1, sweep-1);  // Map speed to motor angle
   
-  // Debug output for speed logging
-  // Serial.print(millis());
-  // Serial.print(",");
-  // Serial.print(v);
-  // Serial.print(",");
-  // Serial.println(angle);
   
   angle = constrain(angle, 1, sweep-1);  // Ensure angle is within valid range
+  return angle;
+}
+
+int speedometerAngleGPS(int sweep) {
+  unsigned long t_curr =  millis()-lagGPS;
+  float spd_g_float = map(t_curr, t_old, t_new, v_old, v_new)*0.6213712;   // interpolate values between GPS data fix, convert from km/h x100 to mph x100
+  spd_g = (unsigned long)spd_g_float;
+  if (spd_g < 50) spd_g = 0;                                  // if speed is below 0.5 mph set to zero
+  if (spd_g > speedoMax) spd_g = speedoMax;                   // set max pointer rotation
+  
+  int angle = map( spd_g, 0, speedoMax, 1, sweep-1);         // calculate angle of gauge 
+  angle = constrain(angle, 1, sweep-1);
+  return angle;                                               // return angle of motor
+}
+
+int speedometerAngleCAN(int sweep) {
+  int angle = map( spdCAN, 0, speedoMax, 1, sweep-1);         // calculate angle of gauge 
+  angle = constrain(angle, 1, sweep-1);
+  return angle;
+}
+
+int speedometerAngleHall(int sweep) {
+  int angle = map( hallSpeedEMA, 0, speedoMax, 1, sweep-1);         // calculate angle of gauge 
+  angle = constrain(angle, 1, sweep-1);
   return angle;
 }
 
