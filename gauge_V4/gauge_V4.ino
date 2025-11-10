@@ -255,7 +255,7 @@ unsigned int splashTime = 1500;         // Duration of startup splash screens (m
 // Control the LED strip tachometer display
 unsigned int tachMax = 6000;            // RPM at which shift light activates and flashes
 unsigned int tachMin = 3000;            // Minimum RPM to show on tach (below this LEDs are off)
-bool tachFlashState = 0;                // Current state of shift light flashing (0=off, 1=on)
+// Note: tachFlashState moved to local static in ledShiftLight() function
 
 // ===== CAN BUS ENGINE PARAMETERS =====
 // Raw values received from Haltech ECU via CAN bus
@@ -297,12 +297,9 @@ float spdMph = 0;          // Vehicle speed in miles per hour
 
 // ===== CAN BUS COMMUNICATION BUFFERS =====
 // Buffers for sending and receiving CAN messages
-byte data[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};           // Outgoing CAN message buffer (8 bytes)
-byte canMessageData [8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}; // Received CAN message data
-unsigned long rxId;                // Received CAN message ID (11-bit or 29-bit)
-unsigned char len = 0;             // Length of received CAN message (0-8 bytes)
-unsigned char rxBuf[8];            // Raw receive buffer from CAN controller
-char msgString[128];               // String buffer for serial debug output 
+// Note: data buffer moved to local in sendCAN_LE() and sendCAN_BE() functions
+// Note: canMessageData, rxId, len, rxBuf, msgString moved to local static in receiveCAN() and parseCAN()
+
 
 // ===== LOOKUP TABLES =====
 // These tables convert non-linear sensor readings to physical values using interpolation
@@ -331,8 +328,7 @@ byte odoAddress = 6;             // Total odometer value (4 bytes: addresses 6-9
 byte odoTripAddress = 10;        // Trip odometer value (4 bytes: addresses 10-13)
 byte fuelSensorRawAddress = 14;  // Last fuel sensor reading (for fuel level memory, addresses 14-17)
 byte unitsAddress = 18;          // Unit system selection: 0=metric, 1=imperial (1 byte: address 18)
-int *input;                      // Pointer for EEPROM operations
-int output = 0;                  // Output buffer for EEPROM operations
+// Note: Unused variables 'input' and 'output' removed - were never actually used
 
 // ===== MENU NAVIGATION VARIABLES =====
 // Track current position in the multi-level menu system
@@ -536,10 +532,7 @@ const unsigned char img_fuelLvl [] PROGMEM = {
 
 // ===== DEMO/TEST VARIABLES =====
 // Variables used for testing gauge sweep and display without real engine data
-bool rpmSwitch = 0;         // Direction flag for demo RPM sweep (0=increasing, 1=decreasing)
-int gRPM;                   // Generated RPM value for demo mode
-int analog = 2;             // Test analog value
-int analogSwitch = 0;       // Direction flag for analog test sweep
+// Note: rpmSwitch, gRPM, analog, and analogSwitch moved to local static in generateRPM() function
 
 /*
  * ========================================
@@ -813,8 +806,7 @@ void loop() {
     // Serial.print("CAN recieve: ");  // Debug timing
     int s = micros();
     
-    receiveCAN();  // Read message from MCP2515 receive buffer
-    parseCAN(rxId, rxBuf);  // Parse message based on CAN ID and extract data
+    receiveCAN();  // Read message from MCP2515 receive buffer and parse it
 
     int time =  micros() - s;
     // Serial.println(time);  // Debug: print execution time
@@ -2364,6 +2356,8 @@ byte digits(float val){
  */
 void sendCAN_LE(int CANaddress, int inputVal_1, int inputVal_2, int inputVal_3, int inputVal_4)
 {
+        byte data[8];  // Local buffer for CAN message (8 bytes)
+        
         // LITTLE ENDIAN byte packing
         // Word 1 (bytes 0-1)
         data[0] = lowByte(inputVal_1);   // LSB first
@@ -2402,6 +2396,8 @@ void sendCAN_LE(int CANaddress, int inputVal_1, int inputVal_2, int inputVal_3, 
  */
 void sendCAN_BE(int CANaddress, int inputVal_1, int inputVal_2, int inputVal_3, int inputVal_4)
 {
+        byte data[8];  // Local buffer for CAN message (8 bytes)
+        
         // BIG ENDIAN byte packing
         // Word 1 (bytes 0-1)
         data[0] = highByte(inputVal_1);  // MSB first
@@ -2424,28 +2420,32 @@ void sendCAN_BE(int CANaddress, int inputVal_1, int inputVal_2, int inputVal_3, 
  * 
  * Reads a CAN message from the MCP2515 controller's receive buffer.
  * Called when CAN interrupt pin goes low (message waiting).
- * Message data is copied to canMessageData[] for parsing.
  * 
- * Global variables modified:
+ * Local static variables:
  * - rxId: CAN message identifier
  * - len: Number of data bytes (0-8)
  * - rxBuf: Raw message data bytes
- * - canMessageData: Copy of message data for parsing
  * 
  * The commented-out debug code can be enabled to print CAN messages to serial.
+ * Note: msgString buffer for debug output is also local static (only used in commented code)
+ * 
+ * Returns: rxId and rxBuf are accessible via pointer/reference to parseCAN
  */
 void receiveCAN ()
 {
-  
+    static unsigned long rxId;      // CAN message ID - local static
+    static unsigned char len = 0;   // Message length - local static
+    static unsigned char rxBuf[8];  // Raw receive buffer - local static
+    
     CAN0.readMsgBuf(&rxId, &len, rxBuf);  // Read message: ID, length, and data bytes
     
-    // Copy received data to processing buffer
-    for (byte i =0; i< len; i++){
-      canMessageData[i] = rxBuf[i];
-      //Serial.println(canMessageData[i]);  // Debug: print each byte
-    }
+    // Parse the received CAN message
+    parseCAN(rxId, rxBuf);
     
     // Debug code for printing CAN messages (currently disabled)
+    // Note: msgString moved to local static since it's only used in commented debug code
+//    static char msgString[128];  // String buffer for serial debug output - local static
+//    
 //    if((rxId & 0x80000000) == 0x80000000)     // Check if extended ID (29-bit)
 //      sprintf(msgString, "Extended ID: 0x%.8lX  DLC: %1d  Data:", (rxId & 0x1FFFFFFF), len);
 //    else                                       // Standard ID (11-bit)
@@ -2470,7 +2470,7 @@ void receiveCAN ()
 }
 
 
-void parseCAN( unsigned long id, unsigned long msg)
+void parseCAN(unsigned long id, unsigned char rxBuf[])
 {
   int var1 = 0;
   
@@ -2551,6 +2551,8 @@ void parseCAN( unsigned long id, unsigned long msg)
 
 ///// LED TACH AND SHIFT LIGHT FUNCTION /////
 void ledShiftLight(int ledRPM){
+  static bool tachFlashState = 0;  // Current state of shift light flashing (0=off, 1=on) - local static
+  
   if (ledRPM < tachMin) {
       // black out unused range  
     for (int i = 0; i < NUM_LEDS; i++){
@@ -3018,15 +3020,22 @@ void motorSweepSynchronous(void){
  * Creates a realistic RPM sweep for testing the LED tachometer
  * without a running engine. RPM ramps up and down automatically.
  * 
- * Global variables modified:
+ * Local static variables:
  * - gRPM: Generated RPM value (900-7000)
  * - rpmSwitch: Direction flag (0=increasing, 1=decreasing)
+ * - analog: Test analog value
+ * - analogSwitch: Direction flag for analog test sweep
  * 
  * Called from: main loop when demo mode is enabled (currently commented out)
  * 
  * Note: Commented-out analog signal generation code also included
  */
 void generateRPM(void){
+    static bool rpmSwitch = 0;      // Direction flag for demo RPM sweep - local static
+    static int gRPM = 900;          // Generated RPM value for demo mode - local static
+    static int analog = 2;          // Test analog value - local static
+    static int analogSwitch = 0;    // Direction flag for analog test sweep - local static
+    
     // RPM signal generation for demo/testing
     if (rpmSwitch == 0){
       gRPM = gRPM + 120;  // Ramp up by 120 RPM per update
