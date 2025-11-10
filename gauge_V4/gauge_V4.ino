@@ -255,7 +255,7 @@ unsigned int splashTime = 1500;         // Duration of startup splash screens (m
 // Control the LED strip tachometer display
 unsigned int tachMax = 6000;            // RPM at which shift light activates and flashes
 unsigned int tachMin = 3000;            // Minimum RPM to show on tach (below this LEDs are off)
-bool tachFlashState = 0;                // Current state of shift light flashing (0=off, 1=on)
+// Note: tachFlashState moved to local static in ledShiftLight() function
 
 // ===== CAN BUS ENGINE PARAMETERS =====
 // Raw values received from Haltech ECU via CAN bus
@@ -297,7 +297,7 @@ float spdMph = 0;          // Vehicle speed in miles per hour
 
 // ===== CAN BUS COMMUNICATION BUFFERS =====
 // Buffers for sending and receiving CAN messages
-byte data[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};           // Outgoing CAN message buffer (8 bytes)
+// Note: data buffer moved to local in sendCAN_LE() and sendCAN_BE() functions
 byte canMessageData [8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}; // Received CAN message data
 unsigned long rxId;                // Received CAN message ID (11-bit or 29-bit)
 unsigned char len = 0;             // Length of received CAN message (0-8 bytes)
@@ -536,10 +536,7 @@ const unsigned char img_fuelLvl [] PROGMEM = {
 
 // ===== DEMO/TEST VARIABLES =====
 // Variables used for testing gauge sweep and display without real engine data
-bool rpmSwitch = 0;         // Direction flag for demo RPM sweep (0=increasing, 1=decreasing)
-int gRPM;                   // Generated RPM value for demo mode
-int analog = 2;             // Test analog value
-int analogSwitch = 0;       // Direction flag for analog test sweep
+// Note: rpmSwitch, gRPM, analog, and analogSwitch moved to local static in generateRPM() function
 
 /*
  * ========================================
@@ -2364,6 +2361,8 @@ byte digits(float val){
  */
 void sendCAN_LE(int CANaddress, int inputVal_1, int inputVal_2, int inputVal_3, int inputVal_4)
 {
+        byte data[8];  // Local buffer for CAN message (8 bytes)
+        
         // LITTLE ENDIAN byte packing
         // Word 1 (bytes 0-1)
         data[0] = lowByte(inputVal_1);   // LSB first
@@ -2402,6 +2401,8 @@ void sendCAN_LE(int CANaddress, int inputVal_1, int inputVal_2, int inputVal_3, 
  */
 void sendCAN_BE(int CANaddress, int inputVal_1, int inputVal_2, int inputVal_3, int inputVal_4)
 {
+        byte data[8];  // Local buffer for CAN message (8 bytes)
+        
         // BIG ENDIAN byte packing
         // Word 1 (bytes 0-1)
         data[0] = highByte(inputVal_1);  // MSB first
@@ -2551,6 +2552,8 @@ void parseCAN( unsigned long id, unsigned long msg)
 
 ///// LED TACH AND SHIFT LIGHT FUNCTION /////
 void ledShiftLight(int ledRPM){
+  static bool tachFlashState = 0;  // Current state of shift light flashing (0=off, 1=on) - local static
+  
   if (ledRPM < tachMin) {
       // black out unused range  
     for (int i = 0; i < NUM_LEDS; i++){
@@ -3018,15 +3021,22 @@ void motorSweepSynchronous(void){
  * Creates a realistic RPM sweep for testing the LED tachometer
  * without a running engine. RPM ramps up and down automatically.
  * 
- * Global variables modified:
+ * Local static variables:
  * - gRPM: Generated RPM value (900-7000)
  * - rpmSwitch: Direction flag (0=increasing, 1=decreasing)
+ * - analog: Test analog value
+ * - analogSwitch: Direction flag for analog test sweep
  * 
  * Called from: main loop when demo mode is enabled (currently commented out)
  * 
  * Note: Commented-out analog signal generation code also included
  */
 void generateRPM(void){
+    static bool rpmSwitch = 0;      // Direction flag for demo RPM sweep - local static
+    static int gRPM = 900;          // Generated RPM value for demo mode - local static
+    static int analog = 2;          // Test analog value - local static
+    static int analogSwitch = 0;    // Direction flag for analog test sweep - local static
+    
     // RPM signal generation for demo/testing
     if (rpmSwitch == 0){
       gRPM = gRPM + 120;  // Ramp up by 120 RPM per update
