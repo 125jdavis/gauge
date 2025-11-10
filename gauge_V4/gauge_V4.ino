@@ -895,21 +895,6 @@ void loop() {
     int time =  micros() - s;
     // Serial.println(time);  // Debug: print execution time
   }
-
-  // ===== MOTOR STEPPING =====
-  // Execute stepper motor steps - called every loop for smooth motion
-  // SwitecX12 library handles microstepping internally
-  motor1.update();  // Step fuel gauge motor if needed
-  motor2.update();  // Step motor 2 if needed
-  motor3.update();  // Step speedometer motor if needed
-  motor4.update();  // Step temperature gauge motor if needed
-
-  // ===== SHUTDOWN CHECK =====
-  // Monitor battery voltage to detect key-off condition
-  // Saves data and shuts down gracefully when voltage drops
-  if (vBatt < 11.0) {  // 11V threshold indicates alternator off / key off
-    //shutdown();  // Save odometer, zero gauges, cut power
-  }
   
   // ===== MOTOR STEPPING =====
   // Execute micro-steps for all motors - called every loop iteration
@@ -1144,7 +1129,6 @@ void swRead() {
  */
 void rotate() {
   unsigned char result = rotary.process();  // Process encoder quadrature signals
-  
   if (result == DIR_CW) {
     // Clockwise rotation - increment menu position
     if (dispArray1[menuLevel] == nMenuLevel) 
@@ -2790,11 +2774,11 @@ int speedometerAngle(int sweep) {
   int angle = map( spd_g, 0, speedoMax, 1, sweep-1);  // Map speed to motor angle
   
   // Debug output for speed logging
-  Serial.print(millis());
-  Serial.print(",");
-  Serial.print(v);
-  Serial.print(",");
-  Serial.println(angle);
+  // Serial.print(millis());
+  // Serial.print(",");
+  // Serial.print(v);
+  // Serial.print(",");
+  // Serial.println(angle);
   
   angle = constrain(angle, 1, sweep-1);  // Ensure angle is within valid range
   return angle;
