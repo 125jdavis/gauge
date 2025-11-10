@@ -882,11 +882,38 @@ void loop() {
     int angle3 = speedometerAngle(M3_SWEEP);  // Motor 3: Speedometer
     int angle4 = coolantTempAngle(M4_SWEEP);  // Motor 4: Coolant temperature
     
+<<<<<<< Updated upstream
     // Set new target positions (motors will step towards these in update() calls)
     motor1.setPosition(angle1);
     motor2.setPosition(angle2);
     motor3.setPosition(angle3);
     motor4.setPosition(angle4);
+=======
+    // Update motor targets (motors will step toward these positions asynchronously)
+    motor1.setPosition(fuelLevelPct_g);    // Fuel gauge
+    motor3.setPosition(spd_g);             // Speedometer
+    motor4.setPosition(coolantTemp_g);     // Temperature gauge
+    
+    timerAngleUpdate = millis();  // Reset timer
+    
+    int time =  micros() - s;
+    // Serial.println(time);  // Debug: print execution time
+  }
+
+  // ===== MOTOR STEPPING =====
+  // Execute stepper motor steps - called every loop for smooth motion
+  // SwitecX12 library handles microstepping internally
+  motor1.update();  // Step fuel gauge motor if needed
+  motor2.update();  // Step motor 2 if needed
+  motor3.update();  // Step speedometer motor if needed
+  motor4.update();  // Step temperature gauge motor if needed
+
+  // ===== SHUTDOWN CHECK =====
+  // Monitor battery voltage to detect key-off condition
+  // Saves data and shuts down gracefully when voltage drops
+  if (vBatt < 11.0) {  // 11V threshold indicates alternator off / key off
+    //shutdown();  // Save odometer, zero gauges, cut power
+>>>>>>> Stashed changes
   }
   
   // ===== MOTOR STEPPING =====
