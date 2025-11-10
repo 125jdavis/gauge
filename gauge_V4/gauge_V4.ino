@@ -659,6 +659,9 @@ void setup() {
   FastLED.addLeds<WS2812, TACH_DATA_PIN, GRB>(leds, NUM_LEDS);  // Configure WS2812 LED strip (GRB color order)
 
   // ===== ROTARY ENCODER SETUP =====
+  // Configure encoder switch pin with internal pull-up resistor
+  pinMode(SWITCH, INPUT_PULLUP);  // Switch pulls to ground when pressed
+  
   // Attach interrupts to encoder pins for immediate response to rotation
   attachInterrupt(0, rotate, CHANGE);  // Interrupt 0 = pin 2
   attachInterrupt(1, rotate, CHANGE);  // Interrupt 1 = pin 3
@@ -881,17 +884,11 @@ void loop() {
     int angle3 = speedometerAngle(M3_SWEEP);  // Motor 3: Speedometer
     int angle4 = coolantTempAngle(M4_SWEEP);  // Motor 4: Coolant temperature
     
-<<<<<<< Updated upstream
     // Set new target positions (motors will step towards these in update() calls)
     motor1.setPosition(angle1);
     motor2.setPosition(angle2);
     motor3.setPosition(angle3);
     motor4.setPosition(angle4);
-=======
-    // Update motor targets (motors will step toward these positions asynchronously)
-    motor1.setPosition(fuelLevelPct_g);    // Fuel gauge
-    motor3.setPosition(spd_g);             // Speedometer
-    motor4.setPosition(coolantTemp_g);     // Temperature gauge
     
     timerAngleUpdate = millis();  // Reset timer
     
@@ -912,10 +909,6 @@ void loop() {
   // Saves data and shuts down gracefully when voltage drops
   if (vBatt < 11.0) {  // 11V threshold indicates alternator off / key off
     //shutdown();  // Save odometer, zero gauges, cut power
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
   }
   
   // ===== MOTOR STEPPING =====
@@ -1128,7 +1121,7 @@ void swRead() {
     debounceFlag = 1;                // Block bounces
     button = 1;                      // Set button event flag (cleared by menu handlers)
   } 
-  else if (stateChange = 0) {  
+  else if (stateChange == 0) {  
     // No state change - do nothing
   }
   lastStateSW = stateSW;  // Save current state for next comparison
