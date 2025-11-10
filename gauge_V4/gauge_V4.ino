@@ -912,6 +912,9 @@ void loop() {
   // Saves data and shuts down gracefully when voltage drops
   if (vBatt < 11.0) {  // 11V threshold indicates alternator off / key off
     //shutdown();  // Save odometer, zero gauges, cut power
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
   }
   
