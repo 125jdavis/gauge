@@ -110,7 +110,7 @@
 
 
 // Rotary Encoder Configuration
-#define SWITCH 24              // Rotary encoder push button pin (for menu selection)
+#define SWITCH 1               // Rotary encoder push button pin (V4 hardware uses pin 1, V3 used pin 24)
 
 // OLED Display 1 Configuration (SPI interface)
 #define SCREEN_W 128           // OLED display width in pixels
