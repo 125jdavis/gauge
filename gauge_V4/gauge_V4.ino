@@ -313,7 +313,7 @@ void loop() {
   // Monitor battery voltage to detect key-off condition
   // Saves data and shuts down gracefully when voltage drops
   if (vBatt < 11.0) {  // 11V threshold indicates alternator off / key off
-    shutdown();  // Save odometer, zero gauges, cut power
+    //shutdown();  // Save odometer, zero gauges, cut power
   }
   
   // serialInputFunc();  // Uncomment for serial testing/debugging

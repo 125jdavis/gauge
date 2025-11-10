@@ -27,11 +27,11 @@ int speedometerAngle(int sweep) {
   int angle = map( spd_g, 0, speedoMax, 1, sweep-1);  // Map speed to motor angle
   
   // Debug output for speed logging
-  Serial.print(millis());
-  Serial.print(",");
-  Serial.print(v);
-  Serial.print(",");
-  Serial.println(angle);
+  // Serial.print(millis());
+  // Serial.print(",");
+  // Serial.print(v);
+  // Serial.print(",");
+  // Serial.println(angle);
   
   angle = constrain(angle, 1, sweep-1);  // Ensure angle is within valid range
   return angle;
