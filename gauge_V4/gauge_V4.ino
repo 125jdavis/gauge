@@ -75,6 +75,9 @@
 #define CAN0_CS 53        // MCP2515 CAN controller chip select pin (SPI)
 #define CAN0_INT 18       // MCP2515 interrupt pin - triggers when CAN message received
 
+// Engine RPM Sensor Configuration (Ignition Coil Pulses)
+#define IGNITION_PULSE_PIN 21  // Digital pin D21 - ignition coil pulses via optocoupler (interrupt-capable)
+
 
 // GAUGE HARDWARE SETUP //
 #define pwrPin 49              // Power control pin - keeps system alive after ignition is off
@@ -216,6 +219,21 @@ float hallSpeedEMA = 0;                     // Filtered speed (MPH)
 const float hallSpeedMin = 0.5;             // Minimum reportable speed (MPH)
 const unsigned long hallPulseTimeout = 1000000UL; // Timeout (μs) for "vehicle stopped" (1 second)
 
+// ===== ENGINE RPM SENSOR VARIABLES (IGNITION COIL PULSES) =====
+// Measures engine RPM by counting pulses from the ignition coil negative side
+// Signal is sent through an optocoupler to protect the Arduino from high voltage
+const float pulsesPerRevolution = 4.0;      // Calibratable: pulses per engine revolution
+                                            // For 4-stroke engines: cylinders / 2
+                                            // Examples: 4-cyl=2, 6-cyl=3, 8-cyl=4, 3-cyl=1.5
+const float alphaEngineRPM = 0.7;           // EMA filter coefficient (lower value = more filtered)
+                                            // Range: 0.0 to 1.0 (0.7 balances smoothing and responsiveness)
+
+volatile unsigned long ignitionLastTime = 0;  // Last ignition pulse time (micros)
+volatile float engineRPMRaw = 0;              // Most recent calculated RPM (unfiltered)
+float engineRPMEMA = 0;                       // Filtered RPM with exponential moving average
+const float engineRPMMin = 100.0;             // Minimum reportable RPM (engine idle ~600-800)
+const unsigned long ignitionPulseTimeout = 500000UL; // Timeout (μs) for "engine stopped" (0.5 second)
+
 // ===== GPS SPEED AND ODOMETER VARIABLES =====
 // GPS provides speed and time data for speedometer and odometer calculations
 unsigned long v_old = 0;       // Previous GPS speed reading (km/h * 100)
@@ -252,6 +270,7 @@ unsigned int timer0, timerDispUpdate, timerCANsend;
 unsigned int timerSensorRead, timerTachUpdate, timerTachFlash;
 unsigned int timerCheckGPS, timerGPSupdate, timerAngleUpdate;
 unsigned int timerHallUpdate;
+unsigned int timerEngineRPMUpdate;
 
 // Update rate periods (in milliseconds)
 //long unsigned dispMenuRate = 20;       // Unused - commented out
@@ -264,7 +283,8 @@ unsigned int GPSupdateRate = 100;       // GPS update check rate (might not be n
 unsigned int checkGPSRate = 1;          // Check for GPS data every 1ms
 unsigned int angleUpdateRate = 20;      // Update motor angles every 20ms (50Hz)
 unsigned int splashTime = 1500;         // Duration of startup splash screens (milliseconds)
-unsigned int hallUpdateRate = 20;       // recalculate Hall sensor speed every 20ms (50hz)     
+unsigned int hallUpdateRate = 20;       // recalculate Hall sensor speed every 20ms (50hz)
+unsigned int engineRPMUpdateRate = 20;  // Check engine RPM timeout every 20ms (50Hz)
 
 // ===== LED TACHOMETER VARIABLES =====
 // Control the LED strip tachometer display
@@ -650,6 +670,10 @@ void setup() {
   pinMode(hallPin, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(hallPin), hallSpeedISR, FALLING); // Interrupt 3 = pin 20
 
+  // ===== ENGINE RPM SENSOR INITIALIZATION =====
+  pinMode(IGNITION_PULSE_PIN, INPUT_PULLUP);  // Enable internal pull-up for optocoupler signal
+  attachInterrupt(digitalPinToInterrupt(IGNITION_PULSE_PIN), ignitionPulseISR, FALLING); // Interrupt 2 = pin 21
+
   // ===== DISPLAY INITIALIZATION =====
   display1.begin(SSD1306_SWITCHCAPVCC);  // Initialize display 1 with internal charge pump
   display2.begin(SSD1306_SWITCHCAPVCC);  // Initialize display 2 with internal charge pump
@@ -804,6 +828,14 @@ void loop() {
   //process hall sensor input to calculate vehicle speed
   if (millis() - timerHallUpdate > hallUpdateRate) {
     hallSpeedUpdate();
+    timerHallUpdate = millis();  // Reset timer
+  }
+
+  // ===== ENGINE RPM SENSOR READING =====
+  // Process engine RPM timeout (when engine stops or is idling very slowly)
+  if (millis() - timerEngineRPMUpdate > engineRPMUpdateRate) {
+    engineRPMUpdate();
+    timerEngineRPMUpdate = millis();  // Reset timer
   }
 
   // ===== CAN BUS TRANSMISSION =====
@@ -1056,6 +1088,99 @@ void hallSpeedUpdate() {
     // Optionally, clamp very low speeds to zero for display stability
     if (hallSpeedEMA < hallSpeedMin) {
         hallSpeedEMA = 0;
+    }
+}
+
+/**
+ * ignitionPulseISR - Interrupt service routine for engine RPM measurement
+ * 
+ * Triggered on each falling edge of the ignition coil pulse signal (via optocoupler).
+ * Calculates engine RPM based on time between pulses and applies exponential moving average filter.
+ * 
+ * Algorithm:
+ * 1. Measure time since last pulse (pulse interval in microseconds)
+ * 2. Ignore implausibly short pulses (< 500 μs) to filter electrical noise
+ * 3. Calculate pulse frequency in Hz: freq = 1,000,000 / pulseInterval
+ * 4. Convert to RPM: RPM = (freq * 60) / pulsesPerRevolution
+ * 5. Apply EMA filter for smooth reading: EMA = (alpha * newValue) + ((1-alpha) * oldValue)
+ * 
+ * Example for 8-cylinder engine (4 pulses per revolution) at 6000 RPM:
+ * - Pulse frequency = (6000 * 4) / 60 = 400 Hz
+ * - Pulse interval = 1,000,000 / 400 = 2500 μs
+ * 
+ * Called from: Hardware interrupt on IGNITION_PULSE_PIN (D21) falling edge
+ * 
+ * Global variables modified:
+ * - ignitionLastTime: Timestamp of last pulse
+ * - engineRPMRaw: Unfiltered RPM value
+ * - engineRPMEMA: Filtered RPM value (used for display)
+ * 
+ * Note: Interrupt context - keep function fast and avoid Serial.print in production
+ */
+void ignitionPulseISR() {
+    unsigned long currentTime = micros();
+    unsigned long pulseInterval = currentTime - ignitionLastTime;
+    ignitionLastTime = currentTime;
+
+    // Ignore implausibly short intervals to filter electrical noise
+    // At 12,000 RPM with 4 pulses/rev: interval = 1,000,000 / (12000*4/60) = 1250 μs
+    // Minimum threshold of 500 μs allows up to ~18,750 RPM (very high for automotive)
+    if (pulseInterval > 500) {
+        // Calculate pulse frequency in Hz: freq = 1,000,000 μs/sec / interval
+        float pulseFreq = 1000000.0 / pulseInterval;
+        
+        // Convert pulse frequency to RPM
+        // RPM = (pulses per second * 60 seconds per minute) / pulses per revolution
+        float rpmRaw = (pulseFreq * 60.0) / pulsesPerRevolution;
+        
+        engineRPMRaw = rpmRaw;
+        
+        // Apply exponential moving average filter for smooth display
+        // EMA formula: new_EMA = (alpha * new_value) + ((1 - alpha) * old_EMA)
+        // Higher alpha (e.g., 0.7) = more responsive, lower alpha = more smoothing
+        engineRPMEMA = (alphaEngineRPM * rpmRaw) + ((1.0 - alphaEngineRPM) * engineRPMEMA);
+        
+        // Uncomment for debugging (note: Serial.print in ISR can cause timing issues)
+        // Serial.print("RPM: ");
+        // Serial.println(engineRPMEMA);
+    }
+}
+
+/**
+ * engineRPMUpdate - Handle engine RPM timeout and minimum threshold
+ * 
+ * Called periodically from main loop to detect when engine has stopped
+ * and to clamp very low RPM values to zero for stable display.
+ * 
+ * Functions:
+ * 1. Timeout detection: If no pulse received within ignitionPulseTimeout (0.5 sec),
+ *    engine is considered stopped and RPM is set to zero
+ * 2. Minimum threshold: RPM below engineRPMMin (100 RPM) is clamped to zero
+ *    to prevent display jitter during cranking or stopping
+ * 
+ * Timing example:
+ * - At 300 RPM (very slow idle) with 4 pulses/rev: pulse rate = 20 Hz = 50ms interval
+ * - Timeout of 500ms (0.5 sec) allows detection of engine stop within reasonable time
+ * 
+ * Called from: main loop every 20ms (engineRPMUpdateRate)
+ * 
+ * Global variables modified:
+ * - engineRPMRaw: Set to 0 if timeout occurred
+ * - engineRPMEMA: Set to 0 if timeout occurred or below minimum threshold
+ */
+void engineRPMUpdate() {
+    unsigned long currentTime = micros();
+    
+    // If it's been too long since last pulse, engine has stopped
+    if ((currentTime - ignitionLastTime) > ignitionPulseTimeout) {
+        engineRPMRaw = 0;
+        engineRPMEMA = 0;
+    }
+    
+    // Clamp very low RPM to zero for display stability
+    // Prevents needle flutter during engine start/stop
+    if (engineRPMEMA < engineRPMMin) {
+        engineRPMEMA = 0;
     }
 }
 
