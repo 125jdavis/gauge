@@ -72,75 +72,75 @@
 
 // CAN Bus Configuration
 //#define OLED_RESET 4    // OLED display reset pin (unused - left for reference)
-#define CAN0_CS 53        // MCP2515 CAN controller chip select pin (SPI)
-#define CAN0_INT 18       // MCP2515 interrupt pin - triggers when CAN message received
+#define CAN0_CS 53        // MCP2515 CAN controller chip select pin (SPI) (hardware parameter)
+#define CAN0_INT 18       // MCP2515 interrupt pin - triggers when CAN message received (hardware parameter)
 
 // Engine RPM Sensor Configuration (Ignition Coil Pulses)
-#define IGNITION_PULSE_PIN 21  // Digital pin D21 - ignition coil pulses via optocoupler (interrupt-capable)
+#define IGNITION_PULSE_PIN 21  // Digital pin D21 - ignition coil pulses via optocoupler (interrupt-capable) (hardware parameter)
 
 
 // GAUGE HARDWARE SETUP //
-#define pwrPin 49              // Power control pin - keeps system alive after ignition is off
-#define speedoMax (100*100)    // Maximum speedometer reading: 100 mph * 100 (stored as integer for precision)
+#define pwrPin 49              // Power control pin - keeps system alive after ignition is off (hardware parameter)
+#define speedoMax (100*100)    // Maximum speedometer reading: 100 mph * 100 (stored as integer for precision) (config parameter)
 
-#define MOTOR_RST 36           // Stepper motor driver reset pin - shared by all motor drivers
+#define MOTOR_RST 36           // Stepper motor driver reset pin - shared by all motor drivers (hardware parameter)
 
 // Motor 1 Configuration (typically speedometer or fuel gauge)
-#define M1_SWEEP (58*12)       // Total steps for full sweep: 58 degrees * 12 steps/degree = 696 steps
+#define M1_SWEEP (58*12)       // Total steps for full sweep: 58 degrees * 12 steps/degree = 696 steps (config parameter)
                                // X25.168 motors have 315° range at 1/3° per step
-#define M1_STEP  37            // Motor 1 step pulse pin
-#define M1_DIR   38            // Motor 1 direction control pin
+#define M1_STEP  37            // Motor 1 step pulse pin (hardware parameter)
+#define M1_DIR   38            // Motor 1 direction control pin (hardware parameter)
 
 // Motor 2 Configuration (typically coolant temp or secondary gauge)
-#define M2_SWEEP (58*12)       // Total steps: 58 degrees * 12 steps/degree = 696 steps
-#define M2_STEP  34            // Motor 2 step pulse pin
-#define M2_DIR   35            // Motor 2 direction control pin
+#define M2_SWEEP (58*12)       // Total steps: 58 degrees * 12 steps/degree = 696 steps (config parameter)
+#define M2_STEP  34            // Motor 2 step pulse pin (hardware parameter)
+#define M2_DIR   35            // Motor 2 direction control pin (hardware parameter)
 
 // Motor 3 Configuration (typically speedometer - note larger sweep angle)
-#define M3_SWEEP (118*12)      // Total steps: 118 degrees * 12 steps/degree = 1416 steps (wider range)
-#define M3_STEP  33            // Motor 3 step pulse pin
-#define M3_DIR   32            // Motor 3 direction control pin
+#define M3_SWEEP (118*12)      // Total steps: 118 degrees * 12 steps/degree = 1416 steps (wider range) (config paramater)
+#define M3_STEP  33            // Motor 3 step pulse pin (hardware parameter)
+#define M3_DIR   32            // Motor 3 direction control pin (hardware parameter)
 
 // Motor 4 Configuration (typically fuel level or coolant temp)
-#define M4_SWEEP (58*12)       // Total steps: 58 degrees * 12 steps/degree = 696 steps
-#define M4_STEP  40            // Motor 4 step pulse pin
-#define M4_DIR   41            // Motor 4 direction control pin
+#define M4_SWEEP (58*12)       // Total steps: 58 degrees * 12 steps/degree = 696 steps (config parameter)
+#define M4_STEP  40            // Motor 4 step pulse pin (hardware parameter)
+#define M4_DIR   41            // Motor 4 direction control pin (hardware parameter)
 
-//#define ODO_STEPS 32         // Odometer stepper steps per revolution (unused - defined inline instead)
+//#define ODO_STEPS 32         // Odometer stepper steps per revolution (unused - defined inline instead) (config parameter)
 
 // GPS Configuration
 #define GPSECHO  false         // Set to true to echo raw GPS data to serial monitor (debug only)
 
 
 // Rotary Encoder Configuration
-#define SWITCH 1               // Rotary encoder push button pin (V4 hardware uses pin 1, V3 used pin 24)
+#define SWITCH 1               // Rotary encoder push button pin (V4 hardware uses pin 1, V3 used pin 24) (hardware parameter)
 
 // OLED Display 1 Configuration (SPI interface)
-#define SCREEN_W 128           // OLED display width in pixels
-#define SCREEN_H 32            // OLED display height in pixels
+#define SCREEN_W 128           // OLED display width in pixels (hardware parameter)
+#define SCREEN_H 32            // OLED display height in pixels (hardware parameter)
 //#define MOSI  51             // SPI Master Out Slave In (hardware SPI - not needed to define)
 //#define CLK   52             // SPI Clock (hardware SPI - not needed to define)
-#define OLED_DC_1    6         // Display 1 Data/Command pin
-#define OLED_CS_1  5           // Display 1 Chip Select pin
-#define OLED_RST_1 7           // Display 1 Reset pin
+#define OLED_DC_1    6         // Display 1 Data/Command pin (hardware parameter)
+#define OLED_CS_1  5           // Display 1 Chip Select pin (hardware parameter)
+#define OLED_RST_1 7           // Display 1 Reset pin (hardware parameter)
 
 // OLED Display 2 Configuration (SPI interface)
-//#define SCREEN_W_2 128       // Both screens are same size - use SCREEN_W instead
-//#define SCREEN_H_2 32        // Both screens are same size - use SCREEN_H instead
-#define OLED_DC_2  28          // Display 2 Data/Command pin
-#define OLED_CS_2  29          // Display 2 Chip Select pin
-#define OLED_RST_2 26          // Display 2 Reset pin
+//#define SCREEN_W_2 128       // Both screens are same size - use SCREEN_W instead (hardware parameter)
+//#define SCREEN_H_2 32        // Both screens are same size - use SCREEN_H instead (hardware parameter)
+#define OLED_DC_2  28          // Display 2 Data/Command pin (hardware parameter)
+#define OLED_CS_2  29          // Display 2 Chip Select pin (hardware parameter)
+#define OLED_RST_2 26          // Display 2 Reset pin (hardware parameter)
 
 // LED Tachometer Configuration
-#define NUM_LEDS 26            // Total number of LEDs in the tachometer strip
-#define WARN_LEDS 6            // Warning zone LEDs on each side of center (turns yellow/orange)
-#define SHIFT_LEDS 2           // Shift light LEDs on each side of center (turns red at shift point)
-#define TACH_DATA_PIN 22       // WS2812 data pin for LED tachometer strip
+#define NUM_LEDS 26            // Total number of LEDs in the tachometer strip (config parameter)
+#define WARN_LEDS 6            // Warning zone LEDs on each side of center (turns yellow/orange) (config parameter)
+#define SHIFT_LEDS 2           // Shift light LEDs on each side of center (turns red at shift point)(config parameter)
+#define TACH_DATA_PIN 22       // WS2812 data pin for LED tachometer strip (hardware parameter)
 
 ///// HARDWARE OBJECT INITIALIZATION /////
 // Create instances of all hardware interface objects
 
-MCP_CAN CAN0(CAN0_CS);         // CAN bus controller object with CS pin 53
+MCP_CAN CAN0(CAN0_CS);         // CAN bus controller object with CS pin 53 
 Adafruit_SSD1306 display1(SCREEN_W, SCREEN_H, &SPI, OLED_DC_1, OLED_RST_1, OLED_CS_1);  // Left display
 Adafruit_SSD1306 display2(SCREEN_W, SCREEN_H, &SPI, OLED_DC_2, OLED_RST_2, OLED_CS_2);  // Right display
 Rotary rotary = Rotary(2, 3);  // Rotary encoder on interrupt pins 2 and 3 for responsive menu navigation
@@ -153,11 +153,11 @@ SwitecX12 motor3(M3_SWEEP, M3_STEP, M3_DIR); // Motor 3 - typically speedometer 
 SwitecX12 motor4(M4_SWEEP, M4_STEP, M4_DIR); // Motor 4 - typically coolant temperature gauge
 
 // Odometer motor configuration (mechanical digit roller - currently non-functional)
-#define odoSteps 32        // Steps per revolution for odometer motor
-#define odoPin1 10         // Odometer motor coil 1 pin
-#define odoPin2 11         // Odometer motor coil 2 pin
-#define odoPin3 12         // Odometer motor coil 3 pin
-#define odoPin4 13         // Odometer motor coil 4 pin
+#define odoSteps 32        // Steps per revolution for odometer motor (config parameter)
+#define odoPin1 10         // Odometer motor coil 1 pin (hardware parameter)
+#define odoPin2 11         // Odometer motor coil 2 pin (hardware parameter)
+#define odoPin3 12         // Odometer motor coil 3 pin (hardware parameter)
+#define odoPin4 13         // Odometer motor coil 4 pin (hardware parameter)
 Stepper odoMotor(odoSteps, odoPin1, odoPin2, odoPin3, odoPin4); 
 
 Adafruit_GPS GPS(&Serial2);    // GPS object using hardware serial port 2
@@ -181,14 +181,14 @@ float vBattScaler = 0.040923;  // Voltage divider scaling factor: accounts for R
 // Reads resistance-based fuel sender (typically 0-90 ohms or 240-33 ohms depending on sender type)
 int fuelSensorRaw;             // Raw fuel sensor ADC reading (0-500)
 int filter_fuel = 1;           // Light filter: 1/64 = very responsive to changes
-int fuelPin = A3;              // Analog input pin for fuel level sensor
+int fuelPin = A3;              // Analog input pin for fuel level sensor (hardware parameter)
 
 // Coolant/Oil Temperature Thermistor Sensor (Analog Pin A4)
 // GM-style thermistor with non-linear resistance vs. temperature curve
 float therm;                   // Current temperature in Celsius (after lookup table conversion)
 float thermSensor;             // Voltage reading from thermistor (0-5V)
 int filter_therm = 50;         // Medium filter: 50/100 for stable temp reading
-int thermPin = A4;             // Analog input pin for thermistor
+int thermPin = A4;             // Analog input pin for thermistor (hardware parameter)
 int thermCAN;                  // Temperature formatted for CAN transmission (temp * 10)
 
 // Barometric Pressure Sensor (Analog Pin A5)
@@ -208,10 +208,10 @@ int analogPin7 = A7;           // Analog pin 7
 
 // ===== HALL EFFECT SPEED SENSOR VARIABLES =====
 // Hall effect sensor can read vehicle speed through a digital input 
-const int hallPin = 20;                 // Digital speed input pin (D20, interrupt 1)
-const int revsPerMile = 6234;      // Revolutions per mile
-const int teethPerRev = 12;             // Teeth per revolution
-const float alphaHallSpeed = 0.8;       // EMA filter coefficient (lower value is more filtered)
+const int hallPin = 20;                 // Digital speed input pin (D20, interrupt 1) (hardware parameter)
+const int revsPerMile = 6234;           // Revolutions per mile (config parameter)
+const int teethPerRev = 12;             // Teeth per revolution (config parameter)
+const float alphaHallSpeed = 0.8;       // EMA filter coefficient (lower value is more filtered) (config parameter)
 
 volatile unsigned long hallLastTime = 0;    // Last pulse time (micros)
 volatile float hallSpeedRaw = 0;            // Most recent calculated speed (MPH)
@@ -222,7 +222,7 @@ const unsigned long hallPulseTimeout = 1000000UL; // Timeout (μs) for "vehicle 
 // ===== ENGINE RPM SENSOR VARIABLES (IGNITION COIL PULSES) =====
 // Measures engine RPM by counting pulses from the ignition coil negative side
 // Signal is sent through an optocoupler to protect the Arduino from high voltage
-const float pulsesPerRevolution = 4.0;      // Calibratable: pulses per engine revolution
+const float pulsesPerRevolution = 4.0;      // Calibratable: pulses per engine revolution (config parameter)
                                             // For 4-stroke engines: cylinders / 2
                                             // Examples: 4-cyl=2, 6-cyl=3, 8-cyl=4, 3-cyl=1.5
 const float alphaEngineRPM = 0.7;           // EMA filter coefficient (lower value = more filtered)
@@ -288,8 +288,8 @@ unsigned int engineRPMUpdateRate = 20;  // Check engine RPM timeout every 20ms (
 
 // ===== LED TACHOMETER VARIABLES =====
 // Control the LED strip tachometer display
-unsigned int tachMax = 6000;            // RPM at which shift light activates and flashes
-unsigned int tachMin = 3000;            // Minimum RPM to show on tach (below this LEDs are off)
+unsigned int tachMax = 6000;            // RPM at which shift light activates and flashes (config parameter)
+unsigned int tachMin = 3000;            // Minimum RPM to show on tach (below this LEDs are off) (congfig parameter)
 // Note: tachFlashState moved to local static in ledShiftLight() function
 
 // ===== CAN BUS ENGINE PARAMETERS =====
@@ -375,7 +375,7 @@ byte menuLevel = 0;              // Current menu depth (0=top level, 1=submenu, 
 byte units = 0;                  // Unit system: 0=metric (km/h, C, bar), 1=imperial (mph, F, PSI)
 unsigned int nMenuLevel = 15;    // Number of items in current menu level (0-indexed, so 15 = 16 items)
 byte dispArray1[4] = { 1, 0, 0, 0 };  // Menu position array for display 1 [level0, level1, level2, level3]
-byte clockOffset = 0;            // Hours to add to UTC time for local time zone (-12 to +12)
+byte clockOffset = 0;            // Hours to add to UTC time for local time zone (-12 to +12) (config parameter)
 byte dispArray2[1] = {1};        // Menu selection for display 2 (single level)
 
 
