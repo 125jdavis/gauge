@@ -172,39 +172,38 @@ Adafruit_GPS GPS(&Serial2);    // GPS object using hardware serial port 2
 // Measures vehicle battery voltage through a voltage divider to protect Arduino's 5V ADC
 float vBatt = 12;              // Current battery voltage in volts (filtered)
 int vBattRaw = 12;             // Raw battery reading (0-500, representing 0-5V after mapping)
-int filter_vBatt = 8;          // Filter coefficient out of 64 (8/64 = light filtering, 64 = no filter)
-int vBattPin = A0;             // Analog input pin for battery voltage
+int filter_vBatt = 8;          // Filter coefficient out of 64 (8/64 = light filtering, 64 = no filter) (config parameter)
+int vBattPin = A0;             // Analog input pin for battery voltage (hardware parameter)
 float vBattScaler = 0.040923;  // Voltage divider scaling factor: accounts for R1=10k, R2=3.3k divider
                                // Formula: Vbatt = ADC_reading * (5.0/1023) * ((R1+R2)/R2) = ADC * 0.040923
 
 // Fuel Level Sensor (Analog Pin A3)
 // Reads resistance-based fuel sender (typically 0-90 ohms or 240-33 ohms depending on sender type)
 int fuelSensorRaw;             // Raw fuel sensor ADC reading (0-500)
-int filter_fuel = 1;           // Light filter: 1/64 = very responsive to changes
+int filter_fuel = 1;           // Light filter: 1/64 = very responsive to changes (config parameter)
 int fuelPin = A3;              // Analog input pin for fuel level sensor (hardware parameter)
 
 // Coolant/Oil Temperature Thermistor Sensor (Analog Pin A4)
 // GM-style thermistor with non-linear resistance vs. temperature curve
 float therm;                   // Current temperature in Celsius (after lookup table conversion)
 float thermSensor;             // Voltage reading from thermistor (0-5V)
-int filter_therm = 50;         // Medium filter: 50/100 for stable temp reading
+int filter_therm = 50;         // Medium filter: 50/100 for stable temp reading (config parameter)
 int thermPin = A4;             // Analog input pin for thermistor (hardware parameter)
 int thermCAN;                  // Temperature formatted for CAN transmission (temp * 10)
 
-// Barometric Pressure Sensor (Analog Pin A5)
-// 30 PSI absolute pressure sensor (0.5-4.5V = 0-30 PSIA)
-unsigned long baro;            // Barometric pressure in kPa * 10
-byte filter_baro = 4;          // Filter coefficient out of 16 (4/16 = moderate filtering)
-int baroPin = A5;              // Analog input pin for barometric sensor
+// Analog Inputs for 0-5V sensors
+float sensor_av1;            	// Barometric pressure in kPa * 10
+byte filter_av1 = 4;          	// Filter coefficient out of 16 (4/16 = moderate filtering) (config parameter)
+int pin_av1 = A5;              		// Analog pin 5 (hardware parameter)
 
-// Reserved Analog Sensors B and C (future expansion)
-float sensor_b;                // Reserved sensor B value
-byte filter_b = 12;            // Filter coefficient for sensor B (12/16)
-int analogPin6 = A6;           // Analog pin 6
+float sensor_av2;                 // Reserved sensor B value
+byte filter_b = 12;             // Filter coefficient for sensor B (12/16) (config parameter)
+int pin_av2 = A6;           		// Analog pin 6 (hardware parameter)
 
-float sensor_c;                // Reserved sensor C value
-byte filter_c = 12;            // Filter coefficient for sensor C (12/16)
-int analogPin7 = A7;           // Analog pin 7
+float sensor_av3;                	// Reserved sensor C value
+byte filter_av3 = 12;           // Filter coefficient for sensor C (12/16) (config parameter)
+int pin_av3 = A7;           		// Analog pin 7 (hardware parameter)
+
 
 // ===== HALL EFFECT SPEED SENSOR VARIABLES =====
 // Hall effect sensor can read vehicle speed through a digital input 
@@ -225,7 +224,7 @@ const unsigned long hallPulseTimeout = 1000000UL; // Timeout (μs) for "vehicle 
 const float pulsesPerRevolution = 4.0;      // Calibratable: pulses per engine revolution (config parameter)
                                             // For 4-stroke engines: cylinders / 2
                                             // Examples: 4-cyl=2, 6-cyl=3, 8-cyl=4, 3-cyl=1.5
-const float alphaEngineRPM = 0.7;           // EMA filter coefficient (lower value = more filtered)
+const float alphaEngineRPM = 0.7;           // EMA filter coefficient (lower value = more filtered) (config parameter)
                                             // Range: 0.0 to 1.0 (0.7 balances smoothing and responsiveness)
 
 volatile unsigned long ignitionLastTime = 0;  // Last ignition pulse time (micros)
@@ -811,12 +810,12 @@ void loop() {
     thermCAN = (int)(therm*10);  // Format for CAN transmission (temp * 10)
     
     // Barometric pressure: read 30 PSI absolute sensor, constrain to valid range
-    baro = read30PSIAsensor(baroPin,baro,filter_baro); // Returns kPa * 10 
-    baro = constrain(baro, 600, 1050);  // Limit to elevation range -300m to 4000m (60-105 kPa)
-    baroCAN = baro;  // Store for CAN transmission
+    sensor_av1 = read30PSIAsensor(pin_av1,sensor_av1,filter_av1); // Returns kPa * 10 
+    sensor_av1 = constrain(sensor_av1, 600, 1050);  // Limit to elevation range -300m to 4000m (60-105 kPa)
+    baroCAN = sensor_av1;  // Store for CAN transmission
     
-    //sensor_b = readSensor(analogPin6,sensor_b,filter_b);  // Reserved for future use
-    //sensor_c = readSensor(analogPin7,sensor_c,filter_c);  // Reserved for future use
+    //sensor_av2 = readSensor(pin_av2,sensor_av2,filter_av2);  // Reserved for future use
+    //sensor_av3 = readSensor(pin_,sensor_c,filter_c);  // Reserved for future use
     
     timerSensorRead = millis();  // Reset timer
 
