@@ -1095,7 +1095,7 @@ void hallSpeedUpdate() {
  * 1. Measure time since last pulse (pulse interval in microseconds)
  * 2. Ignore implausibly short pulses (< 500 μs) to filter electrical noise
  * 3. Calculate pulse frequency in Hz: freq = 1,000,000 / pulseInterval
- * 4. Convert to RPM: RPM = (freq * 60) / pulsesPerRevolution
+ * 4. Convert to RPM: RPM = (freq * 60) / PULSES_PER_REVOLUTION
  * 5. Apply EMA filter for smooth reading: EMA = (alpha * newValue) + ((1-alpha) * oldValue)
  * 
  * Example for 8-cylinder engine (4 pulses per revolution) at 6000 RPM:
