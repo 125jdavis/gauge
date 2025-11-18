@@ -70,72 +70,68 @@
 ///// PIN DEFINITIONS AND HARDWARE CONFIGURATION /////
 // This section defines all pin assignments and hardware-specific constants
 
-// CAN Bus Configuration
-//#define OLED_RESET 4    // OLED display reset pin (unused - left for reference)
-#define CAN0_CS 53        // MCP2515 CAN controller chip select pin (SPI) (hardware parameter)
-#define CAN0_INT 18       // MCP2515 interrupt pin - triggers when CAN message received (hardware parameter)
+// ===== CAN BUS HARDWARE =====
+constexpr uint8_t CAN0_CS = 53;     // MCP2515 CAN controller chip select pin (SPI)
+constexpr uint8_t CAN0_INT = 18;    // MCP2515 interrupt pin - triggers when CAN message received
 
-// Engine RPM Sensor Configuration (Ignition Coil Pulses)
-#define IGNITION_PULSE_PIN 21  // Digital pin D21 - ignition coil pulses via optocoupler (interrupt-capable) (hardware parameter)
+// ===== ENGINE RPM SENSOR =====
+constexpr uint8_t IGNITION_PULSE_PIN = 21;  // Digital pin D21 - ignition coil pulses via optocoupler (interrupt-capable)
 
+// ===== POWER CONTROL =====
+constexpr uint8_t PWR_PIN = 49;     // Power control pin - keeps system alive after ignition is off
 
-// GAUGE HARDWARE SETUP //
-#define pwrPin 49              // Power control pin - keeps system alive after ignition is off (hardware parameter)
-#define speedoMax (100*100)    // Maximum speedometer reading: 100 mph * 100 (stored as integer for precision) (cailbration parameter)
+// ===== STEPPER MOTOR HARDWARE =====
+constexpr uint8_t MOTOR_RST = 36;   // Stepper motor driver reset pin - shared by all motor drivers
 
-#define MOTOR_RST 36           // Stepper motor driver reset pin - shared by all motor drivers (hardware parameter)
-
-// Motor 1 Configuration (typically speedometer or fuel gauge)
-#define M1_SWEEP (58*12)       // Total steps for full sweep: 58 degrees * 12 steps/degree = 696 steps (cailbration parameter)
-                               // X25.168 motors have 315° range at 1/3° per step
-#define M1_STEP  37            // Motor 1 step pulse pin (hardware parameter)
-#define M1_DIR   38            // Motor 1 direction control pin (hardware parameter)
+// Motor 1 Configuration (typically fuel level gauge)
+constexpr uint16_t M1_SWEEP = 58 * 12;  // Total steps for full sweep: 58 degrees * 12 steps/degree = 696 steps
+                                         // X25.168 motors have 315° range at 1/3° per step
+constexpr uint8_t M1_STEP = 37;     // Motor 1 step pulse pin
+constexpr uint8_t M1_DIR = 38;      // Motor 1 direction control pin
 
 // Motor 2 Configuration (typically coolant temp or secondary gauge)
-#define M2_SWEEP (58*12)       // Total steps: 58 degrees * 12 steps/degree = 696 steps (cailbration parameter)
-#define M2_STEP  34            // Motor 2 step pulse pin (hardware parameter)
-#define M2_DIR   35            // Motor 2 direction control pin (hardware parameter)
+constexpr uint16_t M2_SWEEP = 58 * 12;  // Total steps: 58 degrees * 12 steps/degree = 696 steps
+constexpr uint8_t M2_STEP = 34;     // Motor 2 step pulse pin
+constexpr uint8_t M2_DIR = 35;      // Motor 2 direction control pin
 
 // Motor 3 Configuration (typically speedometer - note larger sweep angle)
-#define M3_SWEEP (118*12)      // Total steps: 118 degrees * 12 steps/degree = 1416 steps (wider range) (cailbration parameter)
-#define M3_STEP  33            // Motor 3 step pulse pin (hardware parameter)
-#define M3_DIR   32            // Motor 3 direction control pin (hardware parameter)
+constexpr uint16_t M3_SWEEP = 118 * 12; // Total steps: 118 degrees * 12 steps/degree = 1416 steps (wider range)
+constexpr uint8_t M3_STEP = 33;     // Motor 3 step pulse pin
+constexpr uint8_t M3_DIR = 32;      // Motor 3 direction control pin
 
 // Motor 4 Configuration (typically fuel level or coolant temp)
-#define M4_SWEEP (58*12)       // Total steps: 58 degrees * 12 steps/degree = 696 steps (cailbration parameter)
-#define M4_STEP  40            // Motor 4 step pulse pin (hardware parameter)
-#define M4_DIR   41            // Motor 4 direction control pin (hardware parameter)
+constexpr uint16_t M4_SWEEP = 58 * 12;  // Total steps: 58 degrees * 12 steps/degree = 696 steps
+constexpr uint8_t M4_STEP = 40;     // Motor 4 step pulse pin
+constexpr uint8_t M4_DIR = 41;      // Motor 4 direction control pin
 
-//#define ODO_STEPS 32         // Odometer stepper steps per revolution (unused - defined inline instead) (cailbration parameter)
+// ===== ROTARY ENCODER =====
+constexpr uint8_t SWITCH = 1;       // Rotary encoder push button pin (V4 hardware uses pin 1, V3 used pin 24)
 
-// GPS Configuration
-#define GPSECHO  false         // Set to true to echo raw GPS data to serial monitor (debug only)
+// ===== OLED DISPLAY HARDWARE =====
+constexpr uint8_t SCREEN_W = 128;   // OLED display width in pixels
+constexpr uint8_t SCREEN_H = 32;    // OLED display height in pixels
 
+// Display 1 Configuration (SPI interface)
+constexpr uint8_t OLED_DC_1 = 6;    // Display 1 Data/Command pin
+constexpr uint8_t OLED_CS_1 = 5;    // Display 1 Chip Select pin
+constexpr uint8_t OLED_RST_1 = 7;   // Display 1 Reset pin
 
-// Rotary Encoder Configuration
-#define SWITCH 1               // Rotary encoder push button pin (V4 hardware uses pin 1, V3 used pin 24) (hardware parameter)
+// Display 2 Configuration (SPI interface)
+constexpr uint8_t OLED_DC_2 = 28;   // Display 2 Data/Command pin
+constexpr uint8_t OLED_CS_2 = 29;   // Display 2 Chip Select pin
+constexpr uint8_t OLED_RST_2 = 26;  // Display 2 Reset pin
 
-// OLED Display 1 Configuration (SPI interface)
-#define SCREEN_W 128           // OLED display width in pixels (hardware parameter)
-#define SCREEN_H 32            // OLED display height in pixels (hardware parameter)
-//#define MOSI  51             // SPI Master Out Slave In (hardware SPI - not needed to define)
-//#define CLK   52             // SPI Clock (hardware SPI - not needed to define)
-#define OLED_DC_1    6         // Display 1 Data/Command pin (hardware parameter)
-#define OLED_CS_1  5           // Display 1 Chip Select pin (hardware parameter)
-#define OLED_RST_1 7           // Display 1 Reset pin (hardware parameter)
+// ===== LED TACHOMETER HARDWARE =====
+constexpr uint8_t NUM_LEDS = 26;    // Total number of LEDs in the tachometer strip
+constexpr uint8_t WARN_LEDS = 6;    // Warning zone LEDs on each side of center (turns yellow/orange)
+constexpr uint8_t SHIFT_LEDS = 2;   // Shift light LEDs on each side of center (turns red at shift point)
+constexpr uint8_t TACH_DATA_PIN = 22; // WS2812 data pin for LED tachometer strip
 
-// OLED Display 2 Configuration (SPI interface)
-//#define SCREEN_W_2 128       // Both screens are same size - use SCREEN_W instead (hardware parameter)
-//#define SCREEN_H_2 32        // Both screens are same size - use SCREEN_H instead (hardware parameter)
-#define OLED_DC_2  28          // Display 2 Data/Command pin (hardware parameter)
-#define OLED_CS_2  29          // Display 2 Chip Select pin (hardware parameter)
-#define OLED_RST_2 26          // Display 2 Reset pin (hardware parameter)
+// ===== GPS CONFIGURATION =====
+constexpr bool GPSECHO = false;     // Set to true to echo raw GPS data to serial monitor (debug only)
 
-// LED Tachometer Configuration
-#define NUM_LEDS 26            // Total number of LEDs in the tachometer strip (cailbration parameter)
-#define WARN_LEDS 6            // Warning zone LEDs on each side of center (turns yellow/orange) (cailbration parameter)
-#define SHIFT_LEDS 2           // Shift light LEDs on each side of center (turns red at shift point)(cailbration parameter)
-#define TACH_DATA_PIN 22       // WS2812 data pin for LED tachometer strip (hardware parameter)
+// ===== CALIBRATION CONSTANTS =====
+constexpr uint16_t SPEEDO_MAX = 100 * 100; // Maximum speedometer reading: 100 mph * 100 (stored as integer for precision)
 
 ///// HARDWARE OBJECT INITIALIZATION /////
 // Create instances of all hardware interface objects
@@ -153,12 +149,12 @@ SwitecX12 motor3(M3_SWEEP, M3_STEP, M3_DIR); // Motor 3 - typically speedometer 
 SwitecX12 motor4(M4_SWEEP, M4_STEP, M4_DIR); // Motor 4 - typically coolant temperature gauge
 
 // Odometer motor configuration (mechanical digit roller - currently non-functional)
-#define odoSteps 32        // Steps per revolution for odometer motor (cailbration parameter)
-#define odoPin1 10         // Odometer motor coil 1 pin (hardware parameter)
-#define odoPin2 11         // Odometer motor coil 2 pin (hardware parameter)
-#define odoPin3 12         // Odometer motor coil 3 pin (hardware parameter)
-#define odoPin4 13         // Odometer motor coil 4 pin (hardware parameter)
-Stepper odoMotor(odoSteps, odoPin1, odoPin2, odoPin3, odoPin4); 
+constexpr uint8_t ODO_STEPS = 32;   // Steps per revolution for odometer motor
+constexpr uint8_t ODO_PIN1 = 10;    // Odometer motor coil 1 pin
+constexpr uint8_t ODO_PIN2 = 11;    // Odometer motor coil 2 pin
+constexpr uint8_t ODO_PIN3 = 12;    // Odometer motor coil 3 pin
+constexpr uint8_t ODO_PIN4 = 13;    // Odometer motor coil 4 pin
+Stepper odoMotor(ODO_STEPS, ODO_PIN1, ODO_PIN2, ODO_PIN3, ODO_PIN4); 
 
 Adafruit_GPS GPS(&Serial2);    // GPS object using hardware serial port 2
 
@@ -385,7 +381,7 @@ byte dispArray2[1] = {1};        // Menu selection for display 2 (single level)
 
 // 'falcon_script', 128x32px
 // Falcon logo in script font - displayed on startup splash screen
-const unsigned char img_falcon_script [] PROGMEM = {
+const unsigned char IMG_FALCON_SCRIPT[] PROGMEM = {
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x1f, 0xfc, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
@@ -423,7 +419,7 @@ const unsigned char img_falcon_script [] PROGMEM = {
 
 // '302_CID', 128x32px
 // Engine displacement designation: 302 Cubic Inch Displacement
-const unsigned char img_302_CID [] PROGMEM = {
+const unsigned char IMG_302_CID[] PROGMEM = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x1e, 0x1e, 0x1e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3c, 0x3c, 0x3c, 
@@ -460,7 +456,7 @@ const unsigned char img_302_CID [] PROGMEM = {
 
 // '302V', 128x32px
 // Alternative engine badge - 302 with V8 symbol
-const unsigned char img_302V [] PROGMEM = {
+const unsigned char IMG_302V[] PROGMEM = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xfe, 0x0f, 0xfc, 0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 
@@ -497,7 +493,7 @@ const unsigned char img_302V [] PROGMEM = {
 
 // 'Oil Pressure Icon', 40x32px
 // Icon showing oil can symbol - displayed alongside oil pressure reading
-const unsigned char img_oilPrs [] PROGMEM = {
+const unsigned char IMG_OIL_PRS[] PROGMEM = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1e, 0x0f, 0xe0, 
@@ -512,7 +508,7 @@ const unsigned char img_oilPrs [] PROGMEM = {
 
 // 'Oil Temp Icon', 40x32px
 // Icon combining oil can and thermometer - for oil temperature display
-const unsigned char img_oilTemp [] PROGMEM = {
+const unsigned char IMG_OIL_TEMP[] PROGMEM = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x00, 0xc0, 0x00, 0x00, 0x00, 0x01, 0xe0, 0x00, 0x00, 0x00, 0x01, 0xe0, 0x00, 0x00, 0x00, 0x01, 
 	0xff, 0x00, 0x00, 0x00, 0x01, 0xff, 0x00, 0x00, 0x00, 0x01, 0xe0, 0x00, 0x00, 0x1e, 0x01, 0xe0, 
@@ -527,7 +523,7 @@ const unsigned char img_oilTemp [] PROGMEM = {
 
 // 'Battery Icon', 38x32px
 // Battery symbol with + and - terminals - for voltage display
-const unsigned char img_battVolt [] PROGMEM = {
+const unsigned char IMG_BATT_VOLT[] PROGMEM = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x78, 0x00, 0x78, 0x00, 0x00, 0x78, 
 	0x00, 0x78, 0x00, 0x00, 0x78, 0x00, 0x78, 0x00, 0x0f, 0xff, 0xff, 0xff, 0xc0, 0x0f, 0xff, 0xff, 
@@ -542,7 +538,7 @@ const unsigned char img_battVolt [] PROGMEM = {
 
 // 'Eng Temp Icon', 35x32px
 // Thermometer icon for coolant/engine temperature display
-const unsigned char img_coolantTemp [] PROGMEM = {
+const unsigned char IMG_COOLANT_TEMP[] PROGMEM = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x00, 0x60, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x00, 0x00, 0x00, 0x00, 
 	0xff, 0x80, 0x00, 0x00, 0x00, 0xff, 0x80, 0x00, 0x00, 0x00, 0xf0, 0x00, 0x00, 0x00, 0x00, 0xf0, 
@@ -557,7 +553,7 @@ const unsigned char img_coolantTemp [] PROGMEM = {
 
 // 'Gas Icon', 32x32px
 // Gas pump icon for fuel level display
-const unsigned char img_fuelLvl [] PROGMEM = {
+const unsigned char IMG_FUEL_LVL[] PROGMEM = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0xff, 0xe6, 0x00, 
 	0x07, 0xff, 0xf7, 0x80, 0x07, 0xff, 0xf3, 0xc0, 0x07, 0x00, 0x71, 0xe0, 0x07, 0x00, 0x70, 0xe0, 
 	0x07, 0x00, 0x70, 0xf0, 0x07, 0x00, 0x70, 0x70, 0x07, 0x00, 0x70, 0x78, 0x07, 0x00, 0x70, 0x70, 
@@ -652,8 +648,8 @@ void setup() {
 
   // Keep power enabled after ignition switch turns off
   // This allows the system to complete shutdown procedures (save EEPROM, zero gauges)
-  pinMode(pwrPin, OUTPUT);
-  digitalWrite(pwrPin, HIGH);  // Latch power on
+  pinMode(PWR_PIN, OUTPUT);
+  digitalWrite(PWR_PIN, HIGH);  // Latch power on
 
   // ===== GPS INITIALIZATION =====
   GPS.begin(9600);                                // Initialize GPS at 9600 baud (default for most GPS modules)
@@ -688,10 +684,10 @@ void setup() {
   
   // ===== ODOMETER MOTOR SETUP =====
   // Configure pins for 4-wire stepper motor (mechanical digit roller - currently non-functional)
-  pinMode(odoPin1, OUTPUT);
-  pinMode(odoPin2, OUTPUT);
-  pinMode(odoPin3, OUTPUT);
-  pinMode(odoPin4, OUTPUT);
+  pinMode(ODO_PIN1, OUTPUT);
+  pinMode(ODO_PIN2, OUTPUT);
+  pinMode(ODO_PIN3, OUTPUT);
+  pinMode(ODO_PIN4, OUTPUT);
 
   // ===== LED TACHOMETER INITIALIZATION =====
   FastLED.addLeds<WS2812, TACH_DATA_PIN, GRB>(leds, NUM_LEDS);  // Configure WS2812 LED strip (GRB color order)
@@ -707,8 +703,8 @@ void setup() {
   // ===== LOAD SAVED SETTINGS FROM EEPROM =====
   
   // Read display 1 menu positions (4 bytes)
-  for (int i = dispArray1Address; i < sizeof(dispArray1); i++) {
-    dispArray1[i] = EEPROM.read(i);
+  for (int i = 0; i < sizeof(dispArray1); i++) {
+    dispArray1[i] = EEPROM.read(dispArray1Address + i);
   }
   
   // Read display 2 selection (1 byte)
@@ -2025,7 +2021,7 @@ void dispOilTemp (Adafruit_SSD1306 *display) {
     float oilTempDisp;
     display->setTextColor(WHITE); 
     display->clearDisplay();
-    display->drawBitmap(0, 0, img_oilTemp, 40, 32, 1);  // Draw oil/temp icon (40x32 pixels)
+    display->drawBitmap(0, 0, IMG_OIL_TEMP, 40, 32, 1);  // Draw oil/temp icon (40x32 pixels)
     byte center = 71;  // Center point for text (offset for icon on left)
     
     if (units == 0){    // Metric Units (Celsius)
@@ -2159,7 +2155,7 @@ void dispAFR (Adafruit_SSD1306 *display) {
  */
 void dispFalconScript(Adafruit_SSD1306 *display) {
     display->clearDisplay();
-    display->drawBitmap(0, 0, img_falcon_script, SCREEN_W, SCREEN_H, 1);
+    display->drawBitmap(0, 0, IMG_FALCON_SCRIPT, SCREEN_W, SCREEN_H, 1);
     display->display();
 }
 
@@ -2169,7 +2165,7 @@ void dispFalconScript(Adafruit_SSD1306 *display) {
  */
 void disp302CID(Adafruit_SSD1306 *display) {
     display->clearDisplay();
-    display->drawBitmap(0, 0, img_302_CID, SCREEN_W, SCREEN_H, 1);
+    display->drawBitmap(0, 0, IMG_302_CID, SCREEN_W, SCREEN_H, 1);
     display->display();
 }
 
@@ -2179,7 +2175,7 @@ void disp302CID(Adafruit_SSD1306 *display) {
  */
 void disp302V(Adafruit_SSD1306 *display) {
     display->clearDisplay();
-    display->drawBitmap(0, 0, img_302V, SCREEN_W, SCREEN_H, 1);
+    display->drawBitmap(0, 0, IMG_302V, SCREEN_W, SCREEN_H, 1);
     display->display();
 }
 
@@ -2200,7 +2196,7 @@ void dispOilPrsGfx (Adafruit_SSD1306 *display) {
     float oilPrsDisp;
     display->setTextColor(WHITE); 
     display->clearDisplay();
-    display->drawBitmap(0, 0, img_oilPrs, 40, 32, 1);  // Draw oil can icon
+    display->drawBitmap(0, 0, IMG_OIL_PRS, 40, 32, 1);  // Draw oil can icon
     if (oilPrs < 0) {oilPrs = 0;}  // Clamp negative values
     
     if (units == 0){    // Metric Units (bar)
@@ -2236,7 +2232,7 @@ void dispOilTempGfx (Adafruit_SSD1306 *display) {
     float oilTempDisp;
     display->setTextColor(WHITE); 
     display->clearDisplay();             //clear buffer
-    display->drawBitmap(0, 0, img_oilTemp, 40, 32, 1);
+    display->drawBitmap(0, 0, IMG_OIL_TEMP, 40, 32, 1);
     byte center = 71;
     
     if (units == 0){    // Metric Units
@@ -2268,7 +2264,7 @@ void dispCoolantTempGfx (Adafruit_SSD1306 *display) {
     float coolantTempDisp;
     display->setTextColor(WHITE); 
     display->clearDisplay();             //clear buffer
-    display->drawBitmap(0, 0, img_coolantTemp, 38, 32, 1);
+    display->drawBitmap(0, 0, IMG_COOLANT_TEMP, 38, 32, 1);
     byte center = 71;
     
     if (units == 0){    // Metric Units
@@ -2299,7 +2295,7 @@ void dispCoolantTempGfx (Adafruit_SSD1306 *display) {
 void dispBattVoltGfx (Adafruit_SSD1306 *display) {
     display->setTextColor(WHITE); 
     display->clearDisplay();             //clear buffer
-    display->drawBitmap(0, 0, img_battVolt, 35, 32, 1);
+    display->drawBitmap(0, 0, IMG_BATT_VOLT, 35, 32, 1);
     display->setTextSize(3); 
     display->setCursor(42,6);
     display->println(vBatt, 1);
@@ -2313,7 +2309,7 @@ void dispFuelLvlGfx (Adafruit_SSD1306 *display) {
     float fuelLvlDisp;
     display->setTextColor(WHITE); 
     display->clearDisplay();             //clear buffer
-    display->drawBitmap(0, 0, img_fuelLvl, 32, 32, 1);
+    display->drawBitmap(0, 0, IMG_FUEL_LVL, 32, 32, 1);
     byte center = 71;
     
     if (units == 0){    // Metric Units
@@ -2965,9 +2961,9 @@ int speedometerAngle(int sweep) {
   spd_g = (unsigned long)spd_g_float;
   
   if (spd_g < 50) spd_g = 0;         // Dead zone: below 0.5 mph, show zero
-  if (spd_g > speedoMax) spd_g = speedoMax;  // Clamp to max (100 mph * 100 = 10000)
+  if (spd_g > SPEEDO_MAX) spd_g = SPEEDO_MAX;  // Clamp to max (100 mph * 100 = 10000)
   
-  int angle = map( spd_g, 0, speedoMax, 1, sweep-1);  // Map speed to motor angle
+  int angle = map( spd_g, 0, SPEEDO_MAX, 1, sweep-1);  // Map speed to motor angle
   
   
   angle = constrain(angle, 1, sweep-1);  // Ensure angle is within valid range
@@ -2979,21 +2975,21 @@ int speedometerAngleGPS(int sweep) {
   float spd_g_float = map(t_curr, t_old, t_new, v_old, v_new)*0.6213712;   // interpolate values between GPS data fix, convert from km/h x100 to mph x100
   spd_g = (unsigned long)spd_g_float;
   if (spd_g < 50) spd_g = 0;                                  // if speed is below 0.5 mph set to zero
-  if (spd_g > speedoMax) spd_g = speedoMax;                   // set max pointer rotation
+  if (spd_g > SPEEDO_MAX) spd_g = SPEEDO_MAX;                   // set max pointer rotation
   
-  int angle = map( spd_g, 0, speedoMax, 1, sweep-1);         // calculate angle of gauge 
+  int angle = map( spd_g, 0, SPEEDO_MAX, 1, sweep-1);         // calculate angle of gauge 
   angle = constrain(angle, 1, sweep-1);
   return angle;                                               // return angle of motor
 }
 
 int speedometerAngleCAN(int sweep) {
-  int angle = map( spdCAN, 0, speedoMax, 1, sweep-1);         // calculate angle of gauge 
+  int angle = map( spdCAN, 0, SPEEDO_MAX, 1, sweep-1);         // calculate angle of gauge 
   angle = constrain(angle, 1, sweep-1);
   return angle;
 }
 
 int speedometerAngleHall(int sweep) {
-  int angle = map( hallSpeedEMA, 0, speedoMax, 1, sweep-1);         // calculate angle of gauge 
+  int angle = map( hallSpeedEMA, 0, SPEEDO_MAX, 1, sweep-1);         // calculate angle of gauge 
   angle = constrain(angle, 1, sweep-1);
   return angle;
 }
@@ -3070,7 +3066,7 @@ int coolantTempAngle(int sweep) {
  * 6. Zero all gauge needles synchronously
  * 7. Wait 2 seconds for motors to complete
  * 8. Double-check battery voltage (in case key turned back on)
- * 9. Cut power by pulling pwrPin LOW
+ * 9. Cut power by pulling PWR_PIN LOW
  * 
  * Called from: main loop when vBatt < 1V
  * 
@@ -3108,7 +3104,7 @@ void shutdown (void){
   }
 
   // Cut power to Arduino by releasing power latch
-  digitalWrite(pwrPin, LOW);  // This will power off the entire system
+  digitalWrite(PWR_PIN, LOW);  // This will power off the entire system
 }
 
 /**
