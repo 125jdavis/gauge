@@ -166,68 +166,68 @@ Adafruit_GPS GPS(&Serial2);    // GPS object using hardware serial port 2
 
 // Battery Voltage Sensor (Analog Pin A0)
 // Measures vehicle battery voltage through a voltage divider to protect Arduino's 5V ADC
+constexpr uint8_t VBATT_PIN = A0;        // Analog input pin for battery voltage
+constexpr uint8_t FILTER_VBATT = 8;      // Filter coefficient out of 64 (8/64 = light filtering)
+constexpr float VBATT_SCALER = 0.040923; // Voltage divider scaling factor: R1=10k, R2=3.3k
+                                         // Formula: Vbatt = ADC_reading * (5.0/1023) * ((R1+R2)/R2) = ADC * 0.040923
 float vBatt = 12;              // Current battery voltage in volts (filtered)
 int vBattRaw = 12;             // Raw battery reading (0-500, representing 0-5V after mapping)
-int filter_vBatt = 8;          // Filter coefficient out of 64 (8/64 = light filtering, 64 = no filter) (cailbration parameter)
-int vBattPin = A0;             // Analog input pin for battery voltage (hardware parameter)
-float vBattScaler = 0.040923;  // Voltage divider scaling factor: accounts for R1=10k, R2=3.3k divider
-                               // Formula: Vbatt = ADC_reading * (5.0/1023) * ((R1+R2)/R2) = ADC * 0.040923
 
 // Fuel Level Sensor (Analog Pin A3)
 // Reads resistance-based fuel sender (typically 0-90 ohms or 240-33 ohms depending on sender type)
+constexpr uint8_t FUEL_PIN = A3;      // Analog input pin for fuel level sensor
+constexpr uint8_t FILTER_FUEL = 1;    // Light filter: 1/64 = very responsive to changes
 int fuelSensorRaw;             // Raw fuel sensor ADC reading (0-500)
-int filter_fuel = 1;           // Light filter: 1/64 = very responsive to changes (cailbration parameter)
-int fuelPin = A3;              // Analog input pin for fuel level sensor (hardware parameter)
 
 // Coolant/Oil Temperature Thermistor Sensor (Analog Pin A4)
 // GM-style thermistor with non-linear resistance vs. temperature curve
+constexpr uint8_t THERM_PIN = A4;     // Analog input pin for thermistor
+constexpr uint8_t FILTER_THERM = 50;  // Medium filter: 50/100 for stable temp reading
 float therm;                   // Current temperature in Celsius (after lookup table conversion)
 float thermSensor;             // Voltage reading from thermistor (0-5V)
-int filter_therm = 50;         // Medium filter: 50/100 for stable temp reading (cailbration parameter)
-int thermPin = A4;             // Analog input pin for thermistor (hardware parameter)
 int thermCAN;                  // Temperature formatted for CAN transmission (temp * 10)
 
 // Analog Inputs for 0-5V sensors
-float sensor_av1;            	// Barometric pressure in kPa * 10
-byte filter_av1 = 4;          	// Filter coefficient out of 16 (4/16 = moderate filtering) (cailbration parameter)
-int pin_av1 = A5;              		// Analog pin 5 (hardware parameter)
+constexpr uint8_t PIN_AV1 = A5;       // Analog pin 5 (barometric pressure sensor)
+constexpr uint8_t FILTER_AV1 = 4;     // Filter coefficient out of 16 (4/16 = moderate filtering)
+float sensor_av1;              // Barometric pressure in kPa * 10
 
-float sensor_av2;                 // Reserved sensor B value
-byte filter_b = 12;             // Filter coefficient for sensor B (12/16) (cailbration parameter)
-int pin_av2 = A6;           		// Analog pin 6 (hardware parameter)
+constexpr uint8_t PIN_AV2 = A6;       // Analog pin 6 (reserved for future sensor)
+constexpr uint8_t FILTER_AV2 = 12;    // Filter coefficient for sensor B (12/16)
+float sensor_av2;              // Reserved sensor B value
 
-float sensor_av3;                	// Reserved sensor C value
-byte filter_av3 = 12;           // Filter coefficient for sensor C (12/16) (cailbration parameter)
-int pin_av3 = A7;           		// Analog pin 7 (hardware parameter)
+constexpr uint8_t PIN_AV3 = A7;       // Analog pin 7 (reserved for future sensor)
+constexpr uint8_t FILTER_AV3 = 12;    // Filter coefficient for sensor C (12/16)
+float sensor_av3;              // Reserved sensor C value
 
 
 // ===== HALL EFFECT SPEED SENSOR VARIABLES =====
 // Hall effect sensor can read vehicle speed through a digital input 
-const int hallPin = 20;                 // Digital speed input pin (D20, interrupt 1) (hardware parameter)
-const int revsPerMile = 6234;           // Revolutions per mile (cailbration parameter)
-const int teethPerRev = 12;             // Teeth per revolution (cailbration parameter)
-const float alphaHallSpeed = 0.8;       // EMA filter coefficient (lower value is more filtered) (cailbration parameter)
+constexpr uint8_t HALL_PIN = 20;             // Digital speed input pin (D20, interrupt 1)
+constexpr uint16_t REVS_PER_MILE = 6234;     // Revolutions per mile (calibration parameter)
+constexpr uint8_t TEETH_PER_REV = 12;        // Teeth per revolution (calibration parameter)
+constexpr float ALPHA_HALL_SPEED = 0.8;      // EMA filter coefficient (lower value is more filtered)
+constexpr float HALL_SPEED_MIN = 0.5;        // Minimum reportable speed (MPH)
+constexpr unsigned long HALL_PULSE_TIMEOUT = 1000000UL; // Timeout (μs) for "vehicle stopped" (1 second)
 
-volatile unsigned long hallLastTime = 0;    // Last pulse time (micros)
-volatile float hallSpeedRaw = 0;            // Most recent calculated speed (MPH)
-float hallSpeedEMA = 0;                     // Filtered speed (MPH)
-const float hallSpeedMin = 0.5;             // Minimum reportable speed (MPH)
-const unsigned long hallPulseTimeout = 1000000UL; // Timeout (μs) for "vehicle stopped" (1 second)
+volatile unsigned long hallLastTime = 0;     // Last pulse time (micros)
+volatile float hallSpeedRaw = 0;             // Most recent calculated speed (MPH)
+float hallSpeedEMA = 0;                      // Filtered speed (MPH)
 
 // ===== ENGINE RPM SENSOR VARIABLES (IGNITION COIL PULSES) =====
 // Measures engine RPM by counting pulses from the ignition coil negative side
 // Signal is sent through an optocoupler to protect the Arduino from high voltage
-const float pulsesPerRevolution = 4.0;      // Calibratable: pulses per engine revolution (cailbration parameter)
-                                            // For 4-stroke engines: cylinders / 2
-                                            // Examples: 4-cyl=2, 6-cyl=3, 8-cyl=4, 3-cyl=1.5
-const float alphaEngineRPM = 0.7;           // EMA filter coefficient (lower value = more filtered) (cailbration parameter)
-                                            // Range: 0.0 to 1.0 (0.7 balances smoothing and responsiveness)
+constexpr float PULSES_PER_REVOLUTION = 4.0; // Calibratable: pulses per engine revolution
+                                             // For 4-stroke engines: cylinders / 2
+                                             // Examples: 4-cyl=2, 6-cyl=3, 8-cyl=4, 3-cyl=1.5
+constexpr float ALPHA_ENGINE_RPM = 0.7;      // EMA filter coefficient (lower value = more filtered)
+                                             // Range: 0.0 to 1.0 (0.7 balances smoothing and responsiveness)
+constexpr float ENGINE_RPM_MIN = 100.0;      // Minimum reportable RPM (engine idle ~600-800)
+constexpr unsigned long IGNITION_PULSE_TIMEOUT = 500000UL; // Timeout (μs) for "engine stopped" (0.5 second)
 
-volatile unsigned long ignitionLastTime = 0;  // Last ignition pulse time (micros)
-volatile float engineRPMRaw = 0;              // Most recent calculated RPM (unfiltered)
-float engineRPMEMA = 0;                       // Filtered RPM with exponential moving average
-const float engineRPMMin = 100.0;             // Minimum reportable RPM (engine idle ~600-800)
-const unsigned long ignitionPulseTimeout = 500000UL; // Timeout (μs) for "engine stopped" (0.5 second)
+volatile unsigned long ignitionLastTime = 0; // Last ignition pulse time (micros)
+volatile float engineRPMRaw = 0;             // Most recent calculated RPM (unfiltered)
+float engineRPMEMA = 0;                      // Filtered RPM with exponential moving average
 
 // ===== GPS SPEED AND ODOMETER VARIABLES =====
 // GPS provides speed and time data for speedometer and odometer calculations
@@ -268,23 +268,22 @@ unsigned int timerHallUpdate;
 unsigned int timerEngineRPMUpdate;
 
 // Update rate periods (in milliseconds)
-//long unsigned dispMenuRate = 20;       // Unused - commented out
-unsigned int CANsendRate = 50;          // Send CAN messages every 50ms (20Hz)
-unsigned int dispUpdateRate = 75;       // Update displays every 75ms (~13Hz)
-unsigned int sensorReadRate = 10;       // Read analog sensors every 10ms (100Hz for responsive readings)
-unsigned int tachUpdateRate = 50;       // Update LED tachometer every 50ms (20Hz)
-unsigned int tachFlashRate = 50;        // Flash shift light every 50ms when over redline
-unsigned int GPSupdateRate = 100;       // GPS update check rate (might not be needed)
-unsigned int checkGPSRate = 1;          // Check for GPS data every 1ms
-unsigned int angleUpdateRate = 20;      // Update motor angles every 20ms (50Hz)
-unsigned int splashTime = 1500;         // Duration of startup splash screens (milliseconds)
-unsigned int hallUpdateRate = 20;       // recalculate Hall sensor speed every 20ms (50hz)
-unsigned int engineRPMUpdateRate = 20;  // Check engine RPM timeout every 20ms (50Hz)
+constexpr unsigned int CAN_SEND_RATE = 50;        // Send CAN messages every 50ms (20Hz)
+constexpr unsigned int DISP_UPDATE_RATE = 75;     // Update displays every 75ms (~13Hz)
+constexpr unsigned int SENSOR_READ_RATE = 10;     // Read analog sensors every 10ms (100Hz for responsive readings)
+constexpr unsigned int TACH_UPDATE_RATE = 50;     // Update LED tachometer every 50ms (20Hz)
+constexpr unsigned int TACH_FLASH_RATE = 50;      // Flash shift light every 50ms when over redline
+constexpr unsigned int GPS_UPDATE_RATE = 100;     // GPS update check rate (might not be needed)
+constexpr unsigned int CHECK_GPS_RATE = 1;        // Check for GPS data every 1ms
+constexpr unsigned int ANGLE_UPDATE_RATE = 20;    // Update motor angles every 20ms (50Hz)
+constexpr unsigned int SPLASH_TIME = 1500;        // Duration of startup splash screens (milliseconds)
+constexpr unsigned int HALL_UPDATE_RATE = 20;     // Recalculate Hall sensor speed every 20ms (50Hz)
+constexpr unsigned int ENGINE_RPM_UPDATE_RATE = 20; // Check engine RPM timeout every 20ms (50Hz)
 
-// ===== LED TACHOMETER VARIABLES =====
+// ===== LED TACHOMETER CONFIGURATION =====
 // Control the LED strip tachometer display
-unsigned int tachMax = 6000;            // RPM at which shift light activates and flashes (cailbration parameter)
-unsigned int tachMin = 3000;            // Minimum RPM to show on tach (below this LEDs are off) (congfig parameter)
+constexpr unsigned int TACH_MAX = 6000;           // RPM at which shift light activates and flashes (calibration parameter)
+constexpr unsigned int TACH_MIN = 3000;           // Minimum RPM to show on tach (below this LEDs are off) (config parameter)
 // Note: tachFlashState moved to local static in ledShiftLight() function
 
 // ===== CAN BUS ENGINE PARAMETERS =====
@@ -662,8 +661,8 @@ void setup() {
   useInterrupt(true);                             // Enable interrupt-based GPS reading (Timer0 ISR reads GPS in background)
  
   // ===== HALL SENSOR INITIALIZATION =====
-  pinMode(hallPin, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(hallPin), hallSpeedISR, FALLING); // Interrupt 3 = pin 20
+  pinMode(HALL_PIN, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(HALL_PIN), hallSpeedISR, FALLING); // Interrupt 3 = pin 20
 
   // ===== ENGINE RPM SENSOR INITIALIZATION =====
   pinMode(IGNITION_PULSE_PIN, INPUT_PULLUP);  // Enable internal pull-up for optocoupler signal
@@ -736,7 +735,7 @@ void setup() {
 
   // ===== SPLASH SCREEN DELAY =====
   // Hold splash screen images on displays for specified time before entering main loop
-  while (millis() < splashTime){
+  while (millis() < SPLASH_TIME){
     // Wait for splash screen timer to expire (1500ms default)
   }
 
@@ -787,30 +786,30 @@ void loop() {
   // ===== ANALOG SENSOR READING =====
   // Read battery voltage, fuel level, temperature, barometric pressure
   // Update rate: every 10ms (100Hz) for responsive readings
-  if (millis() - timerSensorRead > sensorReadRate) {
+  if (millis() - timerSensorRead > SENSOR_READ_RATE) {
     // Serial.print("sensorRead: ");  // Debug timing
     int s = micros();  // Start timing for performance measurement
 
     // Battery voltage: read, map to 0-5V range, apply light filter
-    vBattRaw = readSensor(vBattPin, vBattRaw, filter_vBatt);
-    vBatt = (float)vBattRaw*vBattScaler;  // Convert to actual voltage using calibration factor
+    vBattRaw = readSensor(VBATT_PIN, vBattRaw, FILTER_VBATT);
+    vBatt = (float)vBattRaw * VBATT_SCALER;  // Convert to actual voltage using calibration factor
     
     // Fuel level: read raw sensor, convert voltage to gallons via lookup table
-    fuelSensorRaw = readSensor(fuelPin,fuelSensorRaw,filter_fuel);
+    fuelSensorRaw = readSensor(FUEL_PIN, fuelSensorRaw, FILTER_FUEL);
     float fuelSensor = (float)fuelSensorRaw*0.01;  // Convert to voltage (0-5V)
     fuelLvl = curveLookup(fuelSensor, fuelLvlTable_x, fuelLvlTable_l, fuelLvlTable_length);
     
     // Thermistor temperature: read voltage, convert to temp via lookup table
-    thermSensor = readThermSensor(thermPin, thermSensor, filter_therm);
+    thermSensor = readThermSensor(THERM_PIN, thermSensor, FILTER_THERM);
     therm = curveLookup(thermSensor, thermTable_x, thermTable_l, thermTable_length);
     thermCAN = (int)(therm*10);  // Format for CAN transmission (temp * 10)
     
     // Barometric pressure: read 30 PSI absolute sensor, constrain to valid range
-    sensor_av1 = read30PSIAsensor(pin_av1,sensor_av1,filter_av1); // Returns kPa * 10 
+    sensor_av1 = read30PSIAsensor(PIN_AV1, sensor_av1, FILTER_AV1); // Returns kPa * 10 
     sensor_av1 = constrain(sensor_av1, 600, 1050);  // Limit to elevation range -300m to 4000m (60-105 kPa)
     baroCAN = sensor_av1;  // Store for CAN transmission
     
-    //sensor_av2 = readSensor(pin_av2,sensor_av2,filter_av2);  // Reserved for future use
+    //sensor_av2 = readSensor(PIN_AV2, sensor_av2, FILTER_AV2);  // Reserved for future use
     //sensor_av3 = readSensor(pin_,sensor_c,filter_c);  // Reserved for future use
     
     timerSensorRead = millis();  // Reset timer
@@ -821,14 +820,14 @@ void loop() {
 
   // ===== HALL SENSOR READING ======
   //process hall sensor input to calculate vehicle speed
-  if (millis() - timerHallUpdate > hallUpdateRate) {
+  if (millis() - timerHallUpdate > HALL_UPDATE_RATE) {
     hallSpeedUpdate();
     timerHallUpdate = millis();  // Reset timer
   }
 
   // ===== ENGINE RPM SENSOR READING =====
   // Process engine RPM timeout (when engine stops or is idling very slowly)
-  if (millis() - timerEngineRPMUpdate > engineRPMUpdateRate) {
+  if (millis() - timerEngineRPMUpdate > ENGINE_RPM_UPDATE_RATE) {
     engineRPMUpdate();
     timerEngineRPMUpdate = millis();  // Reset timer
   }
@@ -836,7 +835,7 @@ void loop() {
   // ===== CAN BUS TRANSMISSION =====
   // Send vehicle data to other modules on CAN bus
   // Update rate: every 50ms (20Hz) - typical automotive CAN rate
-  if (millis() - timerCANsend > CANsendRate) {  
+  if (millis() - timerCANsend > CAN_SEND_RATE) {  
     // Serial.print("CANsend: ");  // Debug timing
     int s = micros();
 
@@ -872,7 +871,7 @@ void loop() {
   // ===== GPS DATA RECEPTION =====
   // Check for new GPS data and update speed/odometer
   // Update rate: every 1ms - fast polling to catch GPS updates immediately
-  if (millis() - timerCheckGPS > checkGPSRate) {
+  if (millis() - timerCheckGPS > CHECK_GPS_RATE) {
     // Serial.print("GPS recieve: ");  // Debug timing
     int s = micros(); 
     
@@ -885,7 +884,7 @@ void loop() {
   // ===== LED TACHOMETER UPDATE =====
   // Update tachometer LED strip based on engine RPM
   // Update rate: every 50ms (20Hz) for smooth animation
-  if (millis() - timerTachUpdate > tachUpdateRate) {     
+  if (millis() - timerTachUpdate > TACH_UPDATE_RATE) {     
     // Serial.print("tach: ");  // Debug timing
     int s = micros();
     
@@ -905,7 +904,7 @@ void loop() {
   
   // Update OLED displays with current data
   // Update rate: every 75ms (~13Hz) - fast enough to appear real-time, slow enough to be readable
-  if(millis() - timerDispUpdate > dispUpdateRate){
+  if(millis() - timerDispUpdate > DISP_UPDATE_RATE){
     // Serial.print("display: ");  // Debug timing
     int s = micros();
     
@@ -921,7 +920,7 @@ void loop() {
   // ===== MOTOR ANGLE CALCULATION =====
   // Calculate target positions for all gauge motors
   // Update rate: every 20ms (50Hz) - smooth needle movement
-  if(millis() - timerAngleUpdate > angleUpdateRate){
+  if(millis() - timerAngleUpdate > ANGLE_UPDATE_RATE){
     // Serial.print("motors: ");  // Debug timing
     int s = micros();
     
@@ -957,7 +956,7 @@ void loop() {
   // ===== SHUTDOWN DETECTION =====
   // Check if ignition voltage has dropped (key turned off)
   // Shutdown when battery voltage < 1V AND system has been running for at least 3 seconds
-  if (vBatt < 1 && millis() > splashTime + 3000) {
+  if (vBatt < 1 && millis() > SPLASH_TIME + 3000) {
     //shutdown();  // Save settings, zero gauges, display shutdown screen, cut power
   }
 
@@ -1061,13 +1060,13 @@ void hallSpeedISR() {
     // For 150 mph, the shortest plausible pulse interval is much less than 1ms; let's allow anything > 100 μs
     if (pulseInterval > 100) {
         // Calculate speed in MPH:
-        // MPH = (pulse freq [Hz] * 3600) / (teethPerRev * revsPerMile)
+        // MPH = (pulse freq [Hz] * 3600) / (TEETH_PER_REV * REVS_PER_MILE)
         // pulse freq = 1 / (pulseInterval in seconds)
         float pulseFreq = 1000000.0 / pulseInterval;
-        float speedRaw = (pulseFreq * 3600.0) / (teethPerRev * revsPerMile);
+        float speedRaw = (pulseFreq * 3600.0) / (TEETH_PER_REV * REVS_PER_MILE);
         hallSpeedRaw = speedRaw;
         // EMA filter:
-        hallSpeedEMA = (alphaHallSpeed * speedRaw) + ((1.0 - alphaHallSpeed) * hallSpeedEMA);
+        hallSpeedEMA = (ALPHA_HALL_SPEED * speedRaw) + ((1.0 - ALPHA_HALL_SPEED) * hallSpeedEMA);
         Serial.println(hallSpeedEMA);
     }
 }
@@ -1076,12 +1075,12 @@ void hallSpeedISR() {
 void hallSpeedUpdate() {
     unsigned long currentTime = micros();
     // If it's been too long since last pulse, set speed to zero
-    if ((currentTime - hallLastTime) > hallPulseTimeout) {
+    if ((currentTime - hallLastTime) > HALL_PULSE_TIMEOUT) {
         hallSpeedRaw = 0;
         hallSpeedEMA = 0;
     }
     // Optionally, clamp very low speeds to zero for display stability
-    if (hallSpeedEMA < hallSpeedMin) {
+    if (hallSpeedEMA < HALL_SPEED_MIN) {
         hallSpeedEMA = 0;
     }
 }
@@ -1126,14 +1125,14 @@ void ignitionPulseISR() {
         
         // Convert pulse frequency to RPM
         // RPM = (pulses per second * 60 seconds per minute) / pulses per revolution
-        float rpmRaw = (pulseFreq * 60.0) / pulsesPerRevolution;
+        float rpmRaw = (pulseFreq * 60.0) / PULSES_PER_REVOLUTION;
         
         engineRPMRaw = rpmRaw;
         
         // Apply exponential moving average filter for smooth display
         // EMA formula: new_EMA = (alpha * new_value) + ((1 - alpha) * old_EMA)
         // Higher alpha (e.g., 0.7) = more responsive, lower alpha = more smoothing
-        engineRPMEMA = (alphaEngineRPM * rpmRaw) + ((1.0 - alphaEngineRPM) * engineRPMEMA);
+        engineRPMEMA = (ALPHA_ENGINE_RPM * rpmRaw) + ((1.0 - ALPHA_ENGINE_RPM) * engineRPMEMA);
         
         // Uncomment for debugging (note: Serial.print in ISR can cause timing issues)
         // Serial.print("RPM: ");
@@ -1148,16 +1147,16 @@ void ignitionPulseISR() {
  * and to clamp very low RPM values to zero for stable display.
  * 
  * Functions:
- * 1. Timeout detection: If no pulse received within ignitionPulseTimeout (0.5 sec),
+ * 1. Timeout detection: If no pulse received within IGNITION_PULSE_TIMEOUT (0.5 sec),
  *    engine is considered stopped and RPM is set to zero
- * 2. Minimum threshold: RPM below engineRPMMin (100 RPM) is clamped to zero
+ * 2. Minimum threshold: RPM below ENGINE_RPM_MIN (100 RPM) is clamped to zero
  *    to prevent display jitter during cranking or stopping
  * 
  * Timing example:
  * - At 300 RPM (very slow idle) with 4 pulses/rev: pulse rate = 20 Hz = 50ms interval
  * - Timeout of 500ms (0.5 sec) allows detection of engine stop within reasonable time
  * 
- * Called from: main loop every 20ms (engineRPMUpdateRate)
+ * Called from: main loop every 20ms (ENGINE_RPM_UPDATE_RATE)
  * 
  * Global variables modified:
  * - engineRPMRaw: Set to 0 if timeout occurred
@@ -1167,14 +1166,14 @@ void engineRPMUpdate() {
     unsigned long currentTime = micros();
     
     // If it's been too long since last pulse, engine has stopped
-    if ((currentTime - ignitionLastTime) > ignitionPulseTimeout) {
+    if ((currentTime - ignitionLastTime) > IGNITION_PULSE_TIMEOUT) {
         engineRPMRaw = 0;
         engineRPMEMA = 0;
     }
     
     // Clamp very low RPM to zero for display stability
     // Prevents needle flutter during engine start/stop
-    if (engineRPMEMA < engineRPMMin) {
+    if (engineRPMEMA < ENGINE_RPM_MIN) {
         engineRPMEMA = 0;
     }
 }
@@ -1359,7 +1358,7 @@ void rotate() {
  * - Case 7 (Trip Odo) has reset confirmation submenu
  * - EEPROM updates happen when exiting settings
  * 
- * Called from: main loop at dispUpdateRate (75ms)
+ * Called from: main loop at DISP_UPDATE_RATE (75ms)
  */
 void dispMenu() {
   switch (dispArray1[0]) {  // Level 0 - Main menu selection
@@ -1780,7 +1779,7 @@ void goToLevel0(void){
  * 8 - 302V logo
  * 9 - Falcon Script logo
  * 
- * Called from: main loop at dispUpdateRate (75ms)
+ * Called from: main loop at DISP_UPDATE_RATE (75ms)
  */
 void disp2(void){
   switch (dispArray2[0]){
@@ -2737,7 +2736,7 @@ void parseCAN( unsigned long id, unsigned long msg)
 void ledShiftLight(int ledRPM){
   static bool tachFlashState = 0;  // Current state of shift light flashing (0=off, 1=on) - local static
   
-  if (ledRPM < tachMin) {
+  if (ledRPM < TACH_MIN) {
       // black out unused range  
     for (int i = 0; i < NUM_LEDS; i++){
       leds[i] = CRGB::Black;
@@ -2745,7 +2744,7 @@ void ledShiftLight(int ledRPM){
     return;
   }
   int midPoint = NUM_LEDS/2;
-  int blackout_val = map(ledRPM, tachMin, tachMax, midPoint, 0);
+  int blackout_val = map(ledRPM, TACH_MIN, TACH_MAX, midPoint, 0);
  
   //tach normal range 
     for (int i = 0;i <= midPoint - WARN_LEDS; i++){
@@ -2778,8 +2777,8 @@ void ledShiftLight(int ledRPM){
     }
 
     // Flash LEDs when shift point is exceeded
-    if (RPM > tachMax ){
-      if (millis() - timerTachFlash > tachFlashRate){
+    if (RPM > TACH_MAX ){
+      if (millis() - timerTachFlash > TACH_FLASH_RATE){
         
         //Black out the shift LEDs if they are on
         if(tachFlashState == 0){
@@ -2837,7 +2836,7 @@ void fetchGPSdata(){
     if (!GPS.parse(GPS.lastNMEA()))   // Parse NMEA sentence; also clears newNMEAreceived flag
     return;  // If parse fails (corrupt data), wait for next sentence
   
-    //if (millis() - timerGPSupdate > GPSupdateRate) {  // Optional rate limiting (currently disabled)
+    //if (millis() - timerGPSupdate > GPS_UPDATE_RATE) {  // Optional rate limiting (currently disabled)
       //timerGPSupdate = millis();
       
             unsigned long alpha_0 = 256;  // Filter coefficient (256 = no filtering, instant response)
