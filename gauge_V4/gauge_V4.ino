@@ -696,6 +696,10 @@ void setup() {
     NUM_LEDS = MAX_LEDS;
     Serial.println("Warning: NUM_LEDS exceeds MAX_LEDS, clamped to maximum");
   }
+  // Validate LED zone parameters are reasonable relative to NUM_LEDS
+  if (WARN_LEDS + SHIFT_LEDS >= NUM_LEDS / 2) {
+    Serial.println("Warning: WARN_LEDS + SHIFT_LEDS too large for NUM_LEDS, LED zones may overlap");
+  }
   FastLED.addLeds<WS2812, TACH_DATA_PIN, GRB>(leds, NUM_LEDS);  // Configure WS2812 LED strip (GRB color order)
 
   // ===== ROTARY ENCODER SETUP =====
