@@ -14,19 +14,25 @@ This document defines the coding conventions and style guidelines for the gauge 
 ## Naming Conventions
 
 ### Constants (UPPER_SNAKE_CASE)
-Use `UPPER_SNAKE_CASE` for all compile-time constants, including:
+Use `UPPER_SNAKE_CASE` for all compile-time constants and calibration parameters, including:
 - Hardware pin assignments
-- Calibration parameters
+- Calibration parameters (even if they're regular variables, not constexpr)
 - Configuration values
 - PROGMEM arrays (images, lookup tables)
 
 **Examples:**
 ```cpp
-constexpr uint8_t CAN0_CS = 53;
-constexpr uint16_t SPEEDO_MAX = 100 * 100;
-constexpr uint8_t NUM_LEDS = 26;
+constexpr uint8_t CAN0_CS = 53;          // Hardware constant (constexpr)
+uint16_t SPEEDO_MAX = 100 * 100;         // Calibration parameter (regular variable)
+uint8_t NUM_LEDS = 26;                   // Calibration parameter (regular variable)
 const unsigned char IMG_FALCON_SCRIPT[] PROGMEM = { ... };
 ```
+
+**Filter Naming Conventions:**
+- `FILTER_*` - Simple filter coefficients (e.g., FILTER_VBATT, FILTER_FUEL, FILTER_THERM)
+- `ALPHA_*` - Exponential Moving Average (EMA) filter coefficients (e.g., ALPHA_HALL_SPEED, ALPHA_ENGINE_RPM)
+
+Both FILTER_* and ALPHA_* should be calibration parameters (regular variables, not constexpr) so they can be tuned by the user.
 
 ### Functions (lowerCamelCase)
 Use `lowerCamelCase` for all function names.
@@ -119,27 +125,41 @@ constexpr uint8_t NUM_LEDS = 26;
 #endif
 ```
 
-### Choosing Between constexpr and const
+### Choosing Between constexpr, const, and Regular Variables
 
 **Use `constexpr`** for:
-- Compile-time constants (values known at compile time)
-- Hardware pin numbers
-- Configuration values that never change
+- Hardware pin numbers (never change)
+- Hardware-defined constants (screen dimensions, fixed buffer sizes)
+- True compile-time constants that will never be modified
 
 ```cpp
-constexpr uint8_t PWR_PIN = 49;
-constexpr uint16_t SPEEDO_MAX = 100 * 100;
+constexpr uint8_t PWR_PIN = 49;          // Hardware pin - never changes
+constexpr uint8_t SCREEN_W = 128;        // Hardware spec - fixed
+constexpr uint8_t TACH_DATA_PIN = 22;    // Hardware connection
+```
+
+**Use regular variables (non-const)** for:
+- **Calibration parameters** that will be user-configurable via serial/EEPROM
+- Values that need to be modified at runtime
+- Tunable parameters (filter coefficients, thresholds, sweep ranges, timing values)
+
+```cpp
+uint16_t M1_SWEEP = 58 * 12;             // Calibration parameter - user adjustable
+uint8_t FILTER_VBATT = 8;                // Filter coefficient - tunable
+float ALPHA_HALL_SPEED = 0.8;            // EMA filter - calibratable
+unsigned int TACH_MAX = 6000;            // Shift point - user configurable
 ```
 
 **Use `const`** for:
-- Runtime constants (values not known until runtime)
 - PROGMEM arrays (due to Arduino compatibility)
-- Values that are initialized once but not at compile time
+- Values that are initialized once at startup but not known at compile time
+- Read-only data structures
 
 ```cpp
 const unsigned char IMG_FALCON_SCRIPT[] PROGMEM = { ... };
-const float alphaHallSpeed = 0.8;
 ```
+
+**Important**: Even though calibration parameters use UPPER_SNAKE_CASE like constants, they should NOT be `constexpr` if they will be made user-configurable in the future. Using `constexpr` prevents runtime modification.
 
 ## Type Definitions
 

@@ -84,23 +84,23 @@ constexpr uint8_t PWR_PIN = 49;     // Power control pin - keeps system alive af
 constexpr uint8_t MOTOR_RST = 36;   // Stepper motor driver reset pin - shared by all motor drivers
 
 // Motor 1 Configuration (typically fuel level gauge)
-constexpr uint16_t M1_SWEEP = 58 * 12;  // Total steps for full sweep: 58 degrees * 12 steps/degree = 696 steps
-                                         // X25.168 motors have 315° range at 1/3° per step
+uint16_t M1_SWEEP = 58 * 12;        // Total steps for full sweep: 58 degrees * 12 steps/degree = 696 steps (calibration parameter)
+                                    // X25.168 motors have 315° range at 1/3° per step
 constexpr uint8_t M1_STEP = 37;     // Motor 1 step pulse pin
 constexpr uint8_t M1_DIR = 38;      // Motor 1 direction control pin
 
 // Motor 2 Configuration (typically coolant temp or secondary gauge)
-constexpr uint16_t M2_SWEEP = 58 * 12;  // Total steps: 58 degrees * 12 steps/degree = 696 steps
+uint16_t M2_SWEEP = 58 * 12;        // Total steps: 58 degrees * 12 steps/degree = 696 steps (calibration parameter)
 constexpr uint8_t M2_STEP = 34;     // Motor 2 step pulse pin
 constexpr uint8_t M2_DIR = 35;      // Motor 2 direction control pin
 
 // Motor 3 Configuration (typically speedometer - note larger sweep angle)
-constexpr uint16_t M3_SWEEP = 118 * 12; // Total steps: 118 degrees * 12 steps/degree = 1416 steps (wider range)
+uint16_t M3_SWEEP = 118 * 12;       // Total steps: 118 degrees * 12 steps/degree = 1416 steps (wider range) (calibration parameter)
 constexpr uint8_t M3_STEP = 33;     // Motor 3 step pulse pin
 constexpr uint8_t M3_DIR = 32;      // Motor 3 direction control pin
 
 // Motor 4 Configuration (typically fuel level or coolant temp)
-constexpr uint16_t M4_SWEEP = 58 * 12;  // Total steps: 58 degrees * 12 steps/degree = 696 steps
+uint16_t M4_SWEEP = 58 * 12;        // Total steps: 58 degrees * 12 steps/degree = 696 steps (calibration parameter)
 constexpr uint8_t M4_STEP = 40;     // Motor 4 step pulse pin
 constexpr uint8_t M4_DIR = 41;      // Motor 4 direction control pin
 
@@ -122,16 +122,16 @@ constexpr uint8_t OLED_CS_2 = 29;   // Display 2 Chip Select pin
 constexpr uint8_t OLED_RST_2 = 26;  // Display 2 Reset pin
 
 // ===== LED TACHOMETER HARDWARE =====
-constexpr uint8_t NUM_LEDS = 26;    // Total number of LEDs in the tachometer strip
-constexpr uint8_t WARN_LEDS = 6;    // Warning zone LEDs on each side of center (turns yellow/orange)
-constexpr uint8_t SHIFT_LEDS = 2;   // Shift light LEDs on each side of center (turns red at shift point)
+uint8_t NUM_LEDS = 26;              // Total number of LEDs in the tachometer strip (calibration parameter)
+uint8_t WARN_LEDS = 6;              // Warning zone LEDs on each side of center (turns yellow/orange) (calibration parameter)
+uint8_t SHIFT_LEDS = 2;             // Shift light LEDs on each side of center (turns red at shift point) (calibration parameter)
 constexpr uint8_t TACH_DATA_PIN = 22; // WS2812 data pin for LED tachometer strip
 
 // ===== GPS CONFIGURATION =====
 constexpr bool GPSECHO = false;     // Set to true to echo raw GPS data to serial monitor (debug only)
 
-// ===== CALIBRATION CONSTANTS =====
-constexpr uint16_t SPEEDO_MAX = 100 * 100; // Maximum speedometer reading: 100 mph * 100 (stored as integer for precision)
+// ===== CALIBRATION PARAMETERS =====
+uint16_t SPEEDO_MAX = 100 * 100;    // Maximum speedometer reading: 100 mph * 100 (stored as integer for precision) (calibration parameter)
 
 ///// HARDWARE OBJECT INITIALIZATION /////
 // Create instances of all hardware interface objects
@@ -149,7 +149,7 @@ SwitecX12 motor3(M3_SWEEP, M3_STEP, M3_DIR); // Motor 3 - typically speedometer 
 SwitecX12 motor4(M4_SWEEP, M4_STEP, M4_DIR); // Motor 4 - typically coolant temperature gauge
 
 // Odometer motor configuration (mechanical digit roller - currently non-functional)
-constexpr uint8_t ODO_STEPS = 32;   // Steps per revolution for odometer motor
+uint8_t ODO_STEPS = 32;             // Steps per revolution for odometer motor (calibration parameter)
 constexpr uint8_t ODO_PIN1 = 10;    // Odometer motor coil 1 pin
 constexpr uint8_t ODO_PIN2 = 11;    // Odometer motor coil 2 pin
 constexpr uint8_t ODO_PIN3 = 12;    // Odometer motor coil 3 pin
@@ -167,8 +167,8 @@ Adafruit_GPS GPS(&Serial2);    // GPS object using hardware serial port 2
 // Battery Voltage Sensor (Analog Pin A0)
 // Measures vehicle battery voltage through a voltage divider to protect Arduino's 5V ADC
 constexpr uint8_t VBATT_PIN = A0;        // Analog input pin for battery voltage
-constexpr uint8_t FILTER_VBATT = 8;      // Filter coefficient out of 64 (8/64 = light filtering)
-constexpr float VBATT_SCALER = 0.040923; // Voltage divider scaling factor: R1=10k, R2=3.3k
+uint8_t FILTER_VBATT = 8;                // Filter coefficient out of 64 (8/64 = light filtering) (calibration parameter)
+float VBATT_SCALER = 0.040923;           // Voltage divider scaling factor: R1=10k, R2=3.3k (calibration parameter)
                                          // Formula: Vbatt = ADC_reading * (5.0/1023) * ((R1+R2)/R2) = ADC * 0.040923
 float vBatt = 12;              // Current battery voltage in volts (filtered)
 int vBattRaw = 12;             // Raw battery reading (0-500, representing 0-5V after mapping)
@@ -176,38 +176,38 @@ int vBattRaw = 12;             // Raw battery reading (0-500, representing 0-5V 
 // Fuel Level Sensor (Analog Pin A3)
 // Reads resistance-based fuel sender (typically 0-90 ohms or 240-33 ohms depending on sender type)
 constexpr uint8_t FUEL_PIN = A3;      // Analog input pin for fuel level sensor
-constexpr uint8_t FILTER_FUEL = 1;    // Light filter: 1/64 = very responsive to changes
+uint8_t FILTER_FUEL = 1;               // Light filter: 1/64 = very responsive to changes (calibration parameter)
 int fuelSensorRaw;             // Raw fuel sensor ADC reading (0-500)
 
 // Coolant/Oil Temperature Thermistor Sensor (Analog Pin A4)
 // GM-style thermistor with non-linear resistance vs. temperature curve
 constexpr uint8_t THERM_PIN = A4;     // Analog input pin for thermistor
-constexpr uint8_t FILTER_THERM = 50;  // Medium filter: 50/100 for stable temp reading
+uint8_t FILTER_THERM = 50;             // Medium filter: 50/100 for stable temp reading (calibration parameter)
 float therm;                   // Current temperature in Celsius (after lookup table conversion)
 float thermSensor;             // Voltage reading from thermistor (0-5V)
 int thermCAN;                  // Temperature formatted for CAN transmission (temp * 10)
 
 // Analog Inputs for 0-5V sensors
 constexpr uint8_t PIN_AV1 = A5;       // Analog pin 5 (barometric pressure sensor)
-constexpr uint8_t FILTER_AV1 = 4;     // Filter coefficient out of 16 (4/16 = moderate filtering)
+uint8_t FILTER_AV1 = 4;                // Filter coefficient out of 16 (4/16 = moderate filtering) (calibration parameter)
 float sensor_av1;              // Barometric pressure in kPa * 10
 
 constexpr uint8_t PIN_AV2 = A6;       // Analog pin 6 (reserved for future sensor)
-constexpr uint8_t FILTER_AV2 = 12;    // Filter coefficient for sensor B (12/16)
+uint8_t FILTER_AV2 = 12;               // Filter coefficient for sensor B (12/16) (calibration parameter)
 float sensor_av2;              // Reserved sensor B value
 
 constexpr uint8_t PIN_AV3 = A7;       // Analog pin 7 (reserved for future sensor)
-constexpr uint8_t FILTER_AV3 = 12;    // Filter coefficient for sensor C (12/16)
+uint8_t FILTER_AV3 = 12;               // Filter coefficient for sensor C (12/16) (calibration parameter)
 float sensor_av3;              // Reserved sensor C value
 
 
 // ===== HALL EFFECT SPEED SENSOR VARIABLES =====
 // Hall effect sensor can read vehicle speed through a digital input 
 constexpr uint8_t HALL_PIN = 20;             // Digital speed input pin (D20, interrupt 1)
-constexpr uint16_t REVS_PER_MILE = 6234;     // Revolutions per mile (calibration parameter)
-constexpr uint8_t TEETH_PER_REV = 12;        // Teeth per revolution (calibration parameter)
-constexpr float ALPHA_HALL_SPEED = 0.8;      // EMA filter coefficient (lower value is more filtered)
-constexpr float HALL_SPEED_MIN = 0.5;        // Minimum reportable speed (MPH)
+uint16_t REVS_PER_MILE = 6234;               // Revolutions per mile (calibration parameter)
+uint8_t TEETH_PER_REV = 12;                  // Teeth per revolution (calibration parameter)
+float ALPHA_HALL_SPEED = 0.8;                // EMA filter coefficient (lower value is more filtered) (calibration parameter)
+float HALL_SPEED_MIN = 0.5;                  // Minimum reportable speed (MPH) (calibration parameter)
 constexpr unsigned long HALL_PULSE_TIMEOUT = 1000000UL; // Timeout (μs) for "vehicle stopped" (1 second)
 
 volatile unsigned long hallLastTime = 0;     // Last pulse time (micros)
@@ -217,12 +217,12 @@ float hallSpeedEMA = 0;                      // Filtered speed (MPH)
 // ===== ENGINE RPM SENSOR VARIABLES (IGNITION COIL PULSES) =====
 // Measures engine RPM by counting pulses from the ignition coil negative side
 // Signal is sent through an optocoupler to protect the Arduino from high voltage
-constexpr float PULSES_PER_REVOLUTION = 4.0; // Calibratable: pulses per engine revolution
+float PULSES_PER_REVOLUTION = 4.0;           // Pulses per engine revolution (calibration parameter)
                                              // For 4-stroke engines: cylinders / 2
                                              // Examples: 4-cyl=2, 6-cyl=3, 8-cyl=4, 3-cyl=1.5
-constexpr float ALPHA_ENGINE_RPM = 0.7;      // EMA filter coefficient (lower value = more filtered)
+float ALPHA_ENGINE_RPM = 0.7;                // EMA filter coefficient (lower value = more filtered) (calibration parameter)
                                              // Range: 0.0 to 1.0 (0.7 balances smoothing and responsiveness)
-constexpr float ENGINE_RPM_MIN = 100.0;      // Minimum reportable RPM (engine idle ~600-800)
+float ENGINE_RPM_MIN = 100.0;                // Minimum reportable RPM (engine idle ~600-800) (calibration parameter)
 constexpr unsigned long IGNITION_PULSE_TIMEOUT = 500000UL; // Timeout (μs) for "engine stopped" (0.5 second)
 
 volatile unsigned long ignitionLastTime = 0; // Last ignition pulse time (micros)
@@ -282,8 +282,8 @@ constexpr unsigned int ENGINE_RPM_UPDATE_RATE = 20; // Check engine RPM timeout 
 
 // ===== LED TACHOMETER CONFIGURATION =====
 // Control the LED strip tachometer display
-constexpr unsigned int TACH_MAX = 6000;           // RPM at which shift light activates and flashes (calibration parameter)
-constexpr unsigned int TACH_MIN = 3000;           // Minimum RPM to show on tach (below this LEDs are off) (config parameter)
+unsigned int TACH_MAX = 6000;                // RPM at which shift light activates and flashes (calibration parameter)
+unsigned int TACH_MIN = 3000;                // Minimum RPM to show on tach (below this LEDs are off) (calibration parameter)
 // Note: tachFlashState moved to local static in ledShiftLight() function
 
 // ===== CAN BUS ENGINE PARAMETERS =====
@@ -2839,21 +2839,21 @@ void fetchGPSdata(){
     //if (millis() - timerGPSupdate > GPS_UPDATE_RATE) {  // Optional rate limiting (currently disabled)
       //timerGPSupdate = millis();
       
-            unsigned long alpha_0 = 256;  // Filter coefficient (256 = no filtering, instant response)
+            constexpr unsigned int ALPHA_GPS = 256;  // Filter coefficient (256 = no filtering, instant response)
             
             // Save previous values for interpolation
             t_old = t_new;        // Previous timestamp
             t_new = millis();     // Current timestamp
             v_old = v_new;        // Previous filtered speed
-            lagGPS = t_new-t_old; // Time between GPS updates (typically 200ms at 5Hz)
+            lagGPS = t_new - t_old; // Time between GPS updates (typically 200ms at 5Hz)
             
             // Get speed from GPS and convert units
-            v = GPS.speed*1.852;           // Convert knots to km/h (1 knot = 1.852 km/h)
-            float vFloat = GPS.speed*185.2;  // Speed * 100 for precision (km/h * 100)
+            v = GPS.speed * 1.852;           // Convert knots to km/h (1 knot = 1.852 km/h)
+            float vFloat = GPS.speed * 185.2;  // Speed * 100 for precision (km/h * 100)
             v_100 = (unsigned long)vFloat;   // Convert to integer
             
             // Apply exponential filter for smooth speedometer
-            v_new = (v_100*alpha_0 + v_old*(256-alpha_0))>>8;  // Weighted average (>>8 = /256)
+            v_new = (v_100 * ALPHA_GPS + v_old * (256 - ALPHA_GPS)) >> 8;  // Weighted average (>>8 = /256)
             
             // Calculate distance traveled for odometer
             if (v > 2) {  // Only integrate if speed > 2 km/h (reduces GPS drift errors)
