@@ -600,7 +600,8 @@ void sigSelect (void) {
     spd = hallSpeedEMA*100; //Speed in km/h *100 from hall sensor
     //spdMph = spd *0.6213712;  // Unused conversion to mph
     //spdCAN = (int)(v*16);  // Speed formatted for CAN bus transmission (km/h * 16 per Haltech protocol)
-    RPM = rpmCAN;  // Direct copy of RPM from CAN bus
+    //RPM = rpmCAN;  // Direct copy of RPM from CAN bus
+    RPM = engineRPMEMA; //RPM as measured from coil negative tachometer
     coolantTemp = (coolantTempCAN/10)-273.15; // Convert from Kelvin*10 to Celsius (K to C: subtract 273.15)
     oilPrs = (oilPrsCAN/10)-101.3;   // Convert from absolute kPa to gauge pressure (subtract atmospheric ~101.3 kPa)
     fuelPrs = (fuelPrsCAN/10)-101.3;  // Convert from absolute kPa to gauge pressure
