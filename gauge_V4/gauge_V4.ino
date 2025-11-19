@@ -122,9 +122,9 @@ constexpr uint8_t OLED_CS_2 = 29;   // Display 2 Chip Select pin
 constexpr uint8_t OLED_RST_2 = 26;  // Display 2 Reset pin
 
 // ===== LED TACHOMETER HARDWARE =====
-uint8_t NUM_LEDS = 26;              // Total number of LEDs in the tachometer strip (calibration parameter)
-uint8_t WARN_LEDS = 6;              // Warning zone LEDs on each side of center (turns yellow/orange) (calibration parameter)
-uint8_t SHIFT_LEDS = 2;             // Shift light LEDs on each side of center (turns red at shift point) (calibration parameter)
+constexpr uint8_t NUM_LEDS = 26;    // Total number of LEDs in the tachometer strip (calibration parameter)
+constexpr uint8_t WARN_LEDS = 6;    // Warning zone LEDs on each side of center (turns yellow/orange) (calibration parameter)
+constexpr uint8_t SHIFT_LEDS = 2;   // Shift light LEDs on each side of center (turns red at shift point) (calibration parameter)
 constexpr uint8_t TACH_DATA_PIN = 22; // WS2812 data pin for LED tachometer strip
 
 // ===== GPS CONFIGURATION =====
