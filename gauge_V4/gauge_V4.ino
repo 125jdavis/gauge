@@ -70,72 +70,68 @@
 ///// PIN DEFINITIONS AND HARDWARE CONFIGURATION /////
 // This section defines all pin assignments and hardware-specific constants
 
-// CAN Bus Configuration
-//#define OLED_RESET 4    // OLED display reset pin (unused - left for reference)
-#define CAN0_CS 53        // MCP2515 CAN controller chip select pin (SPI) (hardware parameter)
-#define CAN0_INT 18       // MCP2515 interrupt pin - triggers when CAN message received (hardware parameter)
+// ===== CAN BUS HARDWARE =====
+constexpr uint8_t CAN0_CS = 53;     // MCP2515 CAN controller chip select pin (SPI)
+constexpr uint8_t CAN0_INT = 18;    // MCP2515 interrupt pin - triggers when CAN message received
 
-// Engine RPM Sensor Configuration (Ignition Coil Pulses)
-#define IGNITION_PULSE_PIN 21  // Digital pin D21 - ignition coil pulses via optocoupler (interrupt-capable) (hardware parameter)
+// ===== ENGINE RPM SENSOR =====
+constexpr uint8_t IGNITION_PULSE_PIN = 21;  // Digital pin D21 - ignition coil pulses via optocoupler (interrupt-capable)
 
+// ===== POWER CONTROL =====
+constexpr uint8_t PWR_PIN = 49;     // Power control pin - keeps system alive after ignition is off
 
-// GAUGE HARDWARE SETUP //
-#define pwrPin 49              // Power control pin - keeps system alive after ignition is off (hardware parameter)
-#define speedoMax (100*100)    // Maximum speedometer reading: 100 mph * 100 (stored as integer for precision) (config parameter)
+// ===== STEPPER MOTOR HARDWARE =====
+constexpr uint8_t MOTOR_RST = 36;   // Stepper motor driver reset pin - shared by all motor drivers
 
-#define MOTOR_RST 36           // Stepper motor driver reset pin - shared by all motor drivers (hardware parameter)
-
-// Motor 1 Configuration (typically speedometer or fuel gauge)
-#define M1_SWEEP (58*12)       // Total steps for full sweep: 58 degrees * 12 steps/degree = 696 steps (config parameter)
-                               // X25.168 motors have 315° range at 1/3° per step
-#define M1_STEP  37            // Motor 1 step pulse pin (hardware parameter)
-#define M1_DIR   38            // Motor 1 direction control pin (hardware parameter)
+// Motor 1 Configuration (typically fuel level gauge)
+uint16_t M1_SWEEP = 58 * 12;        // Total steps for full sweep: 58 degrees * 12 steps/degree = 696 steps (calibration parameter)
+                                    // X25.168 motors have 315° range at 1/3° per step
+constexpr uint8_t M1_STEP = 37;     // Motor 1 step pulse pin
+constexpr uint8_t M1_DIR = 38;      // Motor 1 direction control pin
 
 // Motor 2 Configuration (typically coolant temp or secondary gauge)
-#define M2_SWEEP (58*12)       // Total steps: 58 degrees * 12 steps/degree = 696 steps (config parameter)
-#define M2_STEP  34            // Motor 2 step pulse pin (hardware parameter)
-#define M2_DIR   35            // Motor 2 direction control pin (hardware parameter)
+uint16_t M2_SWEEP = 58 * 12;        // Total steps: 58 degrees * 12 steps/degree = 696 steps (calibration parameter)
+constexpr uint8_t M2_STEP = 34;     // Motor 2 step pulse pin
+constexpr uint8_t M2_DIR = 35;      // Motor 2 direction control pin
 
 // Motor 3 Configuration (typically speedometer - note larger sweep angle)
-#define M3_SWEEP (118*12)      // Total steps: 118 degrees * 12 steps/degree = 1416 steps (wider range) (config paramater)
-#define M3_STEP  33            // Motor 3 step pulse pin (hardware parameter)
-#define M3_DIR   32            // Motor 3 direction control pin (hardware parameter)
+uint16_t M3_SWEEP = 118 * 12;       // Total steps: 118 degrees * 12 steps/degree = 1416 steps (wider range) (calibration parameter)
+constexpr uint8_t M3_STEP = 33;     // Motor 3 step pulse pin
+constexpr uint8_t M3_DIR = 32;      // Motor 3 direction control pin
 
 // Motor 4 Configuration (typically fuel level or coolant temp)
-#define M4_SWEEP (58*12)       // Total steps: 58 degrees * 12 steps/degree = 696 steps (config parameter)
-#define M4_STEP  40            // Motor 4 step pulse pin (hardware parameter)
-#define M4_DIR   41            // Motor 4 direction control pin (hardware parameter)
+uint16_t M4_SWEEP = 58 * 12;        // Total steps: 58 degrees * 12 steps/degree = 696 steps (calibration parameter)
+constexpr uint8_t M4_STEP = 40;     // Motor 4 step pulse pin
+constexpr uint8_t M4_DIR = 41;      // Motor 4 direction control pin
 
-//#define ODO_STEPS 32         // Odometer stepper steps per revolution (unused - defined inline instead) (config parameter)
+// ===== ROTARY ENCODER =====
+constexpr uint8_t SWITCH = 1;       // Rotary encoder push button pin (V4 hardware uses pin 1, V3 used pin 24)
 
-// GPS Configuration
-#define GPSECHO  false         // Set to true to echo raw GPS data to serial monitor (debug only)
+// ===== OLED DISPLAY HARDWARE =====
+constexpr uint8_t SCREEN_W = 128;   // OLED display width in pixels
+constexpr uint8_t SCREEN_H = 32;    // OLED display height in pixels
 
+// Display 1 Configuration (SPI interface)
+constexpr uint8_t OLED_DC_1 = 6;    // Display 1 Data/Command pin
+constexpr uint8_t OLED_CS_1 = 5;    // Display 1 Chip Select pin
+constexpr uint8_t OLED_RST_1 = 7;   // Display 1 Reset pin
 
-// Rotary Encoder Configuration
-#define SWITCH 1               // Rotary encoder push button pin (V4 hardware uses pin 1, V3 used pin 24) (hardware parameter)
+// Display 2 Configuration (SPI interface)
+constexpr uint8_t OLED_DC_2 = 28;   // Display 2 Data/Command pin
+constexpr uint8_t OLED_CS_2 = 29;   // Display 2 Chip Select pin
+constexpr uint8_t OLED_RST_2 = 26;  // Display 2 Reset pin
 
-// OLED Display 1 Configuration (SPI interface)
-#define SCREEN_W 128           // OLED display width in pixels (hardware parameter)
-#define SCREEN_H 32            // OLED display height in pixels (hardware parameter)
-//#define MOSI  51             // SPI Master Out Slave In (hardware SPI - not needed to define)
-//#define CLK   52             // SPI Clock (hardware SPI - not needed to define)
-#define OLED_DC_1    6         // Display 1 Data/Command pin (hardware parameter)
-#define OLED_CS_1  5           // Display 1 Chip Select pin (hardware parameter)
-#define OLED_RST_1 7           // Display 1 Reset pin (hardware parameter)
+// ===== LED TACHOMETER HARDWARE =====
+uint8_t NUM_LEDS = 26;              // Total number of LEDs in the tachometer strip (calibration parameter)
+uint8_t WARN_LEDS = 6;              // Warning zone LEDs on each side of center (turns yellow/orange) (calibration parameter)
+uint8_t SHIFT_LEDS = 2;             // Shift light LEDs on each side of center (turns red at shift point) (calibration parameter)
+constexpr uint8_t TACH_DATA_PIN = 22; // WS2812 data pin for LED tachometer strip
 
-// OLED Display 2 Configuration (SPI interface)
-//#define SCREEN_W_2 128       // Both screens are same size - use SCREEN_W instead (hardware parameter)
-//#define SCREEN_H_2 32        // Both screens are same size - use SCREEN_H instead (hardware parameter)
-#define OLED_DC_2  28          // Display 2 Data/Command pin (hardware parameter)
-#define OLED_CS_2  29          // Display 2 Chip Select pin (hardware parameter)
-#define OLED_RST_2 26          // Display 2 Reset pin (hardware parameter)
+// ===== GPS CONFIGURATION =====
+constexpr bool GPSECHO = false;     // Set to true to echo raw GPS data to serial monitor (debug only)
 
-// LED Tachometer Configuration
-#define NUM_LEDS 26            // Total number of LEDs in the tachometer strip (config parameter)
-#define WARN_LEDS 6            // Warning zone LEDs on each side of center (turns yellow/orange) (config parameter)
-#define SHIFT_LEDS 2           // Shift light LEDs on each side of center (turns red at shift point)(config parameter)
-#define TACH_DATA_PIN 22       // WS2812 data pin for LED tachometer strip (hardware parameter)
+// ===== CALIBRATION PARAMETERS =====
+uint16_t SPEEDO_MAX = 100 * 100;    // Maximum speedometer reading: 100 mph * 100 (stored as integer for precision) (calibration parameter)
 
 ///// HARDWARE OBJECT INITIALIZATION /////
 // Create instances of all hardware interface objects
@@ -153,12 +149,12 @@ SwitecX12 motor3(M3_SWEEP, M3_STEP, M3_DIR); // Motor 3 - typically speedometer 
 SwitecX12 motor4(M4_SWEEP, M4_STEP, M4_DIR); // Motor 4 - typically coolant temperature gauge
 
 // Odometer motor configuration (mechanical digit roller - currently non-functional)
-#define odoSteps 32        // Steps per revolution for odometer motor (config parameter)
-#define odoPin1 10         // Odometer motor coil 1 pin (hardware parameter)
-#define odoPin2 11         // Odometer motor coil 2 pin (hardware parameter)
-#define odoPin3 12         // Odometer motor coil 3 pin (hardware parameter)
-#define odoPin4 13         // Odometer motor coil 4 pin (hardware parameter)
-Stepper odoMotor(odoSteps, odoPin1, odoPin2, odoPin3, odoPin4); 
+uint8_t ODO_STEPS = 32;             // Steps per revolution for odometer motor (calibration parameter)
+constexpr uint8_t ODO_PIN1 = 10;    // Odometer motor coil 1 pin
+constexpr uint8_t ODO_PIN2 = 11;    // Odometer motor coil 2 pin
+constexpr uint8_t ODO_PIN3 = 12;    // Odometer motor coil 3 pin
+constexpr uint8_t ODO_PIN4 = 13;    // Odometer motor coil 4 pin
+Stepper odoMotor(ODO_STEPS, ODO_PIN1, ODO_PIN2, ODO_PIN3, ODO_PIN4); 
 
 Adafruit_GPS GPS(&Serial2);    // GPS object using hardware serial port 2
 
@@ -170,68 +166,68 @@ Adafruit_GPS GPS(&Serial2);    // GPS object using hardware serial port 2
 
 // Battery Voltage Sensor (Analog Pin A0)
 // Measures vehicle battery voltage through a voltage divider to protect Arduino's 5V ADC
+constexpr uint8_t VBATT_PIN = A0;        // Analog input pin for battery voltage
+uint8_t FILTER_VBATT = 8;                // Filter coefficient out of 64 (8/64 = light filtering) (calibration parameter)
+float VBATT_SCALER = 0.040923;           // Voltage divider scaling factor: R1=10k, R2=3.3k (calibration parameter)
+                                         // Formula: Vbatt = ADC_reading * (5.0/1023) * ((R1+R2)/R2) = ADC * 0.040923
 float vBatt = 12;              // Current battery voltage in volts (filtered)
 int vBattRaw = 12;             // Raw battery reading (0-500, representing 0-5V after mapping)
-int filter_vBatt = 8;          // Filter coefficient out of 64 (8/64 = light filtering, 64 = no filter) (config parameter)
-int vBattPin = A0;             // Analog input pin for battery voltage (hardware parameter)
-float vBattScaler = 0.040923;  // Voltage divider scaling factor: accounts for R1=10k, R2=3.3k divider
-                               // Formula: Vbatt = ADC_reading * (5.0/1023) * ((R1+R2)/R2) = ADC * 0.040923
 
 // Fuel Level Sensor (Analog Pin A3)
 // Reads resistance-based fuel sender (typically 0-90 ohms or 240-33 ohms depending on sender type)
+constexpr uint8_t FUEL_PIN = A3;      // Analog input pin for fuel level sensor
+uint8_t FILTER_FUEL = 1;               // Light filter: 1/64 = very responsive to changes (calibration parameter)
 int fuelSensorRaw;             // Raw fuel sensor ADC reading (0-500)
-int filter_fuel = 1;           // Light filter: 1/64 = very responsive to changes (config parameter)
-int fuelPin = A3;              // Analog input pin for fuel level sensor (hardware parameter)
 
 // Coolant/Oil Temperature Thermistor Sensor (Analog Pin A4)
 // GM-style thermistor with non-linear resistance vs. temperature curve
+constexpr uint8_t THERM_PIN = A4;     // Analog input pin for thermistor
+uint8_t FILTER_THERM = 50;             // Medium filter: 50/100 for stable temp reading (calibration parameter)
 float therm;                   // Current temperature in Celsius (after lookup table conversion)
 float thermSensor;             // Voltage reading from thermistor (0-5V)
-int filter_therm = 50;         // Medium filter: 50/100 for stable temp reading (config parameter)
-int thermPin = A4;             // Analog input pin for thermistor (hardware parameter)
 int thermCAN;                  // Temperature formatted for CAN transmission (temp * 10)
 
 // Analog Inputs for 0-5V sensors
-float sensor_av1;            	// Barometric pressure in kPa * 10
-byte filter_av1 = 4;          	// Filter coefficient out of 16 (4/16 = moderate filtering) (config parameter)
-int pin_av1 = A5;              		// Analog pin 5 (hardware parameter)
+constexpr uint8_t PIN_AV1 = A5;       // Analog pin 5 (barometric pressure sensor)
+uint8_t FILTER_AV1 = 4;                // Filter coefficient out of 16 (4/16 = moderate filtering) (calibration parameter)
+float sensor_av1;              // Barometric pressure in kPa * 10
 
-float sensor_av2;                 // Reserved sensor B value
-byte filter_b = 12;             // Filter coefficient for sensor B (12/16) (config parameter)
-int pin_av2 = A6;           		// Analog pin 6 (hardware parameter)
+constexpr uint8_t PIN_AV2 = A6;       // Analog pin 6 (reserved for future sensor)
+uint8_t FILTER_AV2 = 12;               // Filter coefficient for sensor B (12/16) (calibration parameter)
+float sensor_av2;              // Reserved sensor B value
 
-float sensor_av3;                	// Reserved sensor C value
-byte filter_av3 = 12;           // Filter coefficient for sensor C (12/16) (config parameter)
-int pin_av3 = A7;           		// Analog pin 7 (hardware parameter)
+constexpr uint8_t PIN_AV3 = A7;       // Analog pin 7 (reserved for future sensor)
+uint8_t FILTER_AV3 = 12;               // Filter coefficient for sensor C (12/16) (calibration parameter)
+float sensor_av3;              // Reserved sensor C value
 
 
 // ===== HALL EFFECT SPEED SENSOR VARIABLES =====
 // Hall effect sensor can read vehicle speed through a digital input 
-const int hallPin = 20;                 // Digital speed input pin (D20, interrupt 1) (hardware parameter)
-const int revsPerMile = 6234;           // Revolutions per mile (config parameter)
-const int teethPerRev = 12;             // Teeth per revolution (config parameter)
-const float alphaHallSpeed = 0.8;       // EMA filter coefficient (lower value is more filtered) (config parameter)
+constexpr uint8_t HALL_PIN = 20;             // Digital speed input pin (D20, interrupt 1)
+uint16_t REVS_PER_MILE = 6234;               // Revolutions per mile (calibration parameter)
+uint8_t TEETH_PER_REV = 12;                  // Teeth per revolution (calibration parameter)
+float ALPHA_HALL_SPEED = 0.8;                // EMA filter coefficient (lower value is more filtered) (calibration parameter)
+float HALL_SPEED_MIN = 0.5;                  // Minimum reportable speed (MPH) (calibration parameter)
+constexpr unsigned long HALL_PULSE_TIMEOUT = 1000000UL; // Timeout (μs) for "vehicle stopped" (1 second)
 
-volatile unsigned long hallLastTime = 0;    // Last pulse time (micros)
-volatile float hallSpeedRaw = 0;            // Most recent calculated speed (MPH)
-float hallSpeedEMA = 0;                     // Filtered speed (MPH)
-const float hallSpeedMin = 0.5;             // Minimum reportable speed (MPH)
-const unsigned long hallPulseTimeout = 1000000UL; // Timeout (μs) for "vehicle stopped" (1 second)
+volatile unsigned long hallLastTime = 0;     // Last pulse time (micros)
+volatile float hallSpeedRaw = 0;             // Most recent calculated speed (MPH)
+float hallSpeedEMA = 0;                      // Filtered speed (MPH)
 
 // ===== ENGINE RPM SENSOR VARIABLES (IGNITION COIL PULSES) =====
 // Measures engine RPM by counting pulses from the ignition coil negative side
 // Signal is sent through an optocoupler to protect the Arduino from high voltage
-const float pulsesPerRevolution = 4.0;      // Calibratable: pulses per engine revolution (config parameter)
-                                            // For 4-stroke engines: cylinders / 2
-                                            // Examples: 4-cyl=2, 6-cyl=3, 8-cyl=4, 3-cyl=1.5
-const float alphaEngineRPM = 0.7;           // EMA filter coefficient (lower value = more filtered) (config parameter)
-                                            // Range: 0.0 to 1.0 (0.7 balances smoothing and responsiveness)
+float PULSES_PER_REVOLUTION = 4.0;           // Pulses per engine revolution (calibration parameter)
+                                             // For 4-stroke engines: cylinders / 2
+                                             // Examples: 4-cyl=2, 6-cyl=3, 8-cyl=4, 3-cyl=1.5
+float ALPHA_ENGINE_RPM = 0.7;                // EMA filter coefficient (lower value = more filtered) (calibration parameter)
+                                             // Range: 0.0 to 1.0 (0.7 balances smoothing and responsiveness)
+float ENGINE_RPM_MIN = 100.0;                // Minimum reportable RPM (engine idle ~600-800) (calibration parameter)
+constexpr unsigned long IGNITION_PULSE_TIMEOUT = 500000UL; // Timeout (μs) for "engine stopped" (0.5 second)
 
-volatile unsigned long ignitionLastTime = 0;  // Last ignition pulse time (micros)
-volatile float engineRPMRaw = 0;              // Most recent calculated RPM (unfiltered)
-float engineRPMEMA = 0;                       // Filtered RPM with exponential moving average
-const float engineRPMMin = 100.0;             // Minimum reportable RPM (engine idle ~600-800)
-const unsigned long ignitionPulseTimeout = 500000UL; // Timeout (μs) for "engine stopped" (0.5 second)
+volatile unsigned long ignitionLastTime = 0; // Last ignition pulse time (micros)
+volatile float engineRPMRaw = 0;             // Most recent calculated RPM (unfiltered)
+float engineRPMEMA = 0;                      // Filtered RPM with exponential moving average
 
 // ===== GPS SPEED AND ODOMETER VARIABLES =====
 // GPS provides speed and time data for speedometer and odometer calculations
@@ -272,23 +268,22 @@ unsigned int timerHallUpdate;
 unsigned int timerEngineRPMUpdate;
 
 // Update rate periods (in milliseconds)
-//long unsigned dispMenuRate = 20;       // Unused - commented out
-unsigned int CANsendRate = 50;          // Send CAN messages every 50ms (20Hz)
-unsigned int dispUpdateRate = 75;       // Update displays every 75ms (~13Hz)
-unsigned int sensorReadRate = 10;       // Read analog sensors every 10ms (100Hz for responsive readings)
-unsigned int tachUpdateRate = 50;       // Update LED tachometer every 50ms (20Hz)
-unsigned int tachFlashRate = 50;        // Flash shift light every 50ms when over redline
-unsigned int GPSupdateRate = 100;       // GPS update check rate (might not be needed)
-unsigned int checkGPSRate = 1;          // Check for GPS data every 1ms
-unsigned int angleUpdateRate = 20;      // Update motor angles every 20ms (50Hz)
-unsigned int splashTime = 1500;         // Duration of startup splash screens (milliseconds)
-unsigned int hallUpdateRate = 20;       // recalculate Hall sensor speed every 20ms (50hz)
-unsigned int engineRPMUpdateRate = 20;  // Check engine RPM timeout every 20ms (50Hz)
+constexpr unsigned int CAN_SEND_RATE = 50;        // Send CAN messages every 50ms (20Hz)
+constexpr unsigned int DISP_UPDATE_RATE = 75;     // Update displays every 75ms (~13Hz)
+constexpr unsigned int SENSOR_READ_RATE = 10;     // Read analog sensors every 10ms (100Hz for responsive readings)
+constexpr unsigned int TACH_UPDATE_RATE = 50;     // Update LED tachometer every 50ms (20Hz)
+constexpr unsigned int TACH_FLASH_RATE = 50;      // Flash shift light every 50ms when over redline
+constexpr unsigned int GPS_UPDATE_RATE = 100;     // GPS update check rate (might not be needed)
+constexpr unsigned int CHECK_GPS_RATE = 1;        // Check for GPS data every 1ms
+constexpr unsigned int ANGLE_UPDATE_RATE = 20;    // Update motor angles every 20ms (50Hz)
+constexpr unsigned int SPLASH_TIME = 1500;        // Duration of startup splash screens (milliseconds)
+constexpr unsigned int HALL_UPDATE_RATE = 20;     // Recalculate Hall sensor speed every 20ms (50Hz)
+constexpr unsigned int ENGINE_RPM_UPDATE_RATE = 20; // Check engine RPM timeout every 20ms (50Hz)
 
-// ===== LED TACHOMETER VARIABLES =====
+// ===== LED TACHOMETER CONFIGURATION =====
 // Control the LED strip tachometer display
-unsigned int tachMax = 6000;            // RPM at which shift light activates and flashes (config parameter)
-unsigned int tachMin = 3000;            // Minimum RPM to show on tach (below this LEDs are off) (congfig parameter)
+unsigned int TACH_MAX = 6000;                // RPM at which shift light activates and flashes (calibration parameter)
+unsigned int TACH_MIN = 3000;                // Minimum RPM to show on tach (below this LEDs are off) (calibration parameter)
 // Note: tachFlashState moved to local static in ledShiftLight() function
 
 // ===== CAN BUS ENGINE PARAMETERS =====
@@ -374,7 +369,7 @@ byte menuLevel = 0;              // Current menu depth (0=top level, 1=submenu, 
 byte units = 0;                  // Unit system: 0=metric (km/h, C, bar), 1=imperial (mph, F, PSI)
 unsigned int nMenuLevel = 15;    // Number of items in current menu level (0-indexed, so 15 = 16 items)
 byte dispArray1[4] = { 1, 0, 0, 0 };  // Menu position array for display 1 [level0, level1, level2, level3]
-byte clockOffset = 0;            // Hours to add to UTC time for local time zone (-12 to +12) (config parameter)
+byte clockOffset = 0;            // Hours to add to UTC time for local time zone (-12 to +12) (cailbration parameter)
 byte dispArray2[1] = {1};        // Menu selection for display 2 (single level)
 
 
@@ -385,7 +380,7 @@ byte dispArray2[1] = {1};        // Menu selection for display 2 (single level)
 
 // 'falcon_script', 128x32px
 // Falcon logo in script font - displayed on startup splash screen
-const unsigned char img_falcon_script [] PROGMEM = {
+const unsigned char IMG_FALCON_SCRIPT[] PROGMEM = {
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x1f, 0xfc, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
@@ -423,7 +418,7 @@ const unsigned char img_falcon_script [] PROGMEM = {
 
 // '302_CID', 128x32px
 // Engine displacement designation: 302 Cubic Inch Displacement
-const unsigned char img_302_CID [] PROGMEM = {
+const unsigned char IMG_302_CID[] PROGMEM = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x1e, 0x1e, 0x1e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3c, 0x3c, 0x3c, 
@@ -460,7 +455,7 @@ const unsigned char img_302_CID [] PROGMEM = {
 
 // '302V', 128x32px
 // Alternative engine badge - 302 with V8 symbol
-const unsigned char img_302V [] PROGMEM = {
+const unsigned char IMG_302V[] PROGMEM = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xfe, 0x0f, 0xfc, 0x3f, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 
@@ -497,7 +492,7 @@ const unsigned char img_302V [] PROGMEM = {
 
 // 'Oil Pressure Icon', 40x32px
 // Icon showing oil can symbol - displayed alongside oil pressure reading
-const unsigned char img_oilPrs [] PROGMEM = {
+const unsigned char IMG_OIL_PRS[] PROGMEM = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1e, 0x0f, 0xe0, 
@@ -512,7 +507,7 @@ const unsigned char img_oilPrs [] PROGMEM = {
 
 // 'Oil Temp Icon', 40x32px
 // Icon combining oil can and thermometer - for oil temperature display
-const unsigned char img_oilTemp [] PROGMEM = {
+const unsigned char IMG_OIL_TEMP[] PROGMEM = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x00, 0xc0, 0x00, 0x00, 0x00, 0x01, 0xe0, 0x00, 0x00, 0x00, 0x01, 0xe0, 0x00, 0x00, 0x00, 0x01, 
 	0xff, 0x00, 0x00, 0x00, 0x01, 0xff, 0x00, 0x00, 0x00, 0x01, 0xe0, 0x00, 0x00, 0x1e, 0x01, 0xe0, 
@@ -527,7 +522,7 @@ const unsigned char img_oilTemp [] PROGMEM = {
 
 // 'Battery Icon', 38x32px
 // Battery symbol with + and - terminals - for voltage display
-const unsigned char img_battVolt [] PROGMEM = {
+const unsigned char IMG_BATT_VOLT[] PROGMEM = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x78, 0x00, 0x78, 0x00, 0x00, 0x78, 
 	0x00, 0x78, 0x00, 0x00, 0x78, 0x00, 0x78, 0x00, 0x0f, 0xff, 0xff, 0xff, 0xc0, 0x0f, 0xff, 0xff, 
@@ -542,7 +537,7 @@ const unsigned char img_battVolt [] PROGMEM = {
 
 // 'Eng Temp Icon', 35x32px
 // Thermometer icon for coolant/engine temperature display
-const unsigned char img_coolantTemp [] PROGMEM = {
+const unsigned char IMG_COOLANT_TEMP[] PROGMEM = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 	0x00, 0x60, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x00, 0x00, 0x00, 0x00, 
 	0xff, 0x80, 0x00, 0x00, 0x00, 0xff, 0x80, 0x00, 0x00, 0x00, 0xf0, 0x00, 0x00, 0x00, 0x00, 0xf0, 
@@ -557,7 +552,7 @@ const unsigned char img_coolantTemp [] PROGMEM = {
 
 // 'Gas Icon', 32x32px
 // Gas pump icon for fuel level display
-const unsigned char img_fuelLvl [] PROGMEM = {
+const unsigned char IMG_FUEL_LVL[] PROGMEM = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0xff, 0xe6, 0x00, 
 	0x07, 0xff, 0xf7, 0x80, 0x07, 0xff, 0xf3, 0xc0, 0x07, 0x00, 0x71, 0xe0, 0x07, 0x00, 0x70, 0xe0, 
 	0x07, 0x00, 0x70, 0xf0, 0x07, 0x00, 0x70, 0x70, 0x07, 0x00, 0x70, 0x78, 0x07, 0x00, 0x70, 0x70, 
@@ -653,8 +648,8 @@ void setup() {
 
   // Keep power enabled after ignition switch turns off
   // This allows the system to complete shutdown procedures (save EEPROM, zero gauges)
-  pinMode(pwrPin, OUTPUT);
-  digitalWrite(pwrPin, HIGH);  // Latch power on
+  pinMode(PWR_PIN, OUTPUT);
+  digitalWrite(PWR_PIN, HIGH);  // Latch power on
 
   // ===== GPS INITIALIZATION =====
   GPS.begin(9600);                                // Initialize GPS at 9600 baud (default for most GPS modules)
@@ -667,8 +662,8 @@ void setup() {
   useInterrupt(true);                             // Enable interrupt-based GPS reading (Timer0 ISR reads GPS in background)
  
   // ===== HALL SENSOR INITIALIZATION =====
-  pinMode(hallPin, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(hallPin), hallSpeedISR, FALLING); // Interrupt 3 = pin 20
+  pinMode(HALL_PIN, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(HALL_PIN), hallSpeedISR, FALLING); // Interrupt 3 = pin 20
 
   // ===== ENGINE RPM SENSOR INITIALIZATION =====
   pinMode(IGNITION_PULSE_PIN, INPUT_PULLUP);  // Enable internal pull-up for optocoupler signal
@@ -689,10 +684,10 @@ void setup() {
   
   // ===== ODOMETER MOTOR SETUP =====
   // Configure pins for 4-wire stepper motor (mechanical digit roller - currently non-functional)
-  pinMode(odoPin1, OUTPUT);
-  pinMode(odoPin2, OUTPUT);
-  pinMode(odoPin3, OUTPUT);
-  pinMode(odoPin4, OUTPUT);
+  pinMode(ODO_PIN1, OUTPUT);
+  pinMode(ODO_PIN2, OUTPUT);
+  pinMode(ODO_PIN3, OUTPUT);
+  pinMode(ODO_PIN4, OUTPUT);
 
   // ===== LED TACHOMETER INITIALIZATION =====
   FastLED.addLeds<WS2812, TACH_DATA_PIN, GRB>(leds, NUM_LEDS);  // Configure WS2812 LED strip (GRB color order)
@@ -708,8 +703,8 @@ void setup() {
   // ===== LOAD SAVED SETTINGS FROM EEPROM =====
   
   // Read display 1 menu positions (4 bytes)
-  for (int i = dispArray1Address; i < sizeof(dispArray1); i++) {
-    dispArray1[i] = EEPROM.read(i);
+  for (int i = 0; i < sizeof(dispArray1); i++) {
+    dispArray1[i] = EEPROM.read(dispArray1Address + i);
   }
   
   // Read display 2 selection (1 byte)
@@ -741,7 +736,7 @@ void setup() {
 
   // ===== SPLASH SCREEN DELAY =====
   // Hold splash screen images on displays for specified time before entering main loop
-  while (millis() < splashTime){
+  while (millis() < SPLASH_TIME){
     // Wait for splash screen timer to expire (1500ms default)
   }
 
@@ -792,30 +787,30 @@ void loop() {
   // ===== ANALOG SENSOR READING =====
   // Read battery voltage, fuel level, temperature, barometric pressure
   // Update rate: every 10ms (100Hz) for responsive readings
-  if (millis() - timerSensorRead > sensorReadRate) {
+  if (millis() - timerSensorRead > SENSOR_READ_RATE) {
     // Serial.print("sensorRead: ");  // Debug timing
     int s = micros();  // Start timing for performance measurement
 
     // Battery voltage: read, map to 0-5V range, apply light filter
-    vBattRaw = readSensor(vBattPin, vBattRaw, filter_vBatt);
-    vBatt = (float)vBattRaw*vBattScaler;  // Convert to actual voltage using calibration factor
+    vBattRaw = readSensor(VBATT_PIN, vBattRaw, FILTER_VBATT);
+    vBatt = (float)vBattRaw * VBATT_SCALER;  // Convert to actual voltage using calibration factor
     
     // Fuel level: read raw sensor, convert voltage to gallons via lookup table
-    fuelSensorRaw = readSensor(fuelPin,fuelSensorRaw,filter_fuel);
+    fuelSensorRaw = readSensor(FUEL_PIN, fuelSensorRaw, FILTER_FUEL);
     float fuelSensor = (float)fuelSensorRaw*0.01;  // Convert to voltage (0-5V)
     fuelLvl = curveLookup(fuelSensor, fuelLvlTable_x, fuelLvlTable_l, fuelLvlTable_length);
     
     // Thermistor temperature: read voltage, convert to temp via lookup table
-    thermSensor = readThermSensor(thermPin, thermSensor, filter_therm);
+    thermSensor = readThermSensor(THERM_PIN, thermSensor, FILTER_THERM);
     therm = curveLookup(thermSensor, thermTable_x, thermTable_l, thermTable_length);
     thermCAN = (int)(therm*10);  // Format for CAN transmission (temp * 10)
     
     // Barometric pressure: read 30 PSI absolute sensor, constrain to valid range
-    sensor_av1 = read30PSIAsensor(pin_av1,sensor_av1,filter_av1); // Returns kPa * 10 
+    sensor_av1 = read30PSIAsensor(PIN_AV1, sensor_av1, FILTER_AV1); // Returns kPa * 10 
     sensor_av1 = constrain(sensor_av1, 600, 1050);  // Limit to elevation range -300m to 4000m (60-105 kPa)
     baroCAN = sensor_av1;  // Store for CAN transmission
     
-    //sensor_av2 = readSensor(pin_av2,sensor_av2,filter_av2);  // Reserved for future use
+    //sensor_av2 = readSensor(PIN_AV2, sensor_av2, FILTER_AV2);  // Reserved for future use
     //sensor_av3 = readSensor(pin_,sensor_c,filter_c);  // Reserved for future use
     
     timerSensorRead = millis();  // Reset timer
@@ -826,14 +821,14 @@ void loop() {
 
   // ===== HALL SENSOR READING ======
   //process hall sensor input to calculate vehicle speed
-  if (millis() - timerHallUpdate > hallUpdateRate) {
+  if (millis() - timerHallUpdate > HALL_UPDATE_RATE) {
     hallSpeedUpdate();
     timerHallUpdate = millis();  // Reset timer
   }
 
   // ===== ENGINE RPM SENSOR READING =====
   // Process engine RPM timeout (when engine stops or is idling very slowly)
-  if (millis() - timerEngineRPMUpdate > engineRPMUpdateRate) {
+  if (millis() - timerEngineRPMUpdate > ENGINE_RPM_UPDATE_RATE) {
     engineRPMUpdate();
     timerEngineRPMUpdate = millis();  // Reset timer
   }
@@ -841,7 +836,7 @@ void loop() {
   // ===== CAN BUS TRANSMISSION =====
   // Send vehicle data to other modules on CAN bus
   // Update rate: every 50ms (20Hz) - typical automotive CAN rate
-  if (millis() - timerCANsend > CANsendRate) {  
+  if (millis() - timerCANsend > CAN_SEND_RATE) {  
     // Serial.print("CANsend: ");  // Debug timing
     int s = micros();
 
@@ -877,7 +872,7 @@ void loop() {
   // ===== GPS DATA RECEPTION =====
   // Check for new GPS data and update speed/odometer
   // Update rate: every 1ms - fast polling to catch GPS updates immediately
-  if (millis() - timerCheckGPS > checkGPSRate) {
+  if (millis() - timerCheckGPS > CHECK_GPS_RATE) {
     // Serial.print("GPS recieve: ");  // Debug timing
     int s = micros(); 
     
@@ -890,7 +885,7 @@ void loop() {
   // ===== LED TACHOMETER UPDATE =====
   // Update tachometer LED strip based on engine RPM
   // Update rate: every 50ms (20Hz) for smooth animation
-  if (millis() - timerTachUpdate > tachUpdateRate) {     
+  if (millis() - timerTachUpdate > TACH_UPDATE_RATE) {     
     // Serial.print("tach: ");  // Debug timing
     int s = micros();
     
@@ -910,7 +905,7 @@ void loop() {
   
   // Update OLED displays with current data
   // Update rate: every 75ms (~13Hz) - fast enough to appear real-time, slow enough to be readable
-  if(millis() - timerDispUpdate > dispUpdateRate){
+  if(millis() - timerDispUpdate > DISP_UPDATE_RATE){
     // Serial.print("display: ");  // Debug timing
     int s = micros();
     
@@ -926,7 +921,7 @@ void loop() {
   // ===== MOTOR ANGLE CALCULATION =====
   // Calculate target positions for all gauge motors
   // Update rate: every 20ms (50Hz) - smooth needle movement
-  if(millis() - timerAngleUpdate > angleUpdateRate){
+  if(millis() - timerAngleUpdate > ANGLE_UPDATE_RATE){
     // Serial.print("motors: ");  // Debug timing
     int s = micros();
     
@@ -962,7 +957,7 @@ void loop() {
   // ===== SHUTDOWN DETECTION =====
   // Check if ignition voltage has dropped (key turned off)
   // Shutdown when battery voltage < 1V AND system has been running for at least 3 seconds
-  if (vBatt < 1 && millis() > splashTime + 3000) {
+  if (vBatt < 1 && millis() > SPLASH_TIME + 3000) {
     //shutdown();  // Save settings, zero gauges, display shutdown screen, cut power
   }
 
@@ -1066,13 +1061,13 @@ void hallSpeedISR() {
     // For 150 mph, the shortest plausible pulse interval is much less than 1ms; let's allow anything > 100 μs
     if (pulseInterval > 100) {
         // Calculate speed in MPH:
-        // MPH = (pulse freq [Hz] * 3600) / (teethPerRev * revsPerMile)
+        // MPH = (pulse freq [Hz] * 3600) / (TEETH_PER_REV * REVS_PER_MILE)
         // pulse freq = 1 / (pulseInterval in seconds)
         float pulseFreq = 1000000.0 / pulseInterval;
-        float speedRaw = (pulseFreq * 3600.0) / (teethPerRev * revsPerMile);
+        float speedRaw = (pulseFreq * 3600.0) / (TEETH_PER_REV * REVS_PER_MILE);
         hallSpeedRaw = speedRaw;
         // EMA filter:
-        hallSpeedEMA = (alphaHallSpeed * speedRaw) + ((1.0 - alphaHallSpeed) * hallSpeedEMA);
+        hallSpeedEMA = (ALPHA_HALL_SPEED * speedRaw) + ((1.0 - ALPHA_HALL_SPEED) * hallSpeedEMA);
         Serial.println(hallSpeedEMA);
     }
 }
@@ -1081,12 +1076,12 @@ void hallSpeedISR() {
 void hallSpeedUpdate() {
     unsigned long currentTime = micros();
     // If it's been too long since last pulse, set speed to zero
-    if ((currentTime - hallLastTime) > hallPulseTimeout) {
+    if ((currentTime - hallLastTime) > HALL_PULSE_TIMEOUT) {
         hallSpeedRaw = 0;
         hallSpeedEMA = 0;
     }
     // Optionally, clamp very low speeds to zero for display stability
-    if (hallSpeedEMA < hallSpeedMin) {
+    if (hallSpeedEMA < HALL_SPEED_MIN) {
         hallSpeedEMA = 0;
     }
 }
@@ -1101,7 +1096,7 @@ void hallSpeedUpdate() {
  * 1. Measure time since last pulse (pulse interval in microseconds)
  * 2. Ignore implausibly short pulses (< 500 μs) to filter electrical noise
  * 3. Calculate pulse frequency in Hz: freq = 1,000,000 / pulseInterval
- * 4. Convert to RPM: RPM = (freq * 60) / pulsesPerRevolution
+ * 4. Convert to RPM: RPM = (freq * 60) / PULSES_PER_REVOLUTION
  * 5. Apply EMA filter for smooth reading: EMA = (alpha * newValue) + ((1-alpha) * oldValue)
  * 
  * Example for 8-cylinder engine (4 pulses per revolution) at 6000 RPM:
@@ -1131,14 +1126,14 @@ void ignitionPulseISR() {
         
         // Convert pulse frequency to RPM
         // RPM = (pulses per second * 60 seconds per minute) / pulses per revolution
-        float rpmRaw = (pulseFreq * 60.0) / pulsesPerRevolution;
+        float rpmRaw = (pulseFreq * 60.0) / PULSES_PER_REVOLUTION;
         
         engineRPMRaw = rpmRaw;
         
         // Apply exponential moving average filter for smooth display
         // EMA formula: new_EMA = (alpha * new_value) + ((1 - alpha) * old_EMA)
         // Higher alpha (e.g., 0.7) = more responsive, lower alpha = more smoothing
-        engineRPMEMA = (alphaEngineRPM * rpmRaw) + ((1.0 - alphaEngineRPM) * engineRPMEMA);
+        engineRPMEMA = (ALPHA_ENGINE_RPM * rpmRaw) + ((1.0 - ALPHA_ENGINE_RPM) * engineRPMEMA);
         
         // Uncomment for debugging (note: Serial.print in ISR can cause timing issues)
         // Serial.print("RPM: ");
@@ -1153,16 +1148,16 @@ void ignitionPulseISR() {
  * and to clamp very low RPM values to zero for stable display.
  * 
  * Functions:
- * 1. Timeout detection: If no pulse received within ignitionPulseTimeout (0.5 sec),
+ * 1. Timeout detection: If no pulse received within IGNITION_PULSE_TIMEOUT (0.5 sec),
  *    engine is considered stopped and RPM is set to zero
- * 2. Minimum threshold: RPM below engineRPMMin (100 RPM) is clamped to zero
+ * 2. Minimum threshold: RPM below ENGINE_RPM_MIN (100 RPM) is clamped to zero
  *    to prevent display jitter during cranking or stopping
  * 
  * Timing example:
  * - At 300 RPM (very slow idle) with 4 pulses/rev: pulse rate = 20 Hz = 50ms interval
  * - Timeout of 500ms (0.5 sec) allows detection of engine stop within reasonable time
  * 
- * Called from: main loop every 20ms (engineRPMUpdateRate)
+ * Called from: main loop every 20ms (ENGINE_RPM_UPDATE_RATE)
  * 
  * Global variables modified:
  * - engineRPMRaw: Set to 0 if timeout occurred
@@ -1172,14 +1167,14 @@ void engineRPMUpdate() {
     unsigned long currentTime = micros();
     
     // If it's been too long since last pulse, engine has stopped
-    if ((currentTime - ignitionLastTime) > ignitionPulseTimeout) {
+    if ((currentTime - ignitionLastTime) > IGNITION_PULSE_TIMEOUT) {
         engineRPMRaw = 0;
         engineRPMEMA = 0;
     }
     
     // Clamp very low RPM to zero for display stability
     // Prevents needle flutter during engine start/stop
-    if (engineRPMEMA < engineRPMMin) {
+    if (engineRPMEMA < ENGINE_RPM_MIN) {
         engineRPMEMA = 0;
     }
 }
@@ -1364,7 +1359,7 @@ void rotate() {
  * - Case 7 (Trip Odo) has reset confirmation submenu
  * - EEPROM updates happen when exiting settings
  * 
- * Called from: main loop at dispUpdateRate (75ms)
+ * Called from: main loop at DISP_UPDATE_RATE (75ms)
  */
 void dispMenu() {
   switch (dispArray1[0]) {  // Level 0 - Main menu selection
@@ -1785,7 +1780,7 @@ void goToLevel0(void){
  * 8 - 302V logo
  * 9 - Falcon Script logo
  * 
- * Called from: main loop at dispUpdateRate (75ms)
+ * Called from: main loop at DISP_UPDATE_RATE (75ms)
  */
 void disp2(void){
   switch (dispArray2[0]){
@@ -2026,7 +2021,7 @@ void dispOilTemp (Adafruit_SSD1306 *display) {
     float oilTempDisp;
     display->setTextColor(WHITE); 
     display->clearDisplay();
-    display->drawBitmap(0, 0, img_oilTemp, 40, 32, 1);  // Draw oil/temp icon (40x32 pixels)
+    display->drawBitmap(0, 0, IMG_OIL_TEMP, 40, 32, 1);  // Draw oil/temp icon (40x32 pixels)
     byte center = 71;  // Center point for text (offset for icon on left)
     
     if (units == 0){    // Metric Units (Celsius)
@@ -2160,7 +2155,7 @@ void dispAFR (Adafruit_SSD1306 *display) {
  */
 void dispFalconScript(Adafruit_SSD1306 *display) {
     display->clearDisplay();
-    display->drawBitmap(0, 0, img_falcon_script, SCREEN_W, SCREEN_H, 1);
+    display->drawBitmap(0, 0, IMG_FALCON_SCRIPT, SCREEN_W, SCREEN_H, 1);
     display->display();
 }
 
@@ -2170,7 +2165,7 @@ void dispFalconScript(Adafruit_SSD1306 *display) {
  */
 void disp302CID(Adafruit_SSD1306 *display) {
     display->clearDisplay();
-    display->drawBitmap(0, 0, img_302_CID, SCREEN_W, SCREEN_H, 1);
+    display->drawBitmap(0, 0, IMG_302_CID, SCREEN_W, SCREEN_H, 1);
     display->display();
 }
 
@@ -2180,7 +2175,7 @@ void disp302CID(Adafruit_SSD1306 *display) {
  */
 void disp302V(Adafruit_SSD1306 *display) {
     display->clearDisplay();
-    display->drawBitmap(0, 0, img_302V, SCREEN_W, SCREEN_H, 1);
+    display->drawBitmap(0, 0, IMG_302V, SCREEN_W, SCREEN_H, 1);
     display->display();
 }
 
@@ -2201,7 +2196,7 @@ void dispOilPrsGfx (Adafruit_SSD1306 *display) {
     float oilPrsDisp;
     display->setTextColor(WHITE); 
     display->clearDisplay();
-    display->drawBitmap(0, 0, img_oilPrs, 40, 32, 1);  // Draw oil can icon
+    display->drawBitmap(0, 0, IMG_OIL_PRS, 40, 32, 1);  // Draw oil can icon
     if (oilPrs < 0) {oilPrs = 0;}  // Clamp negative values
     
     if (units == 0){    // Metric Units (bar)
@@ -2237,7 +2232,7 @@ void dispOilTempGfx (Adafruit_SSD1306 *display) {
     float oilTempDisp;
     display->setTextColor(WHITE); 
     display->clearDisplay();             //clear buffer
-    display->drawBitmap(0, 0, img_oilTemp, 40, 32, 1);
+    display->drawBitmap(0, 0, IMG_OIL_TEMP, 40, 32, 1);
     byte center = 71;
     
     if (units == 0){    // Metric Units
@@ -2269,7 +2264,7 @@ void dispCoolantTempGfx (Adafruit_SSD1306 *display) {
     float coolantTempDisp;
     display->setTextColor(WHITE); 
     display->clearDisplay();             //clear buffer
-    display->drawBitmap(0, 0, img_coolantTemp, 38, 32, 1);
+    display->drawBitmap(0, 0, IMG_COOLANT_TEMP, 38, 32, 1);
     byte center = 71;
     
     if (units == 0){    // Metric Units
@@ -2300,7 +2295,7 @@ void dispCoolantTempGfx (Adafruit_SSD1306 *display) {
 void dispBattVoltGfx (Adafruit_SSD1306 *display) {
     display->setTextColor(WHITE); 
     display->clearDisplay();             //clear buffer
-    display->drawBitmap(0, 0, img_battVolt, 35, 32, 1);
+    display->drawBitmap(0, 0, IMG_BATT_VOLT, 35, 32, 1);
     display->setTextSize(3); 
     display->setCursor(42,6);
     display->println(vBatt, 1);
@@ -2314,7 +2309,7 @@ void dispFuelLvlGfx (Adafruit_SSD1306 *display) {
     float fuelLvlDisp;
     display->setTextColor(WHITE); 
     display->clearDisplay();             //clear buffer
-    display->drawBitmap(0, 0, img_fuelLvl, 32, 32, 1);
+    display->drawBitmap(0, 0, IMG_FUEL_LVL, 32, 32, 1);
     byte center = 71;
     
     if (units == 0){    // Metric Units
@@ -2742,7 +2737,7 @@ void parseCAN( unsigned long id, unsigned long msg)
 void ledShiftLight(int ledRPM){
   static bool tachFlashState = 0;  // Current state of shift light flashing (0=off, 1=on) - local static
   
-  if (ledRPM < tachMin) {
+  if (ledRPM < TACH_MIN) {
       // black out unused range  
     for (int i = 0; i < NUM_LEDS; i++){
       leds[i] = CRGB::Black;
@@ -2750,7 +2745,7 @@ void ledShiftLight(int ledRPM){
     return;
   }
   int midPoint = NUM_LEDS/2;
-  int blackout_val = map(ledRPM, tachMin, tachMax, midPoint, 0);
+  int blackout_val = map(ledRPM, TACH_MIN, TACH_MAX, midPoint, 0);
  
   //tach normal range 
     for (int i = 0;i <= midPoint - WARN_LEDS; i++){
@@ -2783,8 +2778,8 @@ void ledShiftLight(int ledRPM){
     }
 
     // Flash LEDs when shift point is exceeded
-    if (RPM > tachMax ){
-      if (millis() - timerTachFlash > tachFlashRate){
+    if (RPM > TACH_MAX ){
+      if (millis() - timerTachFlash > TACH_FLASH_RATE){
         
         //Black out the shift LEDs if they are on
         if(tachFlashState == 0){
@@ -2842,24 +2837,24 @@ void fetchGPSdata(){
     if (!GPS.parse(GPS.lastNMEA()))   // Parse NMEA sentence; also clears newNMEAreceived flag
     return;  // If parse fails (corrupt data), wait for next sentence
   
-    //if (millis() - timerGPSupdate > GPSupdateRate) {  // Optional rate limiting (currently disabled)
+    //if (millis() - timerGPSupdate > GPS_UPDATE_RATE) {  // Optional rate limiting (currently disabled)
       //timerGPSupdate = millis();
       
-            unsigned long alpha_0 = 256;  // Filter coefficient (256 = no filtering, instant response)
+            constexpr unsigned int ALPHA_GPS = 256;  // Filter coefficient (256 = no filtering, instant response)
             
             // Save previous values for interpolation
             t_old = t_new;        // Previous timestamp
             t_new = millis();     // Current timestamp
             v_old = v_new;        // Previous filtered speed
-            lagGPS = t_new-t_old; // Time between GPS updates (typically 200ms at 5Hz)
+            lagGPS = t_new - t_old; // Time between GPS updates (typically 200ms at 5Hz)
             
             // Get speed from GPS and convert units
-            v = GPS.speed*1.852;           // Convert knots to km/h (1 knot = 1.852 km/h)
-            float vFloat = GPS.speed*185.2;  // Speed * 100 for precision (km/h * 100)
+            v = GPS.speed * 1.852;           // Convert knots to km/h (1 knot = 1.852 km/h)
+            float vFloat = GPS.speed * 185.2;  // Speed * 100 for precision (km/h * 100)
             v_100 = (unsigned long)vFloat;   // Convert to integer
             
             // Apply exponential filter for smooth speedometer
-            v_new = (v_100*alpha_0 + v_old*(256-alpha_0))>>8;  // Weighted average (>>8 = /256)
+            v_new = (v_100 * ALPHA_GPS + v_old * (256 - ALPHA_GPS)) >> 8;  // Weighted average (>>8 = /256)
             
             // Calculate distance traveled for odometer
             if (v > 2) {  // Only integrate if speed > 2 km/h (reduces GPS drift errors)
@@ -2966,9 +2961,9 @@ int speedometerAngle(int sweep) {
   spd_g = (unsigned long)spd_g_float;
   
   if (spd_g < 50) spd_g = 0;         // Dead zone: below 0.5 mph, show zero
-  if (spd_g > speedoMax) spd_g = speedoMax;  // Clamp to max (100 mph * 100 = 10000)
+  if (spd_g > SPEEDO_MAX) spd_g = SPEEDO_MAX;  // Clamp to max (100 mph * 100 = 10000)
   
-  int angle = map( spd_g, 0, speedoMax, 1, sweep-1);  // Map speed to motor angle
+  int angle = map( spd_g, 0, SPEEDO_MAX, 1, sweep-1);  // Map speed to motor angle
   
   
   angle = constrain(angle, 1, sweep-1);  // Ensure angle is within valid range
@@ -2980,21 +2975,21 @@ int speedometerAngleGPS(int sweep) {
   float spd_g_float = map(t_curr, t_old, t_new, v_old, v_new)*0.6213712;   // interpolate values between GPS data fix, convert from km/h x100 to mph x100
   spd_g = (unsigned long)spd_g_float;
   if (spd_g < 50) spd_g = 0;                                  // if speed is below 0.5 mph set to zero
-  if (spd_g > speedoMax) spd_g = speedoMax;                   // set max pointer rotation
+  if (spd_g > SPEEDO_MAX) spd_g = SPEEDO_MAX;                   // set max pointer rotation
   
-  int angle = map( spd_g, 0, speedoMax, 1, sweep-1);         // calculate angle of gauge 
+  int angle = map( spd_g, 0, SPEEDO_MAX, 1, sweep-1);         // calculate angle of gauge 
   angle = constrain(angle, 1, sweep-1);
   return angle;                                               // return angle of motor
 }
 
 int speedometerAngleCAN(int sweep) {
-  int angle = map( spdCAN, 0, speedoMax, 1, sweep-1);         // calculate angle of gauge 
+  int angle = map( spdCAN, 0, SPEEDO_MAX, 1, sweep-1);         // calculate angle of gauge 
   angle = constrain(angle, 1, sweep-1);
   return angle;
 }
 
 int speedometerAngleHall(int sweep) {
-  int angle = map( hallSpeedEMA, 0, speedoMax, 1, sweep-1);         // calculate angle of gauge 
+  int angle = map( hallSpeedEMA, 0, SPEEDO_MAX, 1, sweep-1);         // calculate angle of gauge 
   angle = constrain(angle, 1, sweep-1);
   return angle;
 }
@@ -3071,7 +3066,7 @@ int coolantTempAngle(int sweep) {
  * 6. Zero all gauge needles synchronously
  * 7. Wait 2 seconds for motors to complete
  * 8. Double-check battery voltage (in case key turned back on)
- * 9. Cut power by pulling pwrPin LOW
+ * 9. Cut power by pulling PWR_PIN LOW
  * 
  * Called from: main loop when vBatt < 1V
  * 
@@ -3109,7 +3104,7 @@ void shutdown (void){
   }
 
   // Cut power to Arduino by releasing power latch
-  digitalWrite(pwrPin, LOW);  // This will power off the entire system
+  digitalWrite(PWR_PIN, LOW);  // This will power off the entire system
 }
 
 /**
