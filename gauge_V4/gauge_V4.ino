@@ -122,9 +122,10 @@ constexpr uint8_t OLED_CS_2 = 29;   // Display 2 Chip Select pin
 constexpr uint8_t OLED_RST_2 = 26;  // Display 2 Reset pin
 
 // ===== LED TACHOMETER HARDWARE =====
-constexpr uint8_t NUM_LEDS = 26;    // Total number of LEDs in the tachometer strip (calibration parameter)
-constexpr uint8_t WARN_LEDS = 6;    // Warning zone LEDs on each side of center (turns yellow/orange) (calibration parameter)
-constexpr uint8_t SHIFT_LEDS = 2;   // Shift light LEDs on each side of center (turns red at shift point) (calibration parameter)
+constexpr uint8_t MAX_LEDS = 64;    // Maximum number of LEDs supported by the array (must be compile-time constant)
+uint8_t NUM_LEDS = 26;              // Total number of LEDs in the tachometer strip (calibration parameter)
+uint8_t WARN_LEDS = 6;              // Warning zone LEDs on each side of center (turns yellow/orange) (calibration parameter)
+uint8_t SHIFT_LEDS = 2;             // Shift light LEDs on each side of center (turns red at shift point) (calibration parameter)
 constexpr uint8_t TACH_DATA_PIN = 22; // WS2812 data pin for LED tachometer strip
 
 // ===== GPS CONFIGURATION =====
@@ -140,7 +141,7 @@ MCP_CAN CAN0(CAN0_CS);         // CAN bus controller object with CS pin 53
 Adafruit_SSD1306 display1(SCREEN_W, SCREEN_H, &SPI, OLED_DC_1, OLED_RST_1, OLED_CS_1);  // Left display
 Adafruit_SSD1306 display2(SCREEN_W, SCREEN_H, &SPI, OLED_DC_2, OLED_RST_2, OLED_CS_2);  // Right display
 Rotary rotary = Rotary(2, 3);  // Rotary encoder on interrupt pins 2 and 3 for responsive menu navigation
-CRGB leds[NUM_LEDS];           // LED array for tachometer strip
+CRGB leds[MAX_LEDS];           // LED array for tachometer strip (sized for maximum, NUM_LEDS used at runtime)
 
 // Initialize stepper motors with sweep range and control pins
 SwitecX12 motor1(M1_SWEEP, M1_STEP, M1_DIR); // Motor 1 - typically fuel level gauge
@@ -690,6 +691,11 @@ void setup() {
   pinMode(ODO_PIN4, OUTPUT);
 
   // ===== LED TACHOMETER INITIALIZATION =====
+  // Constrain NUM_LEDS to not exceed array bounds
+  if (NUM_LEDS > MAX_LEDS) {
+    NUM_LEDS = MAX_LEDS;
+    Serial.println("Warning: NUM_LEDS exceeds MAX_LEDS, clamped to maximum");
+  }
   FastLED.addLeds<WS2812, TACH_DATA_PIN, GRB>(leds, NUM_LEDS);  // Configure WS2812 LED strip (GRB color order)
 
   // ===== ROTARY ENCODER SETUP =====
