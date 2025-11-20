@@ -8,6 +8,7 @@
 #include "globals.h"
 #include "image_data.h"
 #include "menu.h"
+#include <EEPROM.h>
 
 void dispMenu() {
   switch (dispArray1[0]) {  // Level 0 - Main menu selection
@@ -519,6 +520,8 @@ void dispClockOffset (Adafruit_SSD1306 *display) {
     display->setCursor(0,9);
     display->println("SET CLOCK");                 
     display->display();
+}
+
 void dispRPM (Adafruit_SSD1306 *display){
     byte nDig = digits(RPM);  // Calculate number of digits for centering
     byte center = 47;         // Center point for display
