@@ -82,8 +82,8 @@ void hallSpeedUpdate() {
     }
     
     // Update odometer based on Hall sensor speed (called every HALL_UPDATE_RATE ms)
-    // Only update if Hall sensor is selected as odometer source
-    if (ODO_SPEED_SOURCE == 1 && lastUpdateTime != 0) {
+    // Only update if Hall sensor is selected as speed source
+    if (SPEED_SOURCE == 1 && lastUpdateTime != 0) {
         unsigned long timeIntervalMicros = currentTime - lastUpdateTime;
         unsigned long timeIntervalMs = timeIntervalMicros / 1000;
         // Convert speed from MPH to km/h: 1 MPH = 1.60934 km/h
@@ -184,8 +184,23 @@ float curveLookup(float input, float brkpts[], float curve[], int curveLength){
  * sigSelect - Process and route sensor data
  */
 void sigSelect (void) {
-    //spd = v_new; // Speed in km/h * 100 from GPS
-    spd = hallSpeedEMA*100; //Speed in km/h *100 from hall sensor
+    // Select speed source based on SPEED_SOURCE configuration
+    // 0 = GPS, 1 = Hall sensor, 2 = CAN
+    switch (SPEED_SOURCE) {
+        case 0:  // GPS speed source
+            spd = v_new;  // Speed in km/h * 100 from GPS
+            break;
+        case 1:  // Hall sensor speed source
+            spd = hallSpeedEMA * 160.934;  // Convert MPH to km/h * 100 (1 MPH = 1.60934 km/h)
+            break;
+        case 2:  // CAN speed source
+            spd = spdCAN;  // Speed from CAN bus (already in km/h * 100 format)
+            break;
+        default:  // Fallback to Hall sensor
+            spd = hallSpeedEMA * 160.934;
+            break;
+    }
+    
     //spdMph = spd *0.6213712;  // Unused conversion to mph
     //spdCAN = (int)(v*16);  // Speed formatted for CAN bus transmission (km/h * 16 per Haltech protocol)
     //RPM = rpmCAN;  // Direct copy of RPM from CAN bus

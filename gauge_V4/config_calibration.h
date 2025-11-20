@@ -75,9 +75,10 @@ extern uint8_t ODO_STEPS;             // Steps per revolution for odometer motor
 extern uint8_t ODO_MOTOR_TEETH;       // Number of teeth on motor gear
 extern uint8_t ODO_GEAR_TEETH;        // Number of teeth on odometer gear
 
-// ===== ODOMETER SPEED SOURCE SELECTION =====
-// Speed source for odometer updates: 0=GPS, 1=Hall sensor, 2=CAN
-extern uint8_t ODO_SPEED_SOURCE;
+// ===== SPEED SOURCE SELECTION =====
+// Speed source for both speedometer and odometer: 0=GPS, 1=Hall sensor, 2=CAN
+// This unified parameter ensures both speedometer display and odometer use the same source
+extern uint8_t SPEED_SOURCE;
 
 // ===== TIME ZONE OFFSET =====
 // Hours to add to UTC time for local time zone (-12 to +12)
