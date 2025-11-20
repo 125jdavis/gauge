@@ -74,10 +74,33 @@ extern uint8_t ODO_STEPS;             // Steps per revolution for odometer motor
 extern uint8_t ODO_MOTOR_TEETH;       // Number of teeth on motor gear
 extern uint8_t ODO_GEAR_TEETH;        // Number of teeth on odometer gear
 
-// ===== SPEED SOURCE SELECTION =====
-// Speed source for both speedometer and odometer: 0=GPS, 1=Hall sensor, 2=CAN
-// This unified parameter ensures both speedometer display and odometer use the same source
+// ===== SIGNAL SOURCE SELECTION =====
+// These parameters determine which sensor/source to use for each signal
+// This allows flexible configuration of data sources
+
+// Speed source for both speedometer and odometer: 0=off, 1=CAN, 2=Hall sensor, 3=GPS
 extern uint8_t SPEED_SOURCE;
+
+// Engine RPM source: 0=off, 1=CAN, 2=coil negative
+extern uint8_t RPM_SOURCE;
+
+// Oil pressure source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+extern uint8_t OIL_PRS_SOURCE;
+
+// Fuel pressure source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+extern uint8_t FUEL_PRS_SOURCE;
+
+// Coolant temperature source: 0=off, 1=CAN, 2=therm
+extern uint8_t COOLANT_TEMP_SOURCE;
+
+// Oil temperature source: 0=off, 1=CAN, 2=therm
+extern uint8_t OIL_TEMP_SOURCE;
+
+// Manifold pressure/boost source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+extern uint8_t MAP_SOURCE;
+
+// Lambda/AFR source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+extern uint8_t LAMBDA_SOURCE;
 
 // ===== TIME ZONE OFFSET =====
 // Hours to add to UTC time for local time zone (-12 to +12)

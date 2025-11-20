@@ -88,7 +88,7 @@ void hallSpeedUpdate() {
     
     // Update odometer based on Hall sensor speed (called every HALL_UPDATE_RATE ms)
     // Only update if Hall sensor is selected as speed source
-    if (SPEED_SOURCE == 1 && lastUpdateTime != 0) {
+    if (SPEED_SOURCE == 2 && lastUpdateTime != 0) {
         unsigned long timeIntervalMicros = currentTime - lastUpdateTime;
         unsigned long timeIntervalMs = timeIntervalMicros / 1000;
         // spdHall is already in km/h * 100, convert to km/h for updateOdometer
@@ -227,34 +227,163 @@ float curveLookup(float input, float brkpts[], float curve[], int curveLength){
  * sigSelect - Process and route sensor data
  */
 void sigSelect (void) {
-    // Select speed source based on SPEED_SOURCE configuration
-    // Store speed in km/h * 100 (integer format for efficiency)
-    // 0 = GPS, 1 = Hall sensor, 2 = CAN
+    // Select vehicle speed source: 0=off, 1=CAN, 2=Hall sensor, 3=GPS
     switch (SPEED_SOURCE) {
-        case 0:  // GPS speed source
-            spd = spdGPS;  // Already in km/h * 100 format
+        case 0:  // Off
+            spd = 0;
             break;
-        case 1:  // Hall sensor speed source
-            spd = spdHall;  // Already in km/h * 100 format
-            break;
-        case 2:  // CAN speed source
+        case 1:  // CAN speed source
             spd = spdCAN;  // Already in km/h * 100 format
             break;
-        default:  // Fallback to Hall sensor
-            spd = spdHall;
+        case 2:  // Hall sensor speed source
+            spd = spdHall;  // Already in km/h * 100 format
+            break;
+        case 3:  // GPS speed source
+            spd = spdGPS;  // Already in km/h * 100 format
+            break;
+        default:  // Fallback to off
+            spd = 0;
             break;
     }
     
-    //spdMph = spd *0.6213712;  // Unused conversion to mph
-    //spdCAN = (int)(v*16);  // Speed formatted for CAN bus transmission (km/h * 16 per Haltech protocol)
-    //RPM = rpmCAN;  // Direct copy of RPM from CAN bus
-    RPM = engineRPMEMA; //RPM as measured from coil negative tachometer
-    coolantTemp = (coolantTempCAN/10)-273.15; // Convert from Kelvin*10 to Celsius (K to C: subtract 273.15)
-    oilPrs = (oilPrsCAN/10)-101.3;   // Convert from absolute kPa to gauge pressure (subtract atmospheric ~101.3 kPa)
-    fuelPrs = (fuelPrsCAN/10)-101.3;  // Convert from absolute kPa to gauge pressure
-    oilTemp = therm;  // Oil temperature from thermistor sensor (already in Celsius)
-    afr = (float)afr1CAN/1000;  // Air/Fuel Ratio - divide by 1000 (e.g., 14700 becomes 14.7)
-    fuelComp = fuelCompCAN/10;  // Fuel composition - divide by 10 (e.g., 850 becomes 85%)
+    // Select engine RPM source: 0=off, 1=CAN, 2=coil negative
+    switch (RPM_SOURCE) {
+        case 0:  // Off
+            RPM = 0;
+            break;
+        case 1:  // CAN RPM source
+            RPM = rpmCAN;
+            break;
+        case 2:  // Coil negative tachometer
+            RPM = engineRPMEMA;
+            break;
+        default:  // Fallback to off
+            RPM = 0;
+            break;
+    }
+    
+    // Select oil pressure source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+    switch (OIL_PRS_SOURCE) {
+        case 0:  // Off
+            oilPrs = 0;
+            break;
+        case 1:  // CAN oil pressure
+            oilPrs = (oilPrsCAN/10.0) - 101.3;  // Convert from absolute kPa to gauge pressure
+            break;
+        case 2:  // Analog sensor AV1
+            oilPrs = sensor_av1 / 10.0;
+            break;
+        case 3:  // Analog sensor AV2
+            oilPrs = sensor_av2 / 10.0;
+            break;
+        case 4:  // Analog sensor AV3
+            oilPrs = sensor_av3 / 10.0;
+            break;
+        default:  // Fallback to off
+            oilPrs = 0;
+            break;
+    }
+    
+    // Select fuel pressure source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+    switch (FUEL_PRS_SOURCE) {
+        case 0:  // Off
+            fuelPrs = 0;
+            break;
+        case 1:  // CAN fuel pressure
+            fuelPrs = (fuelPrsCAN/10.0) - 101.3;  // Convert from absolute kPa to gauge pressure
+            break;
+        case 2:  // Analog sensor AV1
+            fuelPrs = sensor_av1 / 10.0;
+            break;
+        case 3:  // Analog sensor AV2
+            fuelPrs = sensor_av2 / 10.0;
+            break;
+        case 4:  // Analog sensor AV3
+            fuelPrs = sensor_av3 / 10.0;
+            break;
+        default:  // Fallback to off
+            fuelPrs = 0;
+            break;
+    }
+    
+    // Select coolant temperature source: 0=off, 1=CAN, 2=therm
+    switch (COOLANT_TEMP_SOURCE) {
+        case 0:  // Off
+            coolantTemp = 0;
+            break;
+        case 1:  // CAN coolant temperature
+            coolantTemp = (coolantTempCAN/10.0) - 273.15;  // Convert from Kelvin*10 to Celsius
+            break;
+        case 2:  // Thermistor sensor
+            coolantTemp = therm;
+            break;
+        default:  // Fallback to off
+            coolantTemp = 0;
+            break;
+    }
+    
+    // Select oil temperature source: 0=off, 1=CAN, 2=therm
+    switch (OIL_TEMP_SOURCE) {
+        case 0:  // Off
+            oilTemp = 0;
+            break;
+        case 1:  // CAN oil temperature
+            oilTemp = oilTempCAN / 10.0;  // Convert from Celsius*10 to Celsius
+            break;
+        case 2:  // Thermistor sensor
+            oilTemp = therm;
+            break;
+        default:  // Fallback to off
+            oilTemp = 0;
+            break;
+    }
+    
+    // Select manifold pressure/boost source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+    switch (MAP_SOURCE) {
+        case 0:  // Off
+            map = 0;
+            break;
+        case 1:  // CAN manifold pressure
+            map = mapCAN / 10.0;  // Convert from kPa*10 to kPa
+            break;
+        case 2:  // Analog sensor AV1
+            map = sensor_av1 / 10.0;
+            break;
+        case 3:  // Analog sensor AV2
+            map = sensor_av2 / 10.0;
+            break;
+        case 4:  // Analog sensor AV3
+            map = sensor_av3 / 10.0;
+            break;
+        default:  // Fallback to off
+            map = 0;
+            break;
+    }
+    
+    // Select Lambda/AFR source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+    switch (LAMBDA_SOURCE) {
+        case 0:  // Off
+            afr = 0;
+            break;
+        case 1:  // CAN Lambda/AFR
+            afr = afr1CAN / 1000.0;  // Convert from AFR*1000 to AFR
+            break;
+        case 2:  // Analog sensor AV1
+            afr = sensor_av1 / 100.0;  // Assuming sensor gives AFR*100
+            break;
+        case 3:  // Analog sensor AV2
+            afr = sensor_av2 / 100.0;
+            break;
+        case 4:  // Analog sensor AV3
+            afr = sensor_av3 / 100.0;
+            break;
+        default:  // Fallback to off
+            afr = 0;
+            break;
+    }
+    
+    // These remain unchanged as they don't have alternate sources
+    fuelComp = fuelCompCAN/10.0;  // Fuel composition - divide by 10 (e.g., 850 becomes 85%)
     fuelLvlCAN = (int)((fuelLvl/fuelCapacity)*100);  // Calculate fuel level percentage for CAN transmission
 
 }
