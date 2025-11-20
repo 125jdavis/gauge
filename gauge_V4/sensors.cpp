@@ -6,6 +6,7 @@
 
 #include "sensors.h"
 #include "globals.h"
+#include "odometer.h"
 
 /**
  * readSensor - Generic analog sensor reader with filtering
@@ -67,7 +68,9 @@ void hallSpeedISR() {
  * hallSpeedUpdate - Handle Hall sensor timeout and minimum threshold
  */
 void hallSpeedUpdate() {
+    static unsigned long lastUpdateTime = 0;
     unsigned long currentTime = micros();
+    
     // If it's been too long since last pulse, set speed to zero
     if ((currentTime - hallLastTime) > HALL_PULSE_TIMEOUT) {
         hallSpeedRaw = 0;
@@ -77,6 +80,17 @@ void hallSpeedUpdate() {
     if (hallSpeedEMA < HALL_SPEED_MIN) {
         hallSpeedEMA = 0;
     }
+    
+    // Update odometer based on Hall sensor speed (called every HALL_UPDATE_RATE ms)
+    // Only update if Hall sensor is selected as odometer source
+    if (ODO_SPEED_SOURCE == 1 && lastUpdateTime != 0) {
+        unsigned long timeIntervalMicros = currentTime - lastUpdateTime;
+        unsigned long timeIntervalMs = timeIntervalMicros / 1000;
+        // Convert speed from MPH to km/h: 1 MPH = 1.60934 km/h
+        float speedKmh = hallSpeedEMA * 1.60934;
+        updateOdometer(speedKmh, timeIntervalMs);
+    }
+    lastUpdateTime = currentTime;
 }
 
 /**

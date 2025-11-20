@@ -35,8 +35,17 @@ void fetchGPSdata(){
             // Apply exponential filter for smooth speedometer
             v_new = (v_100 * ALPHA_GPS + v_old * (256 - ALPHA_GPS)) >> 8;  // Weighted average (>>8 = /256)
             
-            // Calculate distance traveled for odometer
-            distLast = updateOdometer(v, lagGPS);
+            // Calculate distance traveled for odometer (only if GPS is selected as odometer source)
+            if (ODO_SPEED_SOURCE == 0) {
+              distLast = updateOdometer(v, lagGPS);
+            } else {
+              // Still calculate distLast for potential display/debugging, but don't update odometer
+              if (v > 2) {
+                distLast = v * lagGPS * 2.77778e-7;
+              } else {
+                distLast = 0;
+              }
+            }
             
             // Extract time from GPS (UTC)
             hour = GPS.hour;

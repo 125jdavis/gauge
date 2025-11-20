@@ -47,6 +47,9 @@ uint8_t ODO_STEPS = 32;             // Steps per revolution
 uint8_t ODO_MOTOR_TEETH = 10;       // Number of teeth on motor gear
 uint8_t ODO_GEAR_TEETH = 60;        // Number of teeth on odometer gear
 
+// ===== ODOMETER SPEED SOURCE SELECTION =====
+uint8_t ODO_SPEED_SOURCE = 1;       // 0=GPS, 1=Hall sensor, 2=CAN (default to Hall since that's active in sigSelect)
+
 // ===== TIME ZONE OFFSET =====
 byte clockOffset = 0;               // Hours to add to UTC time
 

@@ -75,6 +75,10 @@ extern uint8_t ODO_STEPS;             // Steps per revolution for odometer motor
 extern uint8_t ODO_MOTOR_TEETH;       // Number of teeth on motor gear
 extern uint8_t ODO_GEAR_TEETH;        // Number of teeth on odometer gear
 
+// ===== ODOMETER SPEED SOURCE SELECTION =====
+// Speed source for odometer updates: 0=GPS, 1=Hall sensor, 2=CAN
+extern uint8_t ODO_SPEED_SOURCE;
+
 // ===== TIME ZONE OFFSET =====
 // Hours to add to UTC time for local time zone (-12 to +12)
 // Note: This is also saved/loaded from EEPROM
