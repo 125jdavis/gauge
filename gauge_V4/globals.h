@@ -48,7 +48,7 @@ extern float sensor_av3;            // Reserved sensor C value
 // ===== HALL EFFECT SPEED SENSOR VARIABLES =====
 extern volatile unsigned long hallLastTime;     // Last pulse time (micros)
 extern volatile float hallSpeedRaw;             // Most recent calculated speed (MPH)
-extern float hallSpeedEMA;                      // Filtered speed (MPH)
+extern int spdHall;                             // Filtered speed (km/h * 100)
 
 // ===== ENGINE RPM SENSOR VARIABLES =====
 extern volatile unsigned long ignitionLastTime; // Last ignition pulse time (micros)
@@ -57,7 +57,7 @@ extern float engineRPMEMA;                      // Filtered RPM with exponential
 
 // ===== GPS SPEED AND ODOMETER VARIABLES =====
 extern unsigned long v_old;         // Previous GPS speed reading (km/h * 100)
-extern unsigned long v_new;         // Current GPS speed reading (km/h * 100)
+extern unsigned long spdGPS;        // Current GPS speed reading (km/h * 100)
 extern unsigned long t_old;         // Previous GPS timestamp (milliseconds)
 extern unsigned long t_new;         // Current GPS timestamp (milliseconds)
 extern unsigned long v_100;         // Speed value * 100 for integer math precision

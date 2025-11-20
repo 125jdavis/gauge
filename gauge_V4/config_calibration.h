@@ -43,7 +43,7 @@ extern uint8_t FILTER_AV2;            // Filter coefficient for sensor B (12/16)
 extern uint8_t FILTER_AV3;            // Filter coefficient for sensor C (12/16)
 
 // ===== HALL EFFECT SPEED SENSOR PARAMETERS =====
-extern uint16_t REVS_PER_MILE;      // Revolutions per mile (vehicle-specific)
+extern uint16_t REVS_PER_KM;        // Revolutions per kilometer (vehicle-specific)
 extern uint8_t TEETH_PER_REV;         // Teeth per revolution (sensor-specific)
 extern float ALPHA_HALL_SPEED;       // EMA filter coefficient (lower value is more filtered)
 extern float HALL_SPEED_MIN;         // Minimum reportable speed (MPH)

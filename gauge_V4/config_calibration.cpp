@@ -22,7 +22,7 @@ uint8_t FILTER_AV2 = 12;            // Sensor B filter
 uint8_t FILTER_AV3 = 12;            // Sensor C filter
 
 // ===== HALL EFFECT SPEED SENSOR PARAMETERS =====
-uint16_t REVS_PER_MILE = 6234;      // Revolutions per mile
+uint16_t REVS_PER_KM = 6234;        // Revolutions per kilometer (value unchanged from REVS_PER_MILE)
 uint8_t TEETH_PER_REV = 12;         // Teeth per revolution
 float ALPHA_HALL_SPEED = 0.8;       // EMA filter coefficient
 float HALL_SPEED_MIN = 0.5;         // Minimum reportable speed (MPH)
@@ -45,7 +45,7 @@ unsigned int TACH_MIN = 3000;       // Minimum RPM to show
 // ===== ODOMETER MOTOR CALIBRATION =====
 uint8_t ODO_STEPS = 32;             // Steps per revolution
 uint8_t ODO_MOTOR_TEETH = 10;       // Number of teeth on motor gear
-uint8_t ODO_GEAR_TEETH = 60;        // Number of teeth on odometer gear
+uint8_t ODO_GEAR_TEETH = 20;        // Number of teeth on odometer gear
 
 // ===== SPEED SOURCE SELECTION =====
 uint8_t SPEED_SOURCE = 1;           // 0=GPS, 1=Hall sensor, 2=CAN (default to Hall sensor)

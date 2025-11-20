@@ -6,7 +6,7 @@
 
 #include "gps.h"
 #include "globals.h"
-#include "odometer.h"
+#include "sensors.h"
 
 /**
  * fetchGPSdata - Process new GPS data when available
@@ -24,7 +24,7 @@ void fetchGPSdata(){
             // Save previous values for interpolation
             t_old = t_new;        // Previous timestamp
             t_new = millis();     // Current timestamp
-            v_old = v_new;        // Previous filtered speed
+            v_old = spdGPS;       // Previous filtered speed
             lagGPS = t_new - t_old; // Time between GPS updates (typically 200ms at 5Hz)
             
             // Get speed from GPS and convert units
@@ -33,7 +33,7 @@ void fetchGPSdata(){
             v_100 = (unsigned long)vFloat;   // Convert to integer
             
             // Apply exponential filter for smooth speedometer
-            v_new = (v_100 * ALPHA_GPS + v_old * (256 - ALPHA_GPS)) >> 8;  // Weighted average (>>8 = /256)
+            spdGPS = (v_100 * ALPHA_GPS + v_old * (256 - ALPHA_GPS)) >> 8;  // Weighted average (>>8 = /256)
             
             // Calculate distance traveled for odometer (only if GPS is selected as speed source)
             if (SPEED_SOURCE == 0) {

@@ -52,15 +52,21 @@ void hallSpeedISR() {
     // Ignore any implausibly short intervals (can set a minimum if needed, e.g. electrical noise)
     // For 150 mph, the shortest plausible pulse interval is much less than 1ms; let's allow anything > 100 μs
     if (pulseInterval > 100) {
-        // Calculate speed in MPH:
-        // MPH = (pulse freq [Hz] * 3600) / (TEETH_PER_REV * REVS_PER_MILE)
-        // pulse freq = 1 / (pulseInterval in seconds)
-        float pulseFreq = 1000000.0 / pulseInterval;
-        float speedRaw = (pulseFreq * 3600.0) / (TEETH_PER_REV * REVS_PER_MILE);
-        hallSpeedRaw = speedRaw;
-        // EMA filter:
-        hallSpeedEMA = (ALPHA_HALL_SPEED * speedRaw) + ((1.0 - ALPHA_HALL_SPEED) * hallSpeedEMA);
-        Serial.println(hallSpeedEMA);
+        // Calculate speed in km/h * 100 using integer math:
+        // km/h = (pulse freq [Hz] * 3600) / (TEETH_PER_REV * REVS_PER_KM)
+        // pulse freq = 1,000,000 / pulseInterval (in microseconds)
+        // km/h * 100 = (1,000,000 * 3600 * 100) / (pulseInterval * TEETH_PER_REV * REVS_PER_KM)
+        // Simplify: (360,000,000,000) / (pulseInterval * TEETH_PER_REV * REVS_PER_KM)
+        
+        unsigned long divisor = (unsigned long)TEETH_PER_REV * (unsigned long)REVS_PER_KM;
+        int speedRaw = (int)(360000000UL / (pulseInterval * divisor / 1000UL));
+        hallSpeedRaw = speedRaw / 100.0;  // Keep for compatibility (MPH)
+        
+        // EMA filter with integer math:
+        // Use fixed-point: multiply alpha by 256 for integer calculations
+        int alpha256 = (int)(ALPHA_HALL_SPEED * 256);
+        spdHall = (speedRaw * alpha256 + spdHall * (256 - alpha256)) >> 8;
+        Serial.println(spdHall);
     }
 }
 
@@ -74,11 +80,11 @@ void hallSpeedUpdate() {
     // If it's been too long since last pulse, set speed to zero
     if ((currentTime - hallLastTime) > HALL_PULSE_TIMEOUT) {
         hallSpeedRaw = 0;
-        hallSpeedEMA = 0;
+        spdHall = 0;
     }
-    // Optionally, clamp very low speeds to zero for display stability
-    if (hallSpeedEMA < HALL_SPEED_MIN) {
-        hallSpeedEMA = 0;
+    // Optionally, clamp very low speeds to zero for display stability (0.5 km/h = 50 in km/h*100)
+    if (spdHall < 50) {
+        spdHall = 0;
     }
     
     // Update odometer based on Hall sensor speed (called every HALL_UPDATE_RATE ms)
@@ -86,11 +92,51 @@ void hallSpeedUpdate() {
     if (SPEED_SOURCE == 1 && lastUpdateTime != 0) {
         unsigned long timeIntervalMicros = currentTime - lastUpdateTime;
         unsigned long timeIntervalMs = timeIntervalMicros / 1000;
-        // Convert speed from MPH to km/h: 1 MPH = 1.60934 km/h
-        float speedKmh = hallSpeedEMA * 1.60934;
+        // spdHall is already in km/h * 100, convert to km/h for updateOdometer
+        float speedKmh = spdHall * 0.01;
         updateOdometer(speedKmh, timeIntervalMs);
     }
     lastUpdateTime = currentTime;
+}
+
+/**
+ * updateOdometer - Calculate and update odometer based on speed and time
+ * 
+ * Calculates distance traveled based on current speed and time interval,
+ * then updates both total and trip odometers. This function is designed
+ * to be called from any speed data source (GPS, Hall sensor, or CAN).
+ * 
+ * @param speedKmh - Current vehicle speed in km/h
+ * @param timeIntervalMs - Time elapsed since last update in milliseconds
+ * 
+ * Processing:
+ * 1. Only integrates distance if speed > 2 km/h (reduces drift when stationary)
+ * 2. Calculates distance: distance (km) = speed (km/h) * time (ms) * 2.77778e-7
+ *    - Conversion factor: 1 km/h = 1000m/3600s = 0.277778 m/s = 2.77778e-7 km/ms
+ * 3. Updates global odo and odoTrip variables
+ * 4. Returns distance traveled for potential odometer motor movement
+ * 
+ * Global variables modified:
+ * - odo: Total odometer reading (km)
+ * - odoTrip: Trip odometer reading (km)
+ * 
+ * @return Distance traveled since last update in kilometers
+ */
+float updateOdometer(float speedKmh, unsigned long timeIntervalMs) {
+    float distanceTraveled = 0;
+    
+    // Only integrate if speed > 2 km/h (reduces GPS drift errors when stationary)
+    if (speedKmh > 2) {
+        // Calculate distance traveled: distance (km) = speed (km/h) * time (ms) * conversion factor
+        // Conversion: 1 km/h = 1000m/3600s = 0.277778 m/s = 2.77778e-7 km/ms
+        distanceTraveled = speedKmh * timeIntervalMs * 2.77778e-7;
+    }
+    
+    // Update odometers
+    odo = odo + distanceTraveled;
+    odoTrip = odoTrip + distanceTraveled;
+    
+    return distanceTraveled;
 }
 
 /**
@@ -189,16 +235,16 @@ void sigSelect (void) {
     // 0 = GPS, 1 = Hall sensor, 2 = CAN
     switch (SPEED_SOURCE) {
         case 0:  // GPS speed source
-            spd = v_new;  // Already in km/h * 100 format
+            spd = spdGPS;  // Already in km/h * 100 format
             break;
         case 1:  // Hall sensor speed source
-            spd = hallSpeedEMA * 160.934;  // Convert MPH to km/h * 100 (1 MPH * 100 = 160.934)
+            spd = spdHall;  // Already in km/h * 100 format
             break;
         case 2:  // CAN speed source
             spd = spdCAN;  // Already in km/h * 100 format
             break;
         default:  // Fallback to Hall sensor
-            spd = hallSpeedEMA * 160.934;
+            spd = spdHall;
             break;
     }
     

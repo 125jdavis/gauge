@@ -75,7 +75,6 @@
 #include "menu.h"
 #include "utilities.h"
 #include "image_data.h"
-#include "odometer.h"
 
 /*
  * ========================================
