@@ -45,16 +45,16 @@ extern uint8_t FILTER_AV3;            // Filter coefficient for sensor C (12/16)
 // ===== HALL EFFECT SPEED SENSOR PARAMETERS =====
 extern uint16_t REVS_PER_KM;        // Revolutions per kilometer (vehicle-specific)
 extern uint8_t TEETH_PER_REV;         // Teeth per revolution (sensor-specific)
-extern uint8_t ALPHA_HALL_SPEED;    // EMA filter coefficient (0-256): 256=no filter, 128=moderate, 64=heavy
+extern uint8_t FILTER_HALL_SPEED;   // EMA filter coefficient (0-256): 256=no filter, 128=moderate, 64=heavy
 extern uint8_t HALL_SPEED_MIN;      // Minimum reportable speed in km/h*100 (e.g., 50 = 0.5 km/h)
 
 // ===== ENGINE RPM SENSOR PARAMETERS =====
-// Pulses per engine revolution (for 4-stroke engines: cylinders / 2)
-// Examples: 4-cyl=2, 6-cyl=3, 8-cyl=4, 3-cyl=1.5
-extern float PULSES_PER_REVOLUTION;
+// Cylinder count (for 4-stroke engines)
+// Examples: 4-cyl=4, 6-cyl=6, 8-cyl=8, 3-cyl=3
+extern uint8_t CYL_COUNT;
 
 // EMA filter coefficient (0-256): 256=no filter, 179=moderate (0.7*256), 128=more filtered
-extern uint8_t ALPHA_ENGINE_RPM;
+extern uint8_t FILTER_ENGINE_RPM;
 
 // Minimum reportable RPM (engine idle ~600-800)
 extern uint8_t ENGINE_RPM_MIN;

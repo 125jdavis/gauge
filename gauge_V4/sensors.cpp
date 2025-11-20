@@ -63,8 +63,8 @@ void hallSpeedISR() {
         hallSpeedRaw = speedRaw / 100.0;  // Keep for compatibility (MPH)
         
         // EMA filter with integer math:
-        // ALPHA_HALL_SPEED is 0-256: higher value = less filtering
-        spdHall = (speedRaw * ALPHA_HALL_SPEED + spdHall * (256 - ALPHA_HALL_SPEED)) >> 8;
+        // FILTER_HALL_SPEED is 0-256: higher value = less filtering
+        spdHall = (speedRaw * FILTER_HALL_SPEED + spdHall * (256 - FILTER_HALL_SPEED)) >> 8;
         Serial.println(spdHall);
     }
 }
@@ -147,19 +147,20 @@ void ignitionPulseISR() {
     ignitionLastTime = currentTime;
 
     // Ignore implausibly short intervals to filter electrical noise
-    // At 12,000 RPM with 4 pulses/rev: interval = 1,000,000 / (12000*4/60) = 1250 μs
+    // At 12,000 RPM with 8 cylinders: interval = 1,000,000 / (12000*8/120) = 1250 μs
     // Minimum threshold of 500 μs allows up to ~18,750 RPM (very high for automotive)
     if (pulseInterval > 500) {
         // Calculate RPM using integer math:
-        // RPM = (1,000,000 μs/sec * 60 sec/min) / (pulseInterval * PULSES_PER_REVOLUTION)
-        // RPM = 60,000,000 / (pulseInterval * PULSES_PER_REVOLUTION)
-        int rpmRaw = (int)(60000000.0 / (pulseInterval * PULSES_PER_REVOLUTION));
+        // RPM = (1,000,000 μs/sec * 120 sec/2min) / (pulseInterval * CYL_COUNT)
+        // RPM = 120,000,000 / (pulseInterval * CYL_COUNT)
+        // Note: CYL_COUNT is 2x old PULSES_PER_REVOLUTION, so we use 120M instead of 60M
+        int rpmRaw = (int)(120000000.0 / (pulseInterval * CYL_COUNT));
         
         engineRPMRaw = rpmRaw;
         
         // Apply exponential moving average filter with integer math
-        // ALPHA_ENGINE_RPM is 0-256: higher value = less filtering
-        engineRPMEMA = (rpmRaw * ALPHA_ENGINE_RPM + engineRPMEMA * (256 - ALPHA_ENGINE_RPM)) >> 8;
+        // FILTER_ENGINE_RPM is 0-256: higher value = less filtering
+        engineRPMEMA = (rpmRaw * FILTER_ENGINE_RPM + engineRPMEMA * (256 - FILTER_ENGINE_RPM)) >> 8;
         
         // Uncomment for debugging (note: Serial.print in ISR can cause timing issues)
         // Serial.print("RPM: ");
