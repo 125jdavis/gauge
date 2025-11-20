@@ -7,6 +7,7 @@
 #include "display.h"
 #include "globals.h"
 #include "image_data.h"
+#include "menu.h"
 
 void dispMenu() {
   switch (dispArray1[0]) {  // Level 0 - Main menu selection

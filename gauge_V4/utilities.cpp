@@ -6,6 +6,8 @@
 
 #include "utilities.h"
 #include "globals.h"
+#include "display.h"
+#include "outputs.h"
 #include <EEPROM.h>
 
 void shutdown (void){

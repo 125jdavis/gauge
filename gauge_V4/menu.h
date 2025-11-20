@@ -41,4 +41,12 @@ void rotate();
  */
 void incrementOffset();
 
+/**
+ * goToLevel0 - Reset menu navigation to top level
+ * 
+ * Returns to the main menu (level 0) and resets all menu position variables.
+ * Called when exiting settings or after making a selection.
+ */
+void goToLevel0();
+
 #endif // MENU_H
