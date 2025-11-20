@@ -24,13 +24,13 @@ uint8_t FILTER_AV3 = 12;            // Sensor C filter
 // ===== HALL EFFECT SPEED SENSOR PARAMETERS =====
 uint16_t REVS_PER_KM = 6234;        // Revolutions per kilometer (value unchanged from REVS_PER_MILE)
 uint8_t TEETH_PER_REV = 12;         // Teeth per revolution
-float ALPHA_HALL_SPEED = 0.8;       // EMA filter coefficient
-float HALL_SPEED_MIN = 0.5;         // Minimum reportable speed (MPH)
+uint8_t ALPHA_HALL_SPEED = 205;     // EMA filter coefficient (205/256 ≈ 0.8)
+uint8_t HALL_SPEED_MIN = 50;        // Minimum reportable speed in km/h*100 (50 = 0.5 km/h)
 
 // ===== ENGINE RPM SENSOR PARAMETERS =====
 float PULSES_PER_REVOLUTION = 4.0;  // Pulses per engine revolution
-float ALPHA_ENGINE_RPM = 0.7;       // EMA filter coefficient
-float ENGINE_RPM_MIN = 100.0;       // Minimum reportable RPM
+uint8_t ALPHA_ENGINE_RPM = 179;     // EMA filter coefficient (179/256 ≈ 0.7)
+uint8_t ENGINE_RPM_MIN = 100;       // Minimum reportable RPM
 
 // ===== SPEEDOMETER CALIBRATION =====
 uint16_t SPEEDO_MAX = 100 * 100;    // Maximum speedometer reading

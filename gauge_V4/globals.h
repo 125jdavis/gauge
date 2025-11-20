@@ -52,8 +52,8 @@ extern int spdHall;                             // Filtered speed (km/h * 100)
 
 // ===== ENGINE RPM SENSOR VARIABLES =====
 extern volatile unsigned long ignitionLastTime; // Last ignition pulse time (micros)
-extern volatile float engineRPMRaw;             // Most recent calculated RPM (unfiltered)
-extern float engineRPMEMA;                      // Filtered RPM with exponential moving average
+extern volatile int engineRPMRaw;               // Most recent calculated RPM (unfiltered)
+extern int engineRPMEMA;                        // Filtered RPM with exponential moving average
 
 // ===== GPS SPEED AND ODOMETER VARIABLES =====
 extern unsigned long v_old;         // Previous GPS speed reading (km/h * 100)

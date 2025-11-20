@@ -63,9 +63,8 @@ void hallSpeedISR() {
         hallSpeedRaw = speedRaw / 100.0;  // Keep for compatibility (MPH)
         
         // EMA filter with integer math:
-        // Use fixed-point: multiply alpha by 256 for integer calculations
-        int alpha256 = (int)(ALPHA_HALL_SPEED * 256);
-        spdHall = (speedRaw * alpha256 + spdHall * (256 - alpha256)) >> 8;
+        // ALPHA_HALL_SPEED is 0-256: higher value = less filtering
+        spdHall = (speedRaw * ALPHA_HALL_SPEED + spdHall * (256 - ALPHA_HALL_SPEED)) >> 8;
         Serial.println(spdHall);
     }
 }
@@ -82,8 +81,8 @@ void hallSpeedUpdate() {
         hallSpeedRaw = 0;
         spdHall = 0;
     }
-    // Optionally, clamp very low speeds to zero for display stability (0.5 km/h = 50 in km/h*100)
-    if (spdHall < 50) {
+    // Optionally, clamp very low speeds to zero for display stability
+    if (spdHall < HALL_SPEED_MIN) {
         spdHall = 0;
     }
     
@@ -151,19 +150,16 @@ void ignitionPulseISR() {
     // At 12,000 RPM with 4 pulses/rev: interval = 1,000,000 / (12000*4/60) = 1250 μs
     // Minimum threshold of 500 μs allows up to ~18,750 RPM (very high for automotive)
     if (pulseInterval > 500) {
-        // Calculate pulse frequency in Hz: freq = 1,000,000 μs/sec / interval
-        float pulseFreq = 1000000.0 / pulseInterval;
-        
-        // Convert pulse frequency to RPM
-        // RPM = (pulses per second * 60 seconds per minute) / pulses per revolution
-        float rpmRaw = (pulseFreq * 60.0) / PULSES_PER_REVOLUTION;
+        // Calculate RPM using integer math:
+        // RPM = (1,000,000 μs/sec * 60 sec/min) / (pulseInterval * PULSES_PER_REVOLUTION)
+        // RPM = 60,000,000 / (pulseInterval * PULSES_PER_REVOLUTION)
+        int rpmRaw = (int)(60000000.0 / (pulseInterval * PULSES_PER_REVOLUTION));
         
         engineRPMRaw = rpmRaw;
         
-        // Apply exponential moving average filter for smooth display
-        // EMA formula: new_EMA = (alpha * new_value) + ((1 - alpha) * old_EMA)
-        // Higher alpha (e.g., 0.7) = more responsive, lower alpha = more smoothing
-        engineRPMEMA = (ALPHA_ENGINE_RPM * rpmRaw) + ((1.0 - ALPHA_ENGINE_RPM) * engineRPMEMA);
+        // Apply exponential moving average filter with integer math
+        // ALPHA_ENGINE_RPM is 0-256: higher value = less filtering
+        engineRPMEMA = (rpmRaw * ALPHA_ENGINE_RPM + engineRPMEMA * (256 - ALPHA_ENGINE_RPM)) >> 8;
         
         // Uncomment for debugging (note: Serial.print in ISR can cause timing issues)
         // Serial.print("RPM: ");
