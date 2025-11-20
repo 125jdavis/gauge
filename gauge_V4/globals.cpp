@@ -19,62 +19,23 @@ SwitecX12 motor4(M4_SWEEP, M4_STEP, M4_DIR);
 Stepper odoMotor(ODO_STEPS, ODO_PIN1, ODO_PIN2, ODO_PIN3, ODO_PIN4);
 Adafruit_GPS GPS(&Serial2);
 
-                                         // Formula: Vbatt = ADC_reading * (5.0/1023) * ((R1+R2)/R2) = ADC * 0.040923
+// ===== ANALOG SENSOR READINGS =====
 float vBatt = 12;              // Current battery voltage in volts (filtered)
 int vBattRaw = 12;             // Raw battery reading (0-500, representing 0-5V after mapping)
-
-// Fuel Level Sensor (Analog Pin A3)
-// Reads resistance-based fuel sender (typically 0-90 ohms or 240-33 ohms depending on sender type)
-constexpr uint8_t FUEL_PIN = A3;      // Analog input pin for fuel level sensor
-uint8_t FILTER_FUEL = 1;               // Light filter: 1/64 = very responsive to changes (calibration parameter)
 int fuelSensorRaw;             // Raw fuel sensor ADC reading (0-500)
-
-// Coolant/Oil Temperature Thermistor Sensor (Analog Pin A4)
-// GM-style thermistor with non-linear resistance vs. temperature curve
-constexpr uint8_t THERM_PIN = A4;     // Analog input pin for thermistor
-uint8_t FILTER_THERM = 50;             // Medium filter: 50/100 for stable temp reading (calibration parameter)
 float therm;                   // Current temperature in Celsius (after lookup table conversion)
 float thermSensor;             // Voltage reading from thermistor (0-5V)
 int thermCAN;                  // Temperature formatted for CAN transmission (temp * 10)
-
-// Analog Inputs for 0-5V sensors
-constexpr uint8_t PIN_AV1 = A5;       // Analog pin 5 (barometric pressure sensor)
-uint8_t FILTER_AV1 = 4;                // Filter coefficient out of 16 (4/16 = moderate filtering) (calibration parameter)
 float sensor_av1;              // Barometric pressure in kPa * 10
-
-constexpr uint8_t PIN_AV2 = A6;       // Analog pin 6 (reserved for future sensor)
-uint8_t FILTER_AV2 = 12;               // Filter coefficient for sensor B (12/16) (calibration parameter)
 float sensor_av2;              // Reserved sensor B value
-
-constexpr uint8_t PIN_AV3 = A7;       // Analog pin 7 (reserved for future sensor)
-uint8_t FILTER_AV3 = 12;               // Filter coefficient for sensor C (12/16) (calibration parameter)
 float sensor_av3;              // Reserved sensor C value
 
-
 // ===== HALL EFFECT SPEED SENSOR VARIABLES =====
-// Hall effect sensor can read vehicle speed through a digital input 
-constexpr uint8_t HALL_PIN = 20;             // Digital speed input pin (D20, interrupt 1)
-uint16_t REVS_PER_MILE = 6234;               // Revolutions per mile (calibration parameter)
-uint8_t TEETH_PER_REV = 12;                  // Teeth per revolution (calibration parameter)
-float ALPHA_HALL_SPEED = 0.8;                // EMA filter coefficient (lower value is more filtered) (calibration parameter)
-float HALL_SPEED_MIN = 0.5;                  // Minimum reportable speed (MPH) (calibration parameter)
-constexpr unsigned long HALL_PULSE_TIMEOUT = 1000000UL; // Timeout (μs) for "vehicle stopped" (1 second)
-
 volatile unsigned long hallLastTime = 0;     // Last pulse time (micros)
 volatile float hallSpeedRaw = 0;             // Most recent calculated speed (MPH)
 float hallSpeedEMA = 0;                      // Filtered speed (MPH)
 
-// ===== ENGINE RPM SENSOR VARIABLES (IGNITION COIL PULSES) =====
-// Measures engine RPM by counting pulses from the ignition coil negative side
-// Signal is sent through an optocoupler to protect the Arduino from high voltage
-float PULSES_PER_REVOLUTION = 4.0;           // Pulses per engine revolution (calibration parameter)
-                                             // For 4-stroke engines: cylinders / 2
-                                             // Examples: 4-cyl=2, 6-cyl=3, 8-cyl=4, 3-cyl=1.5
-float ALPHA_ENGINE_RPM = 0.7;                // EMA filter coefficient (lower value = more filtered) (calibration parameter)
-                                             // Range: 0.0 to 1.0 (0.7 balances smoothing and responsiveness)
-float ENGINE_RPM_MIN = 100.0;                // Minimum reportable RPM (engine idle ~600-800) (calibration parameter)
-constexpr unsigned long IGNITION_PULSE_TIMEOUT = 500000UL; // Timeout (μs) for "engine stopped" (0.5 second)
-
+// ===== ENGINE RPM SENSOR VARIABLES =====
 volatile unsigned long ignitionLastTime = 0; // Last ignition pulse time (micros)
 volatile float engineRPMRaw = 0;             // Most recent calculated RPM (unfiltered)
 float engineRPMEMA = 0;                      // Filtered RPM with exponential moving average
@@ -108,6 +69,14 @@ unsigned int coolantTemp_g;    // Coolant temperature for gauge calculation
 // are now declared as static locals inside swRead() function (not globals)
 // to prevent potential interference from other parts of the code
 bool button = 0;                       // Button press event flag (set when press completes)
+
+// ===== TIMING VARIABLES =====
+// Manage update rates for different subsystems
+unsigned int timer0, timerDispUpdate, timerCANsend;
+unsigned int timerSensorRead, timerTachUpdate, timerTachFlash;
+unsigned int timerCheckGPS, timerGPSupdate, timerAngleUpdate;
+unsigned int timerHallUpdate;
+unsigned int timerEngineRPMUpdate;
 // ===== CAN BUS ENGINE PARAMETERS =====
 // Raw values received from Haltech ECU via CAN bus
 // These are stored as integers to preserve precision from the CAN protocol
@@ -171,7 +140,6 @@ float thermTable_l[thermTable_length] = { 150,  105,   75,   25,   -5,  -40};  /
 const int fuelLvlTable_length = 9;
 float fuelLvlTable_x[fuelLvlTable_length] = {0.87, 1.03, 1.21, 1.40, 1.60, 1.97, 2.21, 2.25, 2.30};  // Voltage breakpoints
 float fuelLvlTable_l[fuelLvlTable_length] = {  16,   14,   12,   10,    8,    6,    4,    2,    0};  // Gallons remaining
-float fuelCapacity = 16;  // Total fuel tank capacity in gallons (used for percentage calculations)
 
 // ===== EEPROM STORAGE ADDRESSES =====
 // Non-volatile memory locations for saving settings between power cycles
@@ -191,6 +159,5 @@ byte menuLevel = 0;              // Current menu depth (0=top level, 1=submenu, 
 byte units = 0;                  // Unit system: 0=metric (km/h, C, bar), 1=imperial (mph, F, PSI)
 unsigned int nMenuLevel = 15;    // Number of items in current menu level (0-indexed, so 15 = 16 items)
 byte dispArray1[4] = { 1, 0, 0, 0 };  // Menu position array for display 1 [level0, level1, level2, level3]
-byte clockOffset = 0;            // Hours to add to UTC time for local time zone (-12 to +12) (cailbration parameter)
 byte dispArray2[1] = {1};        // Menu selection for display 2 (single level)
 
