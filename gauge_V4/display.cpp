@@ -387,31 +387,6 @@ void dispMenu() {
 } // End dispMenu()
 
 /**
- * goToLevel0 - Reset menu navigation to top level
- * 
- * Returns to the main menu (level 0) and resets all menu position variables.
- * This function is called when exiting settings or after making a selection.
- * 
- * Actions performed:
- * - Clear button flag
- * - Reset all menu levels to position 0 (Settings screen)
- * - Set menuLevel to 0 (top level)
- * - Set nMenuLevel to 14 (15 main menu items, 0-indexed)
- * 
- * Note: dispArray1[0] = 0 positions cursor on Settings, which is case 0 (last screen)
- * 
- * Called from: Settings submenus, trip odo reset confirmation
- */
-void goToLevel0(void){
-  button = 0;           // Clear button press flag
-  dispArray1[0] = 0;    // Set to Settings screen (case 0)
-  dispArray1[1] = 0;    // Clear level 1 selection
-  dispArray1[2] = 0;    // Clear level 2 selection
-  menuLevel = 0;        // Return to top menu level
-  nMenuLevel = 14;      // Set to 15 items in main menu (0-indexed)
-}
-
-/**
  * disp2 - Control display 2 based on saved selection
  * 
  * Routes display 2 output based on dispArray2[0], which is set in Settings menu
@@ -428,7 +403,7 @@ void goToLevel0(void){
  * 7 - 302CID logo
  * 8 - 302V logo
  * 9 - Falcon Script logo
- * 
+ */
 void disp2(void){
   switch (dispArray2[0]){
 
@@ -473,6 +448,7 @@ void disp2(void){
       break;
   }
 }
+
 void dispSettings (Adafruit_SSD1306 *display) {
     display->setTextColor(WHITE); 
     display->clearDisplay();
