@@ -185,16 +185,17 @@ float curveLookup(float input, float brkpts[], float curve[], int curveLength){
  */
 void sigSelect (void) {
     // Select speed source based on SPEED_SOURCE configuration
+    // Store speed in km/h * 100 (integer format for efficiency)
     // 0 = GPS, 1 = Hall sensor, 2 = CAN
     switch (SPEED_SOURCE) {
         case 0:  // GPS speed source
-            spd = v_new;  // Speed in km/h * 100 from GPS
+            spd = v_new;  // Already in km/h * 100 format
             break;
         case 1:  // Hall sensor speed source
-            spd = hallSpeedEMA * 160.934;  // Convert MPH to km/h * 100 (1 MPH = 1.60934 km/h)
+            spd = hallSpeedEMA * 160.934;  // Convert MPH to km/h * 100 (1 MPH * 100 = 160.934)
             break;
         case 2:  // CAN speed source
-            spd = spdCAN;  // Speed from CAN bus (already in km/h * 100 format)
+            spd = spdCAN;  // Already in km/h * 100 format
             break;
         default:  // Fallback to Hall sensor
             spd = hallSpeedEMA * 160.934;
