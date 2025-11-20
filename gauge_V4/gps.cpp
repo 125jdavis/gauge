@@ -6,6 +6,7 @@
 
 #include "gps.h"
 #include "globals.h"
+#include "odometer.h"
 
 /**
  * fetchGPSdata - Process new GPS data when available
@@ -35,13 +36,7 @@ void fetchGPSdata(){
             v_new = (v_100 * ALPHA_GPS + v_old * (256 - ALPHA_GPS)) >> 8;  // Weighted average (>>8 = /256)
             
             // Calculate distance traveled for odometer
-            if (v > 2) {  // Only integrate if speed > 2 km/h (reduces GPS drift errors)
-              distLast = v * lagGPS * 2.77778e-7;  // Distance (km) = speed (km/h) * time (ms) * conversion factor
-            } else {
-              distLast = 0;  // Don't increment odometer when stationary
-            }
-            odo = odo + distLast;        // Update total odometer
-            odoTrip = odoTrip + distLast;  // Update trip odometer
+            distLast = updateOdometer(v, lagGPS);
             
             // Extract time from GPS (UTC)
             hour = GPS.hour;

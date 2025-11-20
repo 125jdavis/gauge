@@ -44,6 +44,8 @@ unsigned int TACH_MIN = 3000;       // Minimum RPM to show
 
 // ===== ODOMETER MOTOR CALIBRATION =====
 uint8_t ODO_STEPS = 32;             // Steps per revolution
+uint8_t ODO_MOTOR_TEETH = 10;       // Number of teeth on motor gear
+uint8_t ODO_GEAR_TEETH = 60;        // Number of teeth on odometer gear
 
 // ===== TIME ZONE OFFSET =====
 byte clockOffset = 0;               // Hours to add to UTC time

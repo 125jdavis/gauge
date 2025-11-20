@@ -72,6 +72,8 @@ extern unsigned int TACH_MIN;       // Minimum RPM to show on tach (below this L
 
 // ===== ODOMETER MOTOR CALIBRATION =====
 extern uint8_t ODO_STEPS;             // Steps per revolution for odometer motor
+extern uint8_t ODO_MOTOR_TEETH;       // Number of teeth on motor gear
+extern uint8_t ODO_GEAR_TEETH;        // Number of teeth on odometer gear
 
 // ===== TIME ZONE OFFSET =====
 // Hours to add to UTC time for local time zone (-12 to +12)
