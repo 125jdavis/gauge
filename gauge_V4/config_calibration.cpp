@@ -22,15 +22,15 @@ uint8_t FILTER_AV2 = 12;            // Sensor B filter
 uint8_t FILTER_AV3 = 12;            // Sensor C filter
 
 // ===== HALL EFFECT SPEED SENSOR PARAMETERS =====
-uint16_t REVS_PER_MILE = 6234;      // Revolutions per mile
+uint16_t REVS_PER_KM = 6234;        // Revolutions per kilometer (value unchanged from REVS_PER_MILE)
 uint8_t TEETH_PER_REV = 12;         // Teeth per revolution
-float ALPHA_HALL_SPEED = 0.8;       // EMA filter coefficient
-float HALL_SPEED_MIN = 0.5;         // Minimum reportable speed (MPH)
+uint8_t FILTER_HALL_SPEED = 205;    // EMA filter coefficient (205/256 ≈ 0.8)
+uint8_t HALL_SPEED_MIN = 50;        // Minimum reportable speed in km/h*100 (50 = 0.5 km/h)
 
 // ===== ENGINE RPM SENSOR PARAMETERS =====
-float PULSES_PER_REVOLUTION = 4.0;  // Pulses per engine revolution
-float ALPHA_ENGINE_RPM = 0.7;       // EMA filter coefficient
-float ENGINE_RPM_MIN = 100.0;       // Minimum reportable RPM
+uint8_t CYL_COUNT = 8;              // Cylinder count (8 = 2x old PULSES_PER_REVOLUTION of 4.0)
+uint8_t FILTER_ENGINE_RPM = 179;    // EMA filter coefficient (179/256 ≈ 0.7)
+uint8_t ENGINE_RPM_MIN = 100;       // Minimum reportable RPM
 
 // ===== SPEEDOMETER CALIBRATION =====
 uint16_t SPEEDO_MAX = 100 * 100;    // Maximum speedometer reading
@@ -44,6 +44,18 @@ unsigned int TACH_MIN = 3000;       // Minimum RPM to show
 
 // ===== ODOMETER MOTOR CALIBRATION =====
 uint8_t ODO_STEPS = 32;             // Steps per revolution
+uint8_t ODO_MOTOR_TEETH = 10;       // Number of teeth on motor gear
+uint8_t ODO_GEAR_TEETH = 20;        // Number of teeth on odometer gear
+
+// ===== SIGNAL SOURCE SELECTION =====
+uint8_t SPEED_SOURCE = 2;           // 0=off, 1=CAN, 2=Hall sensor, 3=GPS (default to Hall sensor)
+uint8_t RPM_SOURCE = 2;             // 0=off, 1=CAN, 2=coil negative (default to coil negative)
+uint8_t OIL_PRS_SOURCE = 1;         // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+uint8_t FUEL_PRS_SOURCE = 1;        // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+uint8_t COOLANT_TEMP_SOURCE = 1;    // 0=off, 1=CAN, 2=therm
+uint8_t OIL_TEMP_SOURCE = 2;        // 0=off, 1=CAN, 2=therm (default to therm sensor)
+uint8_t MAP_SOURCE = 1;             // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+uint8_t LAMBDA_SOURCE = 1;          // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
 
 // ===== TIME ZONE OFFSET =====
 byte clockOffset = 0;               // Hours to add to UTC time

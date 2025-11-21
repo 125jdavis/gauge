@@ -70,7 +70,7 @@ void ledShiftLight(int ledRPM){
 int speedometerAngle(int sweep) {
   unsigned long t_curr =  millis()-lagGPS;  // Current time minus GPS lag
   // Interpolate speed between last two GPS readings for smooth motion
-  float spd_g_float = map(t_curr, t_old, t_new, v_old, v_new)*0.6213712;   // Convert km/h*100 to mph*100
+  float spd_g_float = map(t_curr, t_old, t_new, v_old, spdGPS)*0.6213712;   // Convert km/h*100 to mph*100
   spd_g = (unsigned long)spd_g_float;
   
   if (spd_g < 50) spd_g = 0;         // Dead zone: below 0.5 mph, show zero
@@ -84,7 +84,7 @@ int speedometerAngle(int sweep) {
 }
 int speedometerAngleGPS(int sweep) {
   unsigned long t_curr =  millis()-lagGPS;
-  float spd_g_float = map(t_curr, t_old, t_new, v_old, v_new)*0.6213712;   // interpolate values between GPS data fix, convert from km/h x100 to mph x100
+  float spd_g_float = map(t_curr, t_old, t_new, v_old, spdGPS)*0.6213712;   // interpolate values between GPS data fix, convert from km/h x100 to mph x100
   spd_g = (unsigned long)spd_g_float;
   if (spd_g < 50) spd_g = 0;                                  // if speed is below 0.5 mph set to zero
   if (spd_g > SPEEDO_MAX) spd_g = SPEEDO_MAX;                   // set max pointer rotation
@@ -99,7 +99,7 @@ int speedometerAngleCAN(int sweep) {
   return angle;
 }
 int speedometerAngleHall(int sweep) {
-  int angle = map( hallSpeedEMA, 0, SPEEDO_MAX, 1, sweep-1);         // calculate angle of gauge 
+  int angle = map( spdHall, 0, SPEEDO_MAX, 1, sweep-1);         // calculate angle of gauge 
   angle = constrain(angle, 1, sweep-1);
   return angle;
 }
@@ -214,4 +214,58 @@ void motorSweepSynchronous(void){
       motor3.update();
       motor4.update();
   }
+}
+
+/**
+ * moveOdometerMotor - Move mechanical odometer motor by calculated distance
+ * 
+ * Calculates the number of steps required to advance the mechanical odometer
+ * based on distance traveled, motor characteristics, and gear ratios.
+ * 
+ * @param distanceKm - Distance to advance the odometer in kilometers
+ * 
+ * Calculation:
+ * 1. Convert distance to steps based on:
+ *    - ODO_STEPS: Steps per revolution of the stepper motor
+ *    - ODO_MOTOR_TEETH: Number of teeth on motor gear
+ *    - ODO_GEAR_TEETH: Number of teeth on odometer gear
+ *    - Odometer scale: How many km per full rotation of odometer
+ * 
+ * 2. Gear ratio: motor_revs = (ODO_GEAR_TEETH / ODO_MOTOR_TEETH) * odo_revs
+ * 3. Motor steps = motor_revs * ODO_STEPS
+ * 
+ * Example:
+ * - Motor: 32 steps/rev, 10 teeth
+ * - Odometer gear: 20 teeth, 1 km per revolution
+ * - For 0.1 km: 
+ *   - Odometer revs = 0.1
+ *   - Motor revs = (20/10) * 0.1 = 0.2
+ *   - Steps = 0.2 * 32 = 6.4 ≈ 6 steps
+ * 
+ * Note: This function currently calculates steps but does not move the motor.
+ * Motor movement code should be added based on the specific Stepper library
+ * implementation and hardware constraints (e.g., non-blocking movement).
+ */
+void moveOdometerMotor(float distanceKm) {
+    // Calculate steps required to move odometer motor
+    // 
+    // Formula breakdown:
+    // 1. ODO_GEAR_TEETH / ODO_MOTOR_TEETH = gear ratio (how many motor revs per odo rev)
+    // 2. distanceKm = distance traveled
+    // 3. Assuming odometer advances 1 unit per full rotation (adjust based on actual mechanical design)
+    // 4. steps = distanceKm * gearRatio * ODO_STEPS
+    
+    // For now, calculate the steps but don't move the motor yet
+    // This is a placeholder for the actual motor movement logic
+    
+    // Example calculation (adjust based on actual mechanical odometer):
+    // If odometer advances 0.1 km per revolution:
+    // float odoRevsPerKm = 10.0;  // 10 revs = 1 km
+    // float odoRevs = distanceKm * odoRevsPerKm;
+    // float gearRatio = (float)ODO_GEAR_TEETH / (float)ODO_MOTOR_TEETH;
+    // float motorRevs = odoRevs * gearRatio;
+    // int steps = (int)(motorRevs * ODO_STEPS);
+    
+    // TODO: Add actual motor movement using odoMotor.step(steps)
+    // Consider implementing a non-blocking approach if motor movement is slow
 }

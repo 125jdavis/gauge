@@ -43,22 +43,21 @@ extern uint8_t FILTER_AV2;            // Filter coefficient for sensor B (12/16)
 extern uint8_t FILTER_AV3;            // Filter coefficient for sensor C (12/16)
 
 // ===== HALL EFFECT SPEED SENSOR PARAMETERS =====
-extern uint16_t REVS_PER_MILE;      // Revolutions per mile (vehicle-specific)
+extern uint16_t REVS_PER_KM;        // Revolutions per kilometer (vehicle-specific)
 extern uint8_t TEETH_PER_REV;         // Teeth per revolution (sensor-specific)
-extern float ALPHA_HALL_SPEED;       // EMA filter coefficient (lower value is more filtered)
-extern float HALL_SPEED_MIN;         // Minimum reportable speed (MPH)
+extern uint8_t FILTER_HALL_SPEED;   // EMA filter coefficient (0-256): 256=no filter, 128=moderate, 64=heavy
+extern uint8_t HALL_SPEED_MIN;      // Minimum reportable speed in km/h*100 (e.g., 50 = 0.5 km/h)
 
 // ===== ENGINE RPM SENSOR PARAMETERS =====
-// Pulses per engine revolution (for 4-stroke engines: cylinders / 2)
-// Examples: 4-cyl=2, 6-cyl=3, 8-cyl=4, 3-cyl=1.5
-extern float PULSES_PER_REVOLUTION;
+// Cylinder count (for 4-stroke engines)
+// Examples: 4-cyl=4, 6-cyl=6, 8-cyl=8, 3-cyl=3
+extern uint8_t CYL_COUNT;
 
-// EMA filter coefficient (lower value = more filtered)
-// Range: 0.0 to 1.0 (0.7 balances smoothing and responsiveness)
-extern float ALPHA_ENGINE_RPM;
+// EMA filter coefficient (0-256): 256=no filter, 179=moderate (0.7*256), 128=more filtered
+extern uint8_t FILTER_ENGINE_RPM;
 
 // Minimum reportable RPM (engine idle ~600-800)
-extern float ENGINE_RPM_MIN;
+extern uint8_t ENGINE_RPM_MIN;
 
 // ===== SPEEDOMETER CALIBRATION =====
 extern uint16_t SPEEDO_MAX;    // Maximum speedometer reading: 100 mph * 100 (stored as integer for precision)
@@ -72,6 +71,36 @@ extern unsigned int TACH_MIN;       // Minimum RPM to show on tach (below this L
 
 // ===== ODOMETER MOTOR CALIBRATION =====
 extern uint8_t ODO_STEPS;             // Steps per revolution for odometer motor
+extern uint8_t ODO_MOTOR_TEETH;       // Number of teeth on motor gear
+extern uint8_t ODO_GEAR_TEETH;        // Number of teeth on odometer gear
+
+// ===== SIGNAL SOURCE SELECTION =====
+// These parameters determine which sensor/source to use for each signal
+// This allows flexible configuration of data sources
+
+// Speed source for both speedometer and odometer: 0=off, 1=CAN, 2=Hall sensor, 3=GPS
+extern uint8_t SPEED_SOURCE;
+
+// Engine RPM source: 0=off, 1=CAN, 2=coil negative
+extern uint8_t RPM_SOURCE;
+
+// Oil pressure source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+extern uint8_t OIL_PRS_SOURCE;
+
+// Fuel pressure source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+extern uint8_t FUEL_PRS_SOURCE;
+
+// Coolant temperature source: 0=off, 1=CAN, 2=therm
+extern uint8_t COOLANT_TEMP_SOURCE;
+
+// Oil temperature source: 0=off, 1=CAN, 2=therm
+extern uint8_t OIL_TEMP_SOURCE;
+
+// Manifold pressure/boost source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+extern uint8_t MAP_SOURCE;
+
+// Lambda/AFR source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+extern uint8_t LAMBDA_SOURCE;
 
 // ===== TIME ZONE OFFSET =====
 // Hours to add to UTC time for local time zone (-12 to +12)

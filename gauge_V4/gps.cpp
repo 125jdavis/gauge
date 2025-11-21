@@ -6,6 +6,7 @@
 
 #include "gps.h"
 #include "globals.h"
+#include "sensors.h"
 
 /**
  * fetchGPSdata - Process new GPS data when available
@@ -23,7 +24,7 @@ void fetchGPSdata(){
             // Save previous values for interpolation
             t_old = t_new;        // Previous timestamp
             t_new = millis();     // Current timestamp
-            v_old = v_new;        // Previous filtered speed
+            v_old = spdGPS;       // Previous filtered speed
             lagGPS = t_new - t_old; // Time between GPS updates (typically 200ms at 5Hz)
             
             // Get speed from GPS and convert units
@@ -32,16 +33,19 @@ void fetchGPSdata(){
             v_100 = (unsigned long)vFloat;   // Convert to integer
             
             // Apply exponential filter for smooth speedometer
-            v_new = (v_100 * ALPHA_GPS + v_old * (256 - ALPHA_GPS)) >> 8;  // Weighted average (>>8 = /256)
+            spdGPS = (v_100 * ALPHA_GPS + v_old * (256 - ALPHA_GPS)) >> 8;  // Weighted average (>>8 = /256)
             
-            // Calculate distance traveled for odometer
-            if (v > 2) {  // Only integrate if speed > 2 km/h (reduces GPS drift errors)
-              distLast = v * lagGPS * 2.77778e-7;  // Distance (km) = speed (km/h) * time (ms) * conversion factor
+            // Calculate distance traveled for odometer (only if GPS is selected as speed source)
+            if (SPEED_SOURCE == 3) {
+              distLast = updateOdometer(v, lagGPS);
             } else {
-              distLast = 0;  // Don't increment odometer when stationary
+              // Still calculate distLast for potential display/debugging, but don't update odometer
+              if (v > 2) {
+                distLast = v * lagGPS * 2.77778e-7;
+              } else {
+                distLast = 0;
+              }
             }
-            odo = odo + distLast;        // Update total odometer
-            odoTrip = odoTrip + distLast;  // Update trip odometer
             
             // Extract time from GPS (UTC)
             hour = GPS.hour;

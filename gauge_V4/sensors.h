@@ -140,4 +140,21 @@ float curveLookup(float input, float brkpts[], float curve[], int curveLength);
  */
 void sigSelect(void);
 
+/**
+ * updateOdometer - Calculate and update odometer based on speed and time
+ * 
+ * Calculates distance traveled based on current speed and time interval,
+ * then updates both total and trip odometers. This function is designed
+ * to be called from any speed data source (GPS, Hall sensor, or CAN).
+ * 
+ * @param speedKmh - Current vehicle speed in km/h
+ * @param timeIntervalMs - Time elapsed since last update in milliseconds
+ * @return Distance traveled since last update in kilometers
+ * 
+ * Global variables modified:
+ * - odo: Total odometer reading (km)
+ * - odoTrip: Trip odometer reading (km)
+ */
+float updateOdometer(float speedKmh, unsigned long timeIntervalMs);
+
 #endif // SENSORS_H
