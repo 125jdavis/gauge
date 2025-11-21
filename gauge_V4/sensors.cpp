@@ -341,22 +341,22 @@ void sigSelect (void) {
     // Select manifold pressure/boost source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
     switch (MAP_SOURCE) {
         case 0:  // Off
-            map = 0;
+            manifoldPrs = 0;
             break;
         case 1:  // CAN manifold pressure
-            map = mapCAN / 10.0;  // Convert from kPa*10 to kPa
+            manifoldPrs = mapCAN / 10.0;  // Convert from kPa*10 to kPa
             break;
         case 2:  // Analog sensor AV1
-            map = sensor_av1 / 10.0;
+            manifoldPrs = sensor_av1 / 10.0;
             break;
         case 3:  // Analog sensor AV2
-            map = sensor_av2 / 10.0;
+            manifoldPrs = sensor_av2 / 10.0;
             break;
         case 4:  // Analog sensor AV3
-            map = sensor_av3 / 10.0;
+            manifoldPrs = sensor_av3 / 10.0;
             break;
         default:  // Fallback to off
-            map = 0;
+            manifoldPrs = 0;
             break;
     }
     

@@ -116,7 +116,7 @@ extern float fuelLvl;               // Fuel level in gallons (or liters if metri
 extern float battVolt;              // Battery voltage in volts
 extern float afr;                   // Air/Fuel Ratio
 extern float fuelComp;              // Ethanol percentage (0-100%)
-extern float map;                   // Manifold Absolute Pressure in kPa
+extern float manifoldPrs;           // Manifold Absolute Pressure in kPa
 extern int RPM;                     // Engine RPM for display
 extern int spd;                     // Vehicle speed in km/h * 100
 extern float spdMph;                // Vehicle speed in miles per hour
