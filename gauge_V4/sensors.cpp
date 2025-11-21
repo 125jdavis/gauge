@@ -6,7 +6,6 @@
 
 #include "sensors.h"
 #include "globals.h"
-#include "odometer.h"
 
 /**
  * readSensor - Generic analog sensor reader with filtering
