@@ -30,10 +30,10 @@
  * 
  * Global variables modified:
  * - v: Speed in km/h (float)
- * - v_new, v_old: Filtered speed values
+ * - spdGPS, v_old: Filtered speed values (km/h * 100)
  * - t_new, t_old: Timestamps
  * - lagGPS: Time since last GPS update
- * - odo, odoTrip: Odometer values
+ * - odo, odoTrip: Odometer values (if SPEED_SOURCE == 0)
  * - hour, minute: GPS time (UTC)
  * 
  * Called from: main loop every 1ms

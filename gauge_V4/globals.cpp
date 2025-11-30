@@ -33,17 +33,17 @@ float sensor_av3;              // Reserved sensor C value
 // ===== HALL EFFECT SPEED SENSOR VARIABLES =====
 volatile unsigned long hallLastTime = 0;     // Last pulse time (micros)
 volatile float hallSpeedRaw = 0;             // Most recent calculated speed (MPH)
-float hallSpeedEMA = 0;                      // Filtered speed (MPH)
+int spdHall = 0;                             // Filtered speed (km/h * 100)
 
 // ===== ENGINE RPM SENSOR VARIABLES =====
 volatile unsigned long ignitionLastTime = 0; // Last ignition pulse time (micros)
-volatile float engineRPMRaw = 0;             // Most recent calculated RPM (unfiltered)
-float engineRPMEMA = 0;                      // Filtered RPM with exponential moving average
+volatile int engineRPMRaw = 0;               // Most recent calculated RPM (unfiltered)
+int engineRPMEMA = 0;                        // Filtered RPM with exponential moving average
 
 // ===== GPS SPEED AND ODOMETER VARIABLES =====
 // GPS provides speed and time data for speedometer and odometer calculations
 unsigned long v_old = 0;       // Previous GPS speed reading (km/h * 100)
-unsigned long v_new = 1;       // Current GPS speed reading (km/h * 100)
+unsigned long spdGPS = 1;      // Current GPS speed reading (km/h * 100)
 unsigned long t_old = 0;       // Previous GPS timestamp (milliseconds)
 unsigned long t_new = 1;       // Current GPS timestamp (milliseconds)
 unsigned long v_100 = 0;       // Speed value * 100 for integer math precision
@@ -110,6 +110,7 @@ float fuelLvl = 0;         // Fuel level in gallons (or liters if metric)
 float battVolt = 12.6;     // Battery voltage in volts
 float afr = 14.2;          // Air/Fuel Ratio (stoichiometric for gasoline ~14.7)
 float fuelComp = 0;        // Ethanol percentage (0-100%)
+float manifoldPrs = 101.3; // Manifold Absolute Pressure in kPa (default to atmospheric)
 int RPM = 0;               // Engine RPM for display
 int spd = 0;               // Vehicle speed in km/h * 100 (for integer precision)
 float spdMph = 0;          // Vehicle speed in miles per hour

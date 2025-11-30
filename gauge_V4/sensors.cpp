@@ -51,15 +51,20 @@ void hallSpeedISR() {
     // Ignore any implausibly short intervals (can set a minimum if needed, e.g. electrical noise)
     // For 150 mph, the shortest plausible pulse interval is much less than 1ms; let's allow anything > 100 μs
     if (pulseInterval > 100) {
-        // Calculate speed in MPH:
-        // MPH = (pulse freq [Hz] * 3600) / (TEETH_PER_REV * REVS_PER_MILE)
-        // pulse freq = 1 / (pulseInterval in seconds)
-        float pulseFreq = 1000000.0 / pulseInterval;
-        float speedRaw = (pulseFreq * 3600.0) / (TEETH_PER_REV * REVS_PER_MILE);
-        hallSpeedRaw = speedRaw;
-        // EMA filter:
-        hallSpeedEMA = (ALPHA_HALL_SPEED * speedRaw) + ((1.0 - ALPHA_HALL_SPEED) * hallSpeedEMA);
-        Serial.println(hallSpeedEMA);
+        // Calculate speed in km/h * 100 using integer math:
+        // km/h = (pulse freq [Hz] * 3600) / (TEETH_PER_REV * REVS_PER_KM)
+        // pulse freq = 1,000,000 / pulseInterval (in microseconds)
+        // km/h * 100 = (1,000,000 * 3600 * 100) / (pulseInterval * TEETH_PER_REV * REVS_PER_KM)
+        // Simplify: (360,000,000,000) / (pulseInterval * TEETH_PER_REV * REVS_PER_KM)
+        
+        unsigned long divisor = (unsigned long)TEETH_PER_REV * (unsigned long)REVS_PER_KM;
+        int speedRaw = (int)(360000000UL / (pulseInterval * divisor / 1000UL));
+        hallSpeedRaw = speedRaw / 100.0;  // Keep for compatibility (MPH)
+        
+        // EMA filter with integer math:
+        // FILTER_HALL_SPEED is 0-256: higher value = less filtering
+        spdHall = (speedRaw * FILTER_HALL_SPEED + spdHall * (256 - FILTER_HALL_SPEED)) >> 8;
+        Serial.println(spdHall);
     }
 }
 
@@ -67,16 +72,69 @@ void hallSpeedISR() {
  * hallSpeedUpdate - Handle Hall sensor timeout and minimum threshold
  */
 void hallSpeedUpdate() {
+    static unsigned long lastUpdateTime = 0;
     unsigned long currentTime = micros();
+    
     // If it's been too long since last pulse, set speed to zero
     if ((currentTime - hallLastTime) > HALL_PULSE_TIMEOUT) {
         hallSpeedRaw = 0;
-        hallSpeedEMA = 0;
+        spdHall = 0;
     }
     // Optionally, clamp very low speeds to zero for display stability
-    if (hallSpeedEMA < HALL_SPEED_MIN) {
-        hallSpeedEMA = 0;
+    if (spdHall < HALL_SPEED_MIN) {
+        spdHall = 0;
     }
+    
+    // Update odometer based on Hall sensor speed (called every HALL_UPDATE_RATE ms)
+    // Only update if Hall sensor is selected as speed source
+    if (SPEED_SOURCE == 2 && lastUpdateTime != 0) {
+        unsigned long timeIntervalMicros = currentTime - lastUpdateTime;
+        unsigned long timeIntervalMs = timeIntervalMicros / 1000;
+        // spdHall is already in km/h * 100, convert to km/h for updateOdometer
+        float speedKmh = spdHall * 0.01;
+        updateOdometer(speedKmh, timeIntervalMs);
+    }
+    lastUpdateTime = currentTime;
+}
+
+/**
+ * updateOdometer - Calculate and update odometer based on speed and time
+ * 
+ * Calculates distance traveled based on current speed and time interval,
+ * then updates both total and trip odometers. This function is designed
+ * to be called from any speed data source (GPS, Hall sensor, or CAN).
+ * 
+ * @param speedKmh - Current vehicle speed in km/h
+ * @param timeIntervalMs - Time elapsed since last update in milliseconds
+ * 
+ * Processing:
+ * 1. Only integrates distance if speed > 2 km/h (reduces drift when stationary)
+ * 2. Calculates distance: distance (km) = speed (km/h) * time (ms) * 2.77778e-7
+ *    - Conversion factor: 1 km/h = 1000m/3600s = 0.277778 m/s = 2.77778e-7 km/ms
+ * 3. Updates global odo and odoTrip variables
+ * 4. Returns distance traveled for potential odometer motor movement
+ * 
+ * Global variables modified:
+ * - odo: Total odometer reading (km)
+ * - odoTrip: Trip odometer reading (km)
+ * 
+ * @return Distance traveled since last update in kilometers
+ */
+float updateOdometer(float speedKmh, unsigned long timeIntervalMs) {
+    float distanceTraveled = 0;
+    
+    // Only integrate if speed > 2 km/h (reduces GPS drift errors when stationary)
+    if (speedKmh > 2) {
+        // Calculate distance traveled: distance (km) = speed (km/h) * time (ms) * conversion factor
+        // Conversion: 1 km/h = 1000m/3600s = 0.277778 m/s = 2.77778e-7 km/ms
+        distanceTraveled = speedKmh * timeIntervalMs * 2.77778e-7;
+    }
+    
+    // Update odometers
+    odo = odo + distanceTraveled;
+    odoTrip = odoTrip + distanceTraveled;
+    
+    return distanceTraveled;
 }
 
 /**
@@ -88,22 +146,20 @@ void ignitionPulseISR() {
     ignitionLastTime = currentTime;
 
     // Ignore implausibly short intervals to filter electrical noise
-    // At 12,000 RPM with 4 pulses/rev: interval = 1,000,000 / (12000*4/60) = 1250 μs
+    // At 12,000 RPM with 8 cylinders: interval = 1,000,000 / (12000*8/120) = 1250 μs
     // Minimum threshold of 500 μs allows up to ~18,750 RPM (very high for automotive)
     if (pulseInterval > 500) {
-        // Calculate pulse frequency in Hz: freq = 1,000,000 μs/sec / interval
-        float pulseFreq = 1000000.0 / pulseInterval;
-        
-        // Convert pulse frequency to RPM
-        // RPM = (pulses per second * 60 seconds per minute) / pulses per revolution
-        float rpmRaw = (pulseFreq * 60.0) / PULSES_PER_REVOLUTION;
+        // Calculate RPM using integer math:
+        // RPM = (1,000,000 μs/sec * 120 sec/2min) / (pulseInterval * CYL_COUNT)
+        // RPM = 120,000,000 / (pulseInterval * CYL_COUNT)
+        // Note: CYL_COUNT is 2x old PULSES_PER_REVOLUTION, so we use 120M instead of 60M
+        int rpmRaw = (int)(120000000.0 / (pulseInterval * CYL_COUNT));
         
         engineRPMRaw = rpmRaw;
         
-        // Apply exponential moving average filter for smooth display
-        // EMA formula: new_EMA = (alpha * new_value) + ((1 - alpha) * old_EMA)
-        // Higher alpha (e.g., 0.7) = more responsive, lower alpha = more smoothing
-        engineRPMEMA = (ALPHA_ENGINE_RPM * rpmRaw) + ((1.0 - ALPHA_ENGINE_RPM) * engineRPMEMA);
+        // Apply exponential moving average filter with integer math
+        // FILTER_ENGINE_RPM is 0-256: higher value = less filtering
+        engineRPMEMA = (rpmRaw * FILTER_ENGINE_RPM + engineRPMEMA * (256 - FILTER_ENGINE_RPM)) >> 8;
         
         // Uncomment for debugging (note: Serial.print in ISR can cause timing issues)
         // Serial.print("RPM: ");
@@ -170,18 +226,163 @@ float curveLookup(float input, float brkpts[], float curve[], int curveLength){
  * sigSelect - Process and route sensor data
  */
 void sigSelect (void) {
-    //spd = v_new; // Speed in km/h * 100 from GPS
-    spd = hallSpeedEMA*100; //Speed in km/h *100 from hall sensor
-    //spdMph = spd *0.6213712;  // Unused conversion to mph
-    //spdCAN = (int)(v*16);  // Speed formatted for CAN bus transmission (km/h * 16 per Haltech protocol)
-    //RPM = rpmCAN;  // Direct copy of RPM from CAN bus
-    RPM = engineRPMEMA; //RPM as measured from coil negative tachometer
-    coolantTemp = (coolantTempCAN/10)-273.15; // Convert from Kelvin*10 to Celsius (K to C: subtract 273.15)
-    oilPrs = (oilPrsCAN/10)-101.3;   // Convert from absolute kPa to gauge pressure (subtract atmospheric ~101.3 kPa)
-    fuelPrs = (fuelPrsCAN/10)-101.3;  // Convert from absolute kPa to gauge pressure
-    oilTemp = therm;  // Oil temperature from thermistor sensor (already in Celsius)
-    afr = (float)afr1CAN/1000;  // Air/Fuel Ratio - divide by 1000 (e.g., 14700 becomes 14.7)
-    fuelComp = fuelCompCAN/10;  // Fuel composition - divide by 10 (e.g., 850 becomes 85%)
+    // Select vehicle speed source: 0=off, 1=CAN, 2=Hall sensor, 3=GPS
+    switch (SPEED_SOURCE) {
+        case 0:  // Off
+            spd = 0;
+            break;
+        case 1:  // CAN speed source
+            spd = spdCAN;  // Already in km/h * 100 format
+            break;
+        case 2:  // Hall sensor speed source
+            spd = spdHall;  // Already in km/h * 100 format
+            break;
+        case 3:  // GPS speed source
+            spd = spdGPS;  // Already in km/h * 100 format
+            break;
+        default:  // Fallback to off
+            spd = 0;
+            break;
+    }
+    
+    // Select engine RPM source: 0=off, 1=CAN, 2=coil negative
+    switch (RPM_SOURCE) {
+        case 0:  // Off
+            RPM = 0;
+            break;
+        case 1:  // CAN RPM source
+            RPM = rpmCAN;
+            break;
+        case 2:  // Coil negative tachometer
+            RPM = engineRPMEMA;
+            break;
+        default:  // Fallback to off
+            RPM = 0;
+            break;
+    }
+    
+    // Select oil pressure source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+    switch (OIL_PRS_SOURCE) {
+        case 0:  // Off
+            oilPrs = 0;
+            break;
+        case 1:  // CAN oil pressure
+            oilPrs = (oilPrsCAN/10.0) - 101.3;  // Convert from absolute kPa to gauge pressure
+            break;
+        case 2:  // Analog sensor AV1
+            oilPrs = sensor_av1 / 10.0;
+            break;
+        case 3:  // Analog sensor AV2
+            oilPrs = sensor_av2 / 10.0;
+            break;
+        case 4:  // Analog sensor AV3
+            oilPrs = sensor_av3 / 10.0;
+            break;
+        default:  // Fallback to off
+            oilPrs = 0;
+            break;
+    }
+    
+    // Select fuel pressure source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+    switch (FUEL_PRS_SOURCE) {
+        case 0:  // Off
+            fuelPrs = 0;
+            break;
+        case 1:  // CAN fuel pressure
+            fuelPrs = (fuelPrsCAN/10.0) - 101.3;  // Convert from absolute kPa to gauge pressure
+            break;
+        case 2:  // Analog sensor AV1
+            fuelPrs = sensor_av1 / 10.0;
+            break;
+        case 3:  // Analog sensor AV2
+            fuelPrs = sensor_av2 / 10.0;
+            break;
+        case 4:  // Analog sensor AV3
+            fuelPrs = sensor_av3 / 10.0;
+            break;
+        default:  // Fallback to off
+            fuelPrs = 0;
+            break;
+    }
+    
+    // Select coolant temperature source: 0=off, 1=CAN, 2=therm
+    switch (COOLANT_TEMP_SOURCE) {
+        case 0:  // Off
+            coolantTemp = 0;
+            break;
+        case 1:  // CAN coolant temperature
+            coolantTemp = (coolantTempCAN/10.0) - 273.15;  // Convert from Kelvin*10 to Celsius
+            break;
+        case 2:  // Thermistor sensor
+            coolantTemp = therm;
+            break;
+        default:  // Fallback to off
+            coolantTemp = 0;
+            break;
+    }
+    
+    // Select oil temperature source: 0=off, 1=CAN, 2=therm
+    switch (OIL_TEMP_SOURCE) {
+        case 0:  // Off
+            oilTemp = 0;
+            break;
+        case 1:  // CAN oil temperature
+            oilTemp = oilTempCAN / 10.0;  // Convert from Celsius*10 to Celsius
+            break;
+        case 2:  // Thermistor sensor
+            oilTemp = therm;
+            break;
+        default:  // Fallback to off
+            oilTemp = 0;
+            break;
+    }
+    
+    // Select manifold pressure/boost source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+    switch (MAP_SOURCE) {
+        case 0:  // Off
+            manifoldPrs = 0;
+            break;
+        case 1:  // CAN manifold pressure
+            manifoldPrs = mapCAN / 10.0;  // Convert from kPa*10 to kPa
+            break;
+        case 2:  // Analog sensor AV1
+            manifoldPrs = sensor_av1 / 10.0;
+            break;
+        case 3:  // Analog sensor AV2
+            manifoldPrs = sensor_av2 / 10.0;
+            break;
+        case 4:  // Analog sensor AV3
+            manifoldPrs = sensor_av3 / 10.0;
+            break;
+        default:  // Fallback to off
+            manifoldPrs = 0;
+            break;
+    }
+    
+    // Select Lambda/AFR source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+    switch (LAMBDA_SOURCE) {
+        case 0:  // Off
+            afr = 0;
+            break;
+        case 1:  // CAN Lambda/AFR
+            afr = afr1CAN / 1000.0;  // Convert from AFR*1000 to AFR
+            break;
+        case 2:  // Analog sensor AV1
+            afr = sensor_av1 / 100.0;  // Assuming sensor gives AFR*100
+            break;
+        case 3:  // Analog sensor AV2
+            afr = sensor_av2 / 100.0;
+            break;
+        case 4:  // Analog sensor AV3
+            afr = sensor_av3 / 100.0;
+            break;
+        default:  // Fallback to off
+            afr = 0;
+            break;
+    }
+    
+    // These remain unchanged as they don't have alternate sources
+    fuelComp = fuelCompCAN/10.0;  // Fuel composition - divide by 10 (e.g., 850 becomes 85%)
     fuelLvlCAN = (int)((fuelLvl/fuelCapacity)*100);  // Calculate fuel level percentage for CAN transmission
 
 }
