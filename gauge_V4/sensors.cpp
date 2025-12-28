@@ -58,12 +58,13 @@ void hallSpeedISR() {
         // Simplify: (360,000,000,000) / (pulseInterval * TEETH_PER_REV * REVS_PER_KM)
         
         unsigned long divisor = (unsigned long)TEETH_PER_REV * (unsigned long)REVS_PER_KM;
-        int speedRaw = (int)(360000000UL / (pulseInterval * divisor / 1000UL));
+        unsigned int speedRaw = (unsigned int)(360000000UL / (pulseInterval * divisor / 1000UL));
         hallSpeedRaw = speedRaw / 100.0;  // Keep for compatibility (MPH)
         
         // EMA filter with integer math:
         // FILTER_HALL_SPEED is 0-256: higher value = less filtering
-        spdHall = (speedRaw * FILTER_HALL_SPEED + spdHall * (256 - FILTER_HALL_SPEED)) >> 8;
+        // Cast to unsigned long to prevent overflow in intermediate calculation
+        spdHall = (unsigned int)(((unsigned long)speedRaw * FILTER_HALL_SPEED + (unsigned long)spdHall * (256 - FILTER_HALL_SPEED)) >> 8);
         Serial.println(spdHall);
     }
 }
