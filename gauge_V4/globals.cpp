@@ -33,7 +33,7 @@ float sensor_av3;              // Reserved sensor C value
 // ===== HALL EFFECT SPEED SENSOR VARIABLES =====
 volatile unsigned long hallLastTime = 0;     // Last pulse time (micros)
 volatile float hallSpeedRaw = 0;             // Most recent calculated speed (MPH)
-int spdHall = 0;                             // Filtered speed (km/h * 100)
+unsigned int spdHall = 0;                    // Filtered speed (km/h * 100)
 
 // ===== ENGINE RPM SENSOR VARIABLES =====
 volatile unsigned long ignitionLastTime = 0; // Last ignition pulse time (micros)

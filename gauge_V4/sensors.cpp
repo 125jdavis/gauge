@@ -7,6 +7,33 @@
 #include "sensors.h"
 #include "globals.h"
 
+// ===== VR-SAFE COMBINED FILTER STATE =====
+// State machine for startup filtering (VR-safe, Hall-compatible)
+enum SpeedSensorState {
+    STANDSTILL,  // No recent pulses, speed = 0
+    STARTING,    // Pulses arriving but not yet coherent
+    MOVING       // Normal operation, speed output active
+};
+
+// Ring buffer for median filter on pulse intervals
+#define INTERVAL_BUFFER_SIZE 5
+static unsigned long intervalBuffer[INTERVAL_BUFFER_SIZE] = {0};
+static uint8_t intervalBufferIndex = 0;
+static uint8_t intervalBufferCount = 0;
+
+// State machine variables
+static SpeedSensorState sensorState = STANDSTILL;
+static unsigned long lastFilteredInterval = 0;
+static unsigned long lastPulseArrivalTime = 0;  // Track when last pulse was added to buffer
+
+// Previous speed for acceleration limiting
+static unsigned int spdHallPrev = 0;
+static unsigned long lastSpeedUpdateTime = 0;
+
+// VR-Safe filter constants
+#define LOW_SPEED_THRESHOLD_FOR_VR_REJECTION 1000  // 10 km/h in units of km/h*100
+#define MAX_ACCELERATION_UNITS 3530UL  // 1g acceleration ≈ 35.3 km/h/s ≈ 3530 (km/h*100)/s
+
 /**
  * readSensor - Generic analog sensor reader with filtering
  */
@@ -41,50 +68,267 @@ float readThermSensor(int inputPin, float oldVal, int filt)
 }
 
 /**
- * hallSpeedISR - Hall effect speed sensor interrupt handler
+ * getMedianInterval - Calculate median of interval buffer
+ * VR-Safe: Median filter rejects outlier pulses from VR sensor noise
+ * Hall-Compatible: Works identically with clean Hall sensor pulses
+ * 
+ * @return Median interval from buffer, or 0 if buffer empty
  */
-void hallSpeedISR() {
-    unsigned long currentTime = micros();
-    unsigned long pulseInterval = currentTime - hallLastTime;
-    hallLastTime = currentTime;
-
-    // Ignore any implausibly short intervals (can set a minimum if needed, e.g. electrical noise)
-    // For 150 mph, the shortest plausible pulse interval is much less than 1ms; let's allow anything > 100 μs
-    if (pulseInterval > 100) {
-        // Calculate speed in km/h * 100 using integer math:
-        // km/h = (pulse freq [Hz] * 3600) / (TEETH_PER_REV * REVS_PER_KM)
-        // pulse freq = 1,000,000 / pulseInterval (in microseconds)
-        // km/h * 100 = (1,000,000 * 3600 * 100) / (pulseInterval * TEETH_PER_REV * REVS_PER_KM)
-        // Simplify: (360,000,000,000) / (pulseInterval * TEETH_PER_REV * REVS_PER_KM)
-        
-        unsigned long divisor = (unsigned long)TEETH_PER_REV * (unsigned long)REVS_PER_KM;
-        int speedRaw = (int)(360000000UL / (pulseInterval * divisor / 1000UL));
-        hallSpeedRaw = speedRaw / 100.0;  // Keep for compatibility (MPH)
-        
-        // EMA filter with integer math:
-        // FILTER_HALL_SPEED is 0-256: higher value = less filtering
-        spdHall = (speedRaw * FILTER_HALL_SPEED + spdHall * (256 - FILTER_HALL_SPEED)) >> 8;
-        Serial.println(spdHall);
+static unsigned long getMedianInterval() {
+    if (intervalBufferCount == 0) return 0;
+    
+    // Create a copy for sorting (small N, simple bubble sort is fine)
+    unsigned long sorted[INTERVAL_BUFFER_SIZE];
+    uint8_t n = intervalBufferCount;
+    
+    for (uint8_t i = 0; i < n; i++) {
+        sorted[i] = intervalBuffer[i];
+    }
+    
+    // Bubble sort (safe against underflow)
+    for (uint8_t i = 0; i < n - 1 && i < n; i++) {
+        for (uint8_t j = 0; j + i + 1 < n; j++) {
+            if (sorted[j] > sorted[j + 1]) {
+                unsigned long temp = sorted[j];
+                sorted[j] = sorted[j + 1];
+                sorted[j + 1] = temp;
+            }
+        }
+    }
+    
+    // Return median
+    if (n % 2 == 1) {
+        return sorted[n / 2];
+    } else {
+        return (sorted[n / 2 - 1] + sorted[n / 2]) / 2;
     }
 }
 
 /**
- * hallSpeedUpdate - Handle Hall sensor timeout and minimum threshold
+ * checkIntervalCoherence - Check if intervals in buffer are coherent
+ * VR-Safe: Ensures startup intervals are stable before outputting speed
+ * 
+ * @return true if max/min ratio < 1.5, false otherwise
+ */
+static bool checkIntervalCoherence() {
+    if (intervalBufferCount < INTERVAL_BUFFER_SIZE) return false;
+    
+    unsigned long minInterval = intervalBuffer[0];
+    unsigned long maxInterval = intervalBuffer[0];
+    
+    for (uint8_t i = 1; i < intervalBufferCount; i++) {
+        if (intervalBuffer[i] < minInterval) minInterval = intervalBuffer[i];
+        if (intervalBuffer[i] > maxInterval) maxInterval = intervalBuffer[i];
+    }
+    
+    // Avoid division by zero
+    if (minInterval == 0) return false;
+    
+    // Check if max/min < 1.5 (coherence threshold)
+    // Use integer math: maxInterval < 1.5 * minInterval
+    // Equivalent to: maxInterval * 2 < minInterval * 3
+    return (maxInterval * 2) < (minInterval * 3);
+}
+
+/**
+ * hallSpeedISR - Hall effect speed sensor interrupt handler
+ * VR-Safe Combined Filter Implementation:
+ * - Timestamps pulses and enqueues intervals into ring buffer
+ * - Rejects intervals that fail basic sanity checks
+ * - VR-Safe: Rejects edge misfires at low speed (interval < 0.4× previous)
+ * - Hall-Compatible: All checks pass transparently for clean Hall signals
+ */
+void hallSpeedISR() {
+    unsigned long currentTime = micros();
+    unsigned long pulseInterval = currentTime - hallLastTime;
+    
+    // Basic interval sanity checks
+    // Minimum: 100 μs (filters electrical noise, allows up to ~500 km/h)
+    // Maximum: MAX_VALID_PULSE_INTERVAL (filters stale intervals from standstill)
+    if (pulseInterval <= 100 || pulseInterval >= MAX_VALID_PULSE_INTERVAL) {
+        // Very long interval = standstill detected
+        if (pulseInterval >= MAX_VALID_PULSE_INTERVAL) {
+            hallLastTime = currentTime;
+            sensorState = STANDSTILL;
+            intervalBufferCount = 0;
+            intervalBufferIndex = 0;
+        }
+        return;
+    }
+    
+    // VR-Safe: Low-speed robustness check
+    // Reject intervals < 0.4× previous filtered interval (VR edge misfires)
+    // Only apply during STARTING state or very low speed to avoid false rejects
+    if ((sensorState == STARTING || spdHall < LOW_SPEED_THRESHOLD_FOR_VR_REJECTION) && lastFilteredInterval > 0) {
+        // Check: interval < 0.4 × lastFilteredInterval
+        // Integer math: interval * 5 < lastFilteredInterval * 2
+        if ((pulseInterval * 5) < (lastFilteredInterval * 2)) {
+            // Reject this interval - likely a VR misfire
+            return;
+        }
+    }
+    
+    // Accept interval - update timestamp and add to ring buffer
+    hallLastTime = currentTime;
+    lastPulseArrivalTime = currentTime;  // Track when pulse was added to buffer
+    
+    // Add interval to ring buffer (median filter)
+    intervalBuffer[intervalBufferIndex] = pulseInterval;
+    intervalBufferIndex = (intervalBufferIndex + 1) % INTERVAL_BUFFER_SIZE;
+    if (intervalBufferCount < INTERVAL_BUFFER_SIZE) {
+        intervalBufferCount++;
+    }
+    
+    // State machine transitions handled in hallSpeedUpdate()
+    // ISR only timestamps and enqueues - keeps it fast and deterministic
+}
+
+
+/**
+ * hallSpeedUpdate - Handle Hall sensor timeout, state machine, and speed calculation
+ * VR-Safe Combined Filter Implementation:
+ * - State machine: STANDSTILL → STARTING → MOVING
+ * - Median filter on pulse intervals
+ * - Acceleration limiting (1g max)
+ * - Speed decay when pulses slow down
+ * 
+ * Called every 20ms from main loop
  */
 void hallSpeedUpdate() {
     static unsigned long lastUpdateTime = 0;
     unsigned long currentTime = micros();
+    unsigned long timeSinceLastPulse = currentTime - hallLastTime;
     
-    // If it's been too long since last pulse, set speed to zero
-    if ((currentTime - hallLastTime) > HALL_PULSE_TIMEOUT) {
+    // ===== TIMEOUT HANDLING =====
+    // If it's been too long since last pulse, transition to STANDSTILL
+    if (timeSinceLastPulse > HALL_PULSE_TIMEOUT) {
+        sensorState = STANDSTILL;
         hallSpeedRaw = 0;
         spdHall = 0;
-    }
-    // Optionally, clamp very low speeds to zero for display stability
-    if (spdHall < HALL_SPEED_MIN) {
-        spdHall = 0;
+        spdHallPrev = 0;
+        intervalBufferCount = 0;
+        intervalBufferIndex = 0;
+        lastFilteredInterval = 0;
+        lastSpeedUpdateTime = currentTime;
+        lastPulseArrivalTime = 0;  // Reset pulse arrival tracking
+        
+        // Update odometer (with speed = 0)
+        if (SPEED_SOURCE == 2 && lastUpdateTime != 0) {
+            unsigned long timeIntervalMicros = currentTime - lastUpdateTime;
+            unsigned long timeIntervalMs = timeIntervalMicros / 1000;
+            updateOdometer(0, timeIntervalMs);
+        }
+        lastUpdateTime = currentTime;
+        return;
     }
     
+    // ===== STATE MACHINE =====
+    switch (sensorState) {
+        case STANDSTILL:
+            // Transition to STARTING when we have at least one interval
+            if (intervalBufferCount > 0) {
+                sensorState = STARTING;
+                spdHall = 0;  // Don't output speed yet
+            }
+            break;
+            
+        case STARTING:
+            // VR-Safe: Wait for interval coherence before outputting speed
+            // This prevents spikes from unreliable initial pulses
+            if (checkIntervalCoherence()) {
+                sensorState = MOVING;
+                // First speed output will happen in MOVING state below
+            } else {
+                // Not yet coherent - keep speed at zero
+                spdHall = 0;
+            }
+            break;
+            
+        case MOVING:
+            // Normal operation - calculate and output speed
+            // This is where the median filter and acceleration limiting are applied
+            break;
+    }
+    
+    // ===== SPEED CALCULATION (MOVING state only) =====
+    // Only calculate speed from buffer if we have recent pulse data
+    // This prevents calculating from stale buffer data after pulses stop
+    unsigned long timeSinceLastPulseArrival = currentTime - lastPulseArrivalTime;
+    bool hasRecentPulse = (timeSinceLastPulseArrival < SPEED_DECAY_THRESHOLD);
+    
+    if (sensorState == MOVING && intervalBufferCount > 0 && hasRecentPulse) {
+        // Get median interval from buffer (VR-safe: rejects outliers)
+        unsigned long medianInterval = getMedianInterval();
+        lastFilteredInterval = medianInterval;
+        
+        if (medianInterval > 0) {
+            // Calculate speed in km/h * 100 using integer math
+            // km/h = (pulse freq [Hz] * 3600) / (TEETH_PER_REV * REVS_PER_KM)
+            // pulse freq = 1,000,000 / pulseInterval (in microseconds)
+            // km/h * 100 = (1,000,000 * 3600 * 100) / (pulseInterval * TEETH_PER_REV * REVS_PER_KM)
+            // Simplify: (360,000,000,000) / (pulseInterval * TEETH_PER_REV * REVS_PER_KM)
+            unsigned long divisor = (unsigned long)TEETH_PER_REV * (unsigned long)REVS_PER_KM;
+            unsigned int speedRaw = (unsigned int)(360000000UL / (medianInterval * divisor / 1000UL));
+            hallSpeedRaw = speedRaw / 100.0;  // Keep for compatibility (MPH)
+            
+            // EMA filter with integer math
+            // FILTER_HALL_SPEED is 0-256: higher value = less filtering
+            // Cast to unsigned long to prevent overflow in intermediate calculation
+            unsigned int speedFiltered = (unsigned int)(((unsigned long)speedRaw * FILTER_HALL_SPEED + (unsigned long)spdHall * (256 - FILTER_HALL_SPEED)) >> 8);
+            
+            // ===== ACCELERATION LIMITING =====
+            // VR-Safe: Clamp acceleration to 1g max (≈ 35.3 km/h/s = 3530 in units of km/h*100/s)
+            // This prevents residual spikes from passing through all other filters
+            if (lastSpeedUpdateTime > 0) {
+                unsigned long timeDelta = currentTime - lastSpeedUpdateTime;
+                if (timeDelta > 0 && timeDelta < 1000000UL) {  // Sanity check: < 1 second
+                    // Max speed change = (MAX_ACCELERATION_UNITS * timeDelta) / 1,000,000 (convert μs to s)
+                    // For 20ms update: (3530 * 20000) / 1000000 = 70.6 ≈ 71 units
+                    // Use 64-bit arithmetic to prevent overflow for large timeDelta
+                    unsigned long maxSpeedChange = ((unsigned long long)MAX_ACCELERATION_UNITS * timeDelta) / 1000000UL;
+                    
+                    // Clamp speed change
+                    if (speedFiltered > spdHallPrev) {
+                        // Accelerating
+                        unsigned int speedDelta = speedFiltered - spdHallPrev;
+                        if (speedDelta > maxSpeedChange) {
+                            speedFiltered = spdHallPrev + (unsigned int)maxSpeedChange;
+                        }
+                    } else {
+                        // Decelerating - no clamp (allow rapid decel)
+                        // Physical deceleration can exceed 1g (braking)
+                    }
+                }
+            }
+            
+            spdHall = speedFiltered;
+            spdHallPrev = spdHall;
+            lastSpeedUpdateTime = currentTime;
+            
+            Serial.println(spdHall);
+        }
+    }
+    
+    // ===== SPEED DECAY (when pulses slow down) =====
+    // If pulses have slowed significantly, decay speed more aggressively
+    // This prevents "hanging" at low speeds when coming to a stop
+    // Only apply decay if we haven't just calculated a new speed
+    if (sensorState == MOVING && timeSinceLastPulse > SPEED_DECAY_THRESHOLD && spdHall > 0 && !hasRecentPulse) {
+        // Decay speed by ~10% every update cycle when no recent pulses
+        // This makes the speed drop more naturally when slowing to a stop
+        spdHall = (spdHall * SPEED_DECAY_FACTOR) >> 8;
+        spdHallPrev = spdHall;
+        Serial.println(spdHall);  // Print decayed speed
+    }
+    
+    // ===== MINIMUM SPEED THRESHOLD =====
+    // Clamp very low speeds to zero for display stability
+    if (spdHall < HALL_SPEED_MIN) {
+        spdHall = 0;
+        spdHallPrev = 0;
+    }
+    
+    // ===== ODOMETER UPDATE =====
     // Update odometer based on Hall sensor speed (called every HALL_UPDATE_RATE ms)
     // Only update if Hall sensor is selected as speed source
     if (SPEED_SOURCE == 2 && lastUpdateTime != 0) {
@@ -96,6 +340,7 @@ void hallSpeedUpdate() {
     }
     lastUpdateTime = currentTime;
 }
+
 
 /**
  * updateOdometer - Calculate and update odometer based on speed and time

@@ -89,6 +89,10 @@ constexpr uint8_t HALL_PIN = 20;    // Digital speed input pin (D20, interrupt 1
 
 // ===== HALL EFFECT SPEED SENSOR TIMEOUT =====
 constexpr unsigned long HALL_PULSE_TIMEOUT = 1000000UL; // Timeout (μs) for "vehicle stopped" (1 second)
+constexpr unsigned long MAX_VALID_PULSE_INTERVAL = 500000UL; // Max pulse interval (μs) to accept (0.5 sec, ~0.5 km/h min)
+constexpr unsigned long SPEED_DECAY_THRESHOLD = 200000UL; // Time (μs) before speed starts decaying (200ms)
+constexpr uint8_t SPEED_DECAY_FACTOR = 230;  // Speed decay multiplier (230/256 ≈ 0.9, or 10% decay per cycle)
+constexpr uint8_t PULSES_TO_SKIP_AFTER_STANDSTILL = 2;  // Number of initial pulses to skip after standstill
 
 // ===== ENGINE RPM SENSOR TIMEOUT =====
 constexpr unsigned long IGNITION_PULSE_TIMEOUT = 500000UL; // Timeout (μs) for "engine stopped" (0.5 second)
