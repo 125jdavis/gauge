@@ -264,9 +264,11 @@ void loop() {
   motor3.update();
   motor4.update();
 
-  // ===== SHUTDOWN CHECK =====
-  if (vBatt < 1) {
-    shutdown();
+  // ===== SHUTDOWN DETECTION =====
+  // Check if ignition voltage has dropped (key turned off)
+  // Shutdown when battery voltage < 1V AND system has been running for at least 3 seconds
+  if (vBatt < 1 && millis() > SPLASH_TIME + 3000) {
+    shutdown();  // Save settings, zero gauges, display shutdown screen, cut power
   }
 
 }
