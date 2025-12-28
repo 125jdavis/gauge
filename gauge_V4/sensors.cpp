@@ -29,6 +29,10 @@ static unsigned long lastFilteredInterval = 0;
 static unsigned int spdHallPrev = 0;
 static unsigned long lastSpeedUpdateTime = 0;
 
+// VR-Safe filter constants
+#define LOW_SPEED_THRESHOLD_FOR_VR_REJECTION 1000  // 10 km/h in units of km/h*100
+#define MAX_ACCELERATION_UNITS 3530UL  // 1g acceleration ≈ 35.3 km/h/s ≈ 3530 (km/h*100)/s
+
 /**
  * readSensor - Generic analog sensor reader with filtering
  */
@@ -80,9 +84,9 @@ static unsigned long getMedianInterval() {
         sorted[i] = intervalBuffer[i];
     }
     
-    // Bubble sort
-    for (uint8_t i = 0; i < n - 1; i++) {
-        for (uint8_t j = 0; j < n - i - 1; j++) {
+    // Bubble sort (safe against underflow)
+    for (uint8_t i = 0; i < n - 1 && i < n; i++) {
+        for (uint8_t j = 0; j + i + 1 < n; j++) {
             if (sorted[j] > sorted[j + 1]) {
                 unsigned long temp = sorted[j];
                 sorted[j] = sorted[j + 1];
@@ -154,7 +158,7 @@ void hallSpeedISR() {
     // VR-Safe: Low-speed robustness check
     // Reject intervals < 0.4× previous filtered interval (VR edge misfires)
     // Only apply during STARTING state or very low speed to avoid false rejects
-    if ((sensorState == STARTING || spdHall < 1000) && lastFilteredInterval > 0) {
+    if ((sensorState == STARTING || spdHall < LOW_SPEED_THRESHOLD_FOR_VR_REJECTION) && lastFilteredInterval > 0) {
         // Check: interval < 0.4 × lastFilteredInterval
         // Integer math: interval * 5 < lastFilteredInterval * 2
         if ((pulseInterval * 5) < (lastFilteredInterval * 2)) {
@@ -269,18 +273,18 @@ void hallSpeedUpdate() {
             // This prevents residual spikes from passing through all other filters
             if (lastSpeedUpdateTime > 0) {
                 unsigned long timeDelta = currentTime - lastSpeedUpdateTime;
-                if (timeDelta > 0) {
-                    // Max speed change = (3530 * timeDelta) / 1,000,000 (convert μs to s)
-                    // Simplify: (3530 * timeDelta) / 1000000
+                if (timeDelta > 0 && timeDelta < 1000000UL) {  // Sanity check: < 1 second
+                    // Max speed change = (MAX_ACCELERATION_UNITS * timeDelta) / 1,000,000 (convert μs to s)
                     // For 20ms update: (3530 * 20000) / 1000000 = 70.6 ≈ 71 units
-                    unsigned long maxSpeedChange = (3530UL * timeDelta) / 1000000UL;
+                    // Use 64-bit arithmetic to prevent overflow for large timeDelta
+                    unsigned long maxSpeedChange = ((unsigned long long)MAX_ACCELERATION_UNITS * timeDelta) / 1000000UL;
                     
                     // Clamp speed change
                     if (speedFiltered > spdHallPrev) {
                         // Accelerating
                         unsigned int speedDelta = speedFiltered - spdHallPrev;
                         if (speedDelta > maxSpeedChange) {
-                            speedFiltered = spdHallPrev + maxSpeedChange;
+                            speedFiltered = spdHallPrev + (unsigned int)maxSpeedChange;
                         }
                     } else {
                         // Decelerating - no clamp (allow rapid decel)
