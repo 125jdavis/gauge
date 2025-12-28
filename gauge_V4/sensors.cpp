@@ -46,11 +46,13 @@ float readThermSensor(int inputPin, float oldVal, int filt)
 void hallSpeedISR() {
     unsigned long currentTime = micros();
     unsigned long pulseInterval = currentTime - hallLastTime;
-    hallLastTime = currentTime;
-
-    // Ignore any implausibly short intervals (can set a minimum if needed, e.g. electrical noise)
-    // For 150 mph, the shortest plausible pulse interval is much less than 1ms; let's allow anything > 100 μs
-    if (pulseInterval > 100) {
+    
+    // Ignore unrealistic pulse intervals to prevent spikes
+    // Minimum: 100 μs (filters electrical noise, allows up to ~500 km/h)
+    // Maximum: 500000 μs (0.5 sec, filters stale intervals from standstill, ~0.5 km/h minimum)
+    if (pulseInterval > 100 && pulseInterval < 500000) {
+        hallLastTime = currentTime;
+        
         // Calculate speed in km/h * 100 using integer math:
         // km/h = (pulse freq [Hz] * 3600) / (TEETH_PER_REV * REVS_PER_KM)
         // pulse freq = 1,000,000 / pulseInterval (in microseconds)
@@ -66,6 +68,10 @@ void hallSpeedISR() {
         // Cast to unsigned long to prevent overflow in intermediate calculation
         spdHall = (unsigned int)(((unsigned long)speedRaw * FILTER_HALL_SPEED + (unsigned long)spdHall * (256 - FILTER_HALL_SPEED)) >> 8);
         Serial.println(spdHall);
+    } else if (pulseInterval >= 500000) {
+        // Very long interval detected - likely coming from standstill
+        // Update hallLastTime to prevent spike on next valid pulse
+        hallLastTime = currentTime;
     }
 }
 
@@ -75,12 +81,21 @@ void hallSpeedISR() {
 void hallSpeedUpdate() {
     static unsigned long lastUpdateTime = 0;
     unsigned long currentTime = micros();
+    unsigned long timeSinceLastPulse = currentTime - hallLastTime;
     
     // If it's been too long since last pulse, set speed to zero
-    if ((currentTime - hallLastTime) > HALL_PULSE_TIMEOUT) {
+    if (timeSinceLastPulse > HALL_PULSE_TIMEOUT) {
         hallSpeedRaw = 0;
         spdHall = 0;
+    } 
+    // If pulses have slowed significantly (200-1000ms), decay speed more aggressively
+    // This prevents "hanging" at low speeds when coming to a stop
+    else if (timeSinceLastPulse > 200000 && spdHall > 0) {
+        // Decay speed by ~10% every update cycle when no recent pulses
+        // This makes the speed drop more naturally when slowing to a stop
+        spdHall = (spdHall * 230) >> 8;  // Multiply by 230/256 ≈ 0.9
     }
+    
     // Optionally, clamp very low speeds to zero for display stability
     if (spdHall < HALL_SPEED_MIN) {
         spdHall = 0;
