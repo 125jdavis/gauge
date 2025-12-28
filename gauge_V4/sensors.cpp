@@ -24,6 +24,7 @@ static uint8_t intervalBufferCount = 0;
 // State machine variables
 static SpeedSensorState sensorState = STANDSTILL;
 static unsigned long lastFilteredInterval = 0;
+static unsigned long lastPulseArrivalTime = 0;  // Track when last pulse was added to buffer
 
 // Previous speed for acceleration limiting
 static unsigned int spdHallPrev = 0;
@@ -169,6 +170,7 @@ void hallSpeedISR() {
     
     // Accept interval - update timestamp and add to ring buffer
     hallLastTime = currentTime;
+    lastPulseArrivalTime = currentTime;  // Track when pulse was added to buffer
     
     // Add interval to ring buffer (median filter)
     intervalBuffer[intervalBufferIndex] = pulseInterval;
@@ -208,6 +210,7 @@ void hallSpeedUpdate() {
         intervalBufferIndex = 0;
         lastFilteredInterval = 0;
         lastSpeedUpdateTime = currentTime;
+        lastPulseArrivalTime = 0;  // Reset pulse arrival tracking
         
         // Update odometer (with speed = 0)
         if (SPEED_SOURCE == 2 && lastUpdateTime != 0) {
@@ -248,7 +251,12 @@ void hallSpeedUpdate() {
     }
     
     // ===== SPEED CALCULATION (MOVING state only) =====
-    if (sensorState == MOVING && intervalBufferCount > 0) {
+    // Only calculate speed from buffer if we have recent pulse data
+    // This prevents calculating from stale buffer data after pulses stop
+    unsigned long timeSinceLastPulseArrival = currentTime - lastPulseArrivalTime;
+    bool hasRecentPulse = (timeSinceLastPulseArrival < SPEED_DECAY_THRESHOLD);
+    
+    if (sensorState == MOVING && intervalBufferCount > 0 && hasRecentPulse) {
         // Get median interval from buffer (VR-safe: rejects outliers)
         unsigned long medianInterval = getMedianInterval();
         lastFilteredInterval = medianInterval;
@@ -304,11 +312,13 @@ void hallSpeedUpdate() {
     // ===== SPEED DECAY (when pulses slow down) =====
     // If pulses have slowed significantly, decay speed more aggressively
     // This prevents "hanging" at low speeds when coming to a stop
-    if (sensorState == MOVING && timeSinceLastPulse > SPEED_DECAY_THRESHOLD && spdHall > 0) {
+    // Only apply decay if we haven't just calculated a new speed
+    if (sensorState == MOVING && timeSinceLastPulse > SPEED_DECAY_THRESHOLD && spdHall > 0 && !hasRecentPulse) {
         // Decay speed by ~10% every update cycle when no recent pulses
         // This makes the speed drop more naturally when slowing to a stop
         spdHall = (spdHall * SPEED_DECAY_FACTOR) >> 8;
         spdHallPrev = spdHall;
+        Serial.println(spdHall);  // Print decayed speed
     }
     
     // ===== MINIMUM SPEED THRESHOLD =====
