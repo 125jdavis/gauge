@@ -63,7 +63,7 @@ void hallSpeedISR() {
         
         // Skip first few pulses after coming from standstill to prevent spikes
         // These pulses often have unreliable intervals as the system stabilizes
-        if (hallPulsesAfterStandstill <= PULSES_TO_SKIP_AFTER_STANDSTILL) {
+        if (hallPulsesAfterStandstill < PULSES_TO_SKIP_AFTER_STANDSTILL) {
             return;
         }
         
