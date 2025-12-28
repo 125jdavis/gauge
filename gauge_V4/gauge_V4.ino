@@ -253,7 +253,7 @@ void loop() {
   if (millis() - timerAngleUpdate > ANGLE_UPDATE_RATE) {
     motor1.setPosition(fuelLvlAngle(M1_SWEEP));
     motor2.setPosition(coolantTempAngle(M2_SWEEP));
-    motor3.setPosition(speedometerAngle(M3_SWEEP));
+    motor3.setPosition(speedometerAngleHall(M3_SWEEP));
     motor4.setPosition(fuelLvlAngle(M4_SWEEP));
     timerAngleUpdate = millis();
   }
