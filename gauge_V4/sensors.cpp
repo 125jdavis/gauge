@@ -7,6 +7,9 @@
 #include "sensors.h"
 #include "globals.h"
 
+// File-scope static variable to track pulses after standstill for spike prevention
+static uint8_t hallPulsesAfterStandstill = 0;
+
 /**
  * readSensor - Generic analog sensor reader with filtering
  */
@@ -53,6 +56,17 @@ void hallSpeedISR() {
     if (pulseInterval > 100 && pulseInterval < MAX_VALID_PULSE_INTERVAL) {
         hallLastTime = currentTime;
         
+        // Increment pulse counter after standstill
+        if (hallPulsesAfterStandstill < 255) {
+            hallPulsesAfterStandstill++;
+        }
+        
+        // Skip first 2 pulses after coming from standstill to prevent spikes
+        // These pulses often have unreliable intervals as the system stabilizes
+        if (hallPulsesAfterStandstill <= 2) {
+            return;
+        }
+        
         // Calculate speed in km/h * 100 using integer math:
         // km/h = (pulse freq [Hz] * 3600) / (TEETH_PER_REV * REVS_PER_KM)
         // pulse freq = 1,000,000 / pulseInterval (in microseconds)
@@ -72,6 +86,8 @@ void hallSpeedISR() {
         // Very long interval detected - likely coming from standstill
         // Update hallLastTime to prevent spike on next valid pulse
         hallLastTime = currentTime;
+        // Reset pulse counter when at standstill
+        hallPulsesAfterStandstill = 0;
     }
 }
 
@@ -87,6 +103,8 @@ void hallSpeedUpdate() {
     if (timeSinceLastPulse > HALL_PULSE_TIMEOUT) {
         hallSpeedRaw = 0;
         spdHall = 0;
+        // Reset pulse counter when vehicle has stopped
+        hallPulsesAfterStandstill = 0;
     } 
     // If pulses have slowed significantly, decay speed more aggressively
     // This prevents "hanging" at low speeds when coming to a stop
