@@ -22,9 +22,9 @@ uint8_t FILTER_AV2 = 12;            // Sensor B filter
 uint8_t FILTER_AV3 = 12;            // Sensor C filter
 
 // ===== HALL EFFECT SPEED SENSOR PARAMETERS =====
-uint16_t REVS_PER_KM = 6234;        // Revolutions per kilometer (value unchanged from REVS_PER_MILE)
-uint8_t TEETH_PER_REV = 12;         // Teeth per revolution
-uint8_t FILTER_HALL_SPEED = 205;    // EMA filter coefficient (205/256 ≈ 0.8)
+uint16_t REVS_PER_KM = 1625;        // Revolutions of VSS per kilometer (8000 pulses per mile is standard)
+uint8_t TEETH_PER_REV = 8;         // Teeth per revolution of the VSS
+uint8_t FILTER_HALL_SPEED = 64;    // EMA filter coefficient (205/256 ≈ 0.8)
 uint8_t HALL_SPEED_MIN = 50;        // Minimum reportable speed in km/h*100 (50 = 0.5 km/h)
 
 // ===== ENGINE RPM SENSOR PARAMETERS =====
