@@ -49,8 +49,8 @@ void hallSpeedISR() {
     
     // Ignore unrealistic pulse intervals to prevent spikes
     // Minimum: 100 μs (filters electrical noise, allows up to ~500 km/h)
-    // Maximum: 500000 μs (0.5 sec, filters stale intervals from standstill, ~0.5 km/h minimum)
-    if (pulseInterval > 100 && pulseInterval < 500000) {
+    // Maximum: MAX_VALID_PULSE_INTERVAL (filters stale intervals from standstill)
+    if (pulseInterval > 100 && pulseInterval < MAX_VALID_PULSE_INTERVAL) {
         hallLastTime = currentTime;
         
         // Calculate speed in km/h * 100 using integer math:
@@ -68,7 +68,7 @@ void hallSpeedISR() {
         // Cast to unsigned long to prevent overflow in intermediate calculation
         spdHall = (unsigned int)(((unsigned long)speedRaw * FILTER_HALL_SPEED + (unsigned long)spdHall * (256 - FILTER_HALL_SPEED)) >> 8);
         Serial.println(spdHall);
-    } else if (pulseInterval >= 500000) {
+    } else if (pulseInterval >= MAX_VALID_PULSE_INTERVAL) {
         // Very long interval detected - likely coming from standstill
         // Update hallLastTime to prevent spike on next valid pulse
         hallLastTime = currentTime;
@@ -88,12 +88,12 @@ void hallSpeedUpdate() {
         hallSpeedRaw = 0;
         spdHall = 0;
     } 
-    // If pulses have slowed significantly (200-1000ms), decay speed more aggressively
+    // If pulses have slowed significantly, decay speed more aggressively
     // This prevents "hanging" at low speeds when coming to a stop
-    else if (timeSinceLastPulse > 200000 && spdHall > 0) {
+    else if (timeSinceLastPulse > SPEED_DECAY_THRESHOLD && spdHall > 0) {
         // Decay speed by ~10% every update cycle when no recent pulses
         // This makes the speed drop more naturally when slowing to a stop
-        spdHall = (spdHall * 230) >> 8;  // Multiply by 230/256 ≈ 0.9
+        spdHall = (spdHall * SPEED_DECAY_FACTOR) >> 8;
     }
     
     // Optionally, clamp very low speeds to zero for display stability
