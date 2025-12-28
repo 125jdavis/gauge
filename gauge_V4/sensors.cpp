@@ -57,13 +57,13 @@ void hallSpeedISR() {
         hallLastTime = currentTime;
         
         // Increment pulse counter after standstill
-        if (hallPulsesAfterStandstill < 255) {
+        if (hallPulsesAfterStandstill < UINT8_MAX) {
             hallPulsesAfterStandstill++;
         }
         
-        // Skip first 2 pulses after coming from standstill to prevent spikes
+        // Skip first few pulses after coming from standstill to prevent spikes
         // These pulses often have unreliable intervals as the system stabilizes
-        if (hallPulsesAfterStandstill <= 2) {
+        if (hallPulsesAfterStandstill <= PULSES_TO_SKIP_AFTER_STANDSTILL) {
             return;
         }
         
