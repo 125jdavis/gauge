@@ -13,7 +13,7 @@ const float KM_TO_MILES = 0.621371;  // Conversion factor: kilometers to miles
 // ===== ODOMETER MOTOR STATE =====
 // Non-blocking stepper motor control for mechanical odometer
 static float odoMotorTargetSteps = 0.0;   // Accumulated target position (includes fractional steps)
-static long odoMotorCurrentStep = 0;       // Current motor position in whole steps
+static unsigned long odoMotorCurrentStep = 0;  // Current motor position in whole steps
 static unsigned long lastOdoStepTime = 0;  // Time of last step (microseconds)
 static const unsigned long ODO_STEP_DELAY_US = 1000;  // Minimum delay between steps (1ms = 1000 steps/sec max)
 
@@ -285,11 +285,18 @@ void moveOdometerMotor(float distanceKm) {
 void updateOdometerMotor(void) {
     // Check if there are steps to move
     // Round target to ensure fractional parts >= 0.5 trigger the next step
-    long targetStep = (long)(odoMotorTargetSteps + 0.5);
+    unsigned long targetStep = (unsigned long)(odoMotorTargetSteps + 0.5);
     
     if (odoMotorCurrentStep < targetStep) {
         // Check if enough time has passed since last step
         unsigned long currentTime = micros();
+        
+        // Initialize timer on first run to avoid immediate step
+        if (lastOdoStepTime == 0) {
+            lastOdoStepTime = currentTime;
+            return;
+        }
+        
         if (currentTime - lastOdoStepTime >= ODO_STEP_DELAY_US) {
             // Move one step forward
             odoMotor.step(1);
