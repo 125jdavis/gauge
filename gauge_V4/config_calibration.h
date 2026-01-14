@@ -70,7 +70,7 @@ extern unsigned int TACH_MAX;       // RPM at which shift light activates and fl
 extern unsigned int TACH_MIN;       // Minimum RPM to show on tach (below this LEDs are off)
 
 // ===== ODOMETER MOTOR CALIBRATION =====
-extern uint8_t ODO_STEPS;             // Steps per revolution for odometer motor
+extern uint16_t ODO_STEPS;             // Steps per revolution for odometer motor
 extern uint8_t ODO_MOTOR_TEETH;       // Number of teeth on motor gear
 extern uint8_t ODO_GEAR_TEETH;        // Number of teeth on odometer gear
 
