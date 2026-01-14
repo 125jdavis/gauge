@@ -218,7 +218,9 @@ void hallSpeedUpdate() {
             unsigned long timeIntervalMicros = currentTime - lastUpdateTime;
             unsigned long timeIntervalMs = timeIntervalMicros / 1000;
             float distTraveled = updateOdometer(0, timeIntervalMs);
-            moveOdometerMotor(distTraveled);
+            if (distTraveled > 0) {
+                moveOdometerMotor(distTraveled);
+            }
         }
         lastUpdateTime = currentTime;
         return;
@@ -339,7 +341,9 @@ void hallSpeedUpdate() {
         // spdHall is already in km/h * 100, convert to km/h for updateOdometer
         float speedKmh = spdHall * 0.01;
         float distTraveled = updateOdometer(speedKmh, timeIntervalMs);
-        moveOdometerMotor(distTraveled);
+        if (distTraveled > 0) {
+            moveOdometerMotor(distTraveled);
+        }
     }
     lastUpdateTime = currentTime;
 }

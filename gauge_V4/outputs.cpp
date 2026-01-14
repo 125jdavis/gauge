@@ -7,6 +7,9 @@
 #include "outputs.h"
 #include "globals.h"
 
+// ===== CONVERSION CONSTANTS =====
+const float KM_TO_MILES = 0.621371;  // Conversion factor: kilometers to miles
+
 void ledShiftLight(int ledRPM){
   static bool tachFlashState = 0;  // Current state of shift light flashing (0=off, 1=on) - local static
   
@@ -242,8 +245,8 @@ void motorSweepSynchronous(void){
  *   - Steps = 1.25 * 4096 = 5120 steps
  */
 void moveOdometerMotor(float distanceKm) {
-    // Convert distance from kilometers to miles (1 mile = 1.60934 km)
-    float distanceMiles = distanceKm * 0.621371;
+    // Convert distance from kilometers to miles
+    float distanceMiles = distanceKm * KM_TO_MILES;
     
     // Calculate odometer revolutions (1 revolution = 1 mile per specification)
     float odoRevs = distanceMiles;
@@ -254,7 +257,8 @@ void moveOdometerMotor(float distanceKm) {
     float motorRevs = odoRevs * gearRatio;
     
     // Calculate steps required (steps = motor revolutions * steps per revolution)
-    int steps = (int)(motorRevs * ODO_STEPS);
+    // Use round() to ensure proper rounding instead of truncation
+    int steps = (int)round(motorRevs * ODO_STEPS);
     
     // Move the motor if there are steps to command
     if (steps > 0) {

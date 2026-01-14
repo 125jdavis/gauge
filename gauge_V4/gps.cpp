@@ -39,7 +39,9 @@ void fetchGPSdata(){
             // Calculate distance traveled for odometer (only if GPS is selected as speed source)
             if (SPEED_SOURCE == 3) {
               distLast = updateOdometer(v, lagGPS);
-              moveOdometerMotor(distLast);
+              if (distLast > 0) {
+                moveOdometerMotor(distLast);
+              }
             } else {
               // Still calculate distLast for potential display/debugging, but don't update odometer
               if (v > 2) {
