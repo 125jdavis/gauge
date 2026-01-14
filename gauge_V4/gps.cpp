@@ -7,6 +7,7 @@
 #include "gps.h"
 #include "globals.h"
 #include "sensors.h"
+#include "outputs.h"
 
 /**
  * fetchGPSdata - Process new GPS data when available
@@ -38,6 +39,7 @@ void fetchGPSdata(){
             // Calculate distance traveled for odometer (only if GPS is selected as speed source)
             if (SPEED_SOURCE == 3) {
               distLast = updateOdometer(v, lagGPS);
+              moveOdometerMotor(distLast);
             } else {
               // Still calculate distLast for potential display/debugging, but don't update odometer
               if (v > 2) {

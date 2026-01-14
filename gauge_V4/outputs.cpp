@@ -222,50 +222,42 @@ void motorSweepSynchronous(void){
  * Calculates the number of steps required to advance the mechanical odometer
  * based on distance traveled, motor characteristics, and gear ratios.
  * 
+ * Per specification: One rotation of the mechanical odometer = 1 mile
+ * 
  * @param distanceKm - Distance to advance the odometer in kilometers
  * 
  * Calculation:
- * 1. Convert distance to steps based on:
- *    - ODO_STEPS: Steps per revolution of the stepper motor
- *    - ODO_MOTOR_TEETH: Number of teeth on motor gear
- *    - ODO_GEAR_TEETH: Number of teeth on odometer gear
- *    - Odometer scale: How many km per full rotation of odometer
+ * 1. Convert distance from kilometers to miles (0.621371 miles per km)
+ * 2. Calculate odometer revolutions needed (1 revolution = 1 mile)
+ * 3. Apply gear ratio: motor_revs = (ODO_GEAR_TEETH / ODO_MOTOR_TEETH) * odo_revs
+ * 4. Calculate motor steps: steps = motor_revs * ODO_STEPS
+ * 5. Command motor to move the calculated steps
  * 
- * 2. Gear ratio: motor_revs = (ODO_GEAR_TEETH / ODO_MOTOR_TEETH) * odo_revs
- * 3. Motor steps = motor_revs * ODO_STEPS
- * 
- * Example:
- * - Motor: 32 steps/rev, 10 teeth
- * - Odometer gear: 20 teeth, 1 km per revolution
- * - For 0.1 km: 
- *   - Odometer revs = 0.1
- *   - Motor revs = (20/10) * 0.1 = 0.2
- *   - Steps = 0.2 * 32 = 6.4 ≈ 6 steps
- * 
- * Note: This function currently calculates steps but does not move the motor.
- * Motor movement code should be added based on the specific Stepper library
- * implementation and hardware constraints (e.g., non-blocking movement).
+ * Example with default calibration values (ODO_STEPS=4096, ODO_MOTOR_TEETH=16, ODO_GEAR_TEETH=20):
+ * - For 1.60934 km (1 mile):
+ *   - Distance in miles = 1.0
+ *   - Odometer revs = 1.0
+ *   - Gear ratio = 20/16 = 1.25
+ *   - Motor revs = 1.0 * 1.25 = 1.25
+ *   - Steps = 1.25 * 4096 = 5120 steps
  */
 void moveOdometerMotor(float distanceKm) {
-    // Calculate steps required to move odometer motor
-    // 
-    // Formula breakdown:
-    // 1. ODO_GEAR_TEETH / ODO_MOTOR_TEETH = gear ratio (how many motor revs per odo rev)
-    // 2. distanceKm = distance traveled
-    // 3. Assuming odometer advances 1 unit per full rotation (adjust based on actual mechanical design)
-    // 4. steps = distanceKm * gearRatio * ODO_STEPS
+    // Convert distance from kilometers to miles (1 mile = 1.60934 km)
+    float distanceMiles = distanceKm * 0.621371;
     
-    // For now, calculate the steps but don't move the motor yet
-    // This is a placeholder for the actual motor movement logic
+    // Calculate odometer revolutions (1 revolution = 1 mile per specification)
+    float odoRevs = distanceMiles;
     
-    // Example calculation (adjust based on actual mechanical odometer):
-    // If odometer advances 0.1 km per revolution:
-    // float odoRevsPerKm = 10.0;  // 10 revs = 1 km
-    // float odoRevs = distanceKm * odoRevsPerKm;
-    // float gearRatio = (float)ODO_GEAR_TEETH / (float)ODO_MOTOR_TEETH;
-    // float motorRevs = odoRevs * gearRatio;
-    // int steps = (int)(motorRevs * ODO_STEPS);
+    // Apply gear ratio to get motor revolutions
+    // Gear ratio: how many motor revs needed per odometer revolution
+    float gearRatio = (float)ODO_GEAR_TEETH / (float)ODO_MOTOR_TEETH;
+    float motorRevs = odoRevs * gearRatio;
     
-    // TODO: Add actual motor movement using odoMotor.step(steps)
-    // Consider implementing a non-blocking approach if motor movement is slow
+    // Calculate steps required (steps = motor revolutions * steps per revolution)
+    int steps = (int)(motorRevs * ODO_STEPS);
+    
+    // Move the motor if there are steps to command
+    if (steps > 0) {
+        odoMotor.step(steps);
+    }
 }

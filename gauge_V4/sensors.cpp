@@ -6,6 +6,7 @@
 
 #include "sensors.h"
 #include "globals.h"
+#include "outputs.h"
 
 // ===== VR-SAFE COMBINED FILTER STATE =====
 // State machine for startup filtering (VR-safe, Hall-compatible)
@@ -216,7 +217,8 @@ void hallSpeedUpdate() {
         if (SPEED_SOURCE == 2 && lastUpdateTime != 0) {
             unsigned long timeIntervalMicros = currentTime - lastUpdateTime;
             unsigned long timeIntervalMs = timeIntervalMicros / 1000;
-            updateOdometer(0, timeIntervalMs);
+            float distTraveled = updateOdometer(0, timeIntervalMs);
+            moveOdometerMotor(distTraveled);
         }
         lastUpdateTime = currentTime;
         return;
@@ -336,7 +338,8 @@ void hallSpeedUpdate() {
         unsigned long timeIntervalMs = timeIntervalMicros / 1000;
         // spdHall is already in km/h * 100, convert to km/h for updateOdometer
         float speedKmh = spdHall * 0.01;
-        updateOdometer(speedKmh, timeIntervalMs);
+        float distTraveled = updateOdometer(speedKmh, timeIntervalMs);
+        moveOdometerMotor(distTraveled);
     }
     lastUpdateTime = currentTime;
 }
