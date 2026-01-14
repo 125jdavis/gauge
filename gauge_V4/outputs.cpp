@@ -249,16 +249,14 @@ void moveOdometerMotor(float distanceKm) {
     float distanceMiles = distanceKm * KM_TO_MILES;
     
     // Calculate odometer revolutions (1 revolution = 1 mile per specification)
-    float odoRevs = distanceMiles;
-    
-    // Apply gear ratio to get motor revolutions
+    // and apply gear ratio to get motor revolutions
     // Gear ratio: how many motor revs needed per odometer revolution
     float gearRatio = (float)ODO_GEAR_TEETH / (float)ODO_MOTOR_TEETH;
-    float motorRevs = odoRevs * gearRatio;
+    float motorRevs = distanceMiles * gearRatio;
     
     // Calculate steps required (steps = motor revolutions * steps per revolution)
-    // Use round() to ensure proper rounding instead of truncation
-    int steps = (int)round(motorRevs * ODO_STEPS);
+    // Add 0.5 before casting to int for proper rounding instead of truncation
+    int steps = (int)(motorRevs * ODO_STEPS + 0.5);
     
     // Move the motor if there are steps to command
     if (steps > 0) {
