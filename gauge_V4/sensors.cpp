@@ -31,6 +31,9 @@ static unsigned long lastPulseArrivalTime = 0;  // Track when last pulse was add
 static unsigned int spdHallPrev = 0;
 static unsigned long lastSpeedUpdateTime = 0;
 
+// CAN odometer update tracking
+static unsigned long lastCANOdometerUpdateTime = 0;
+
 // VR-Safe filter constants
 #define LOW_SPEED_THRESHOLD_FOR_VR_REJECTION 1000  // 10 km/h in units of km/h*100
 #define MAX_ACCELERATION_UNITS 3530UL  // 1g acceleration ≈ 35.3 km/h/s ≈ 3530 (km/h*100)/s
@@ -495,6 +498,23 @@ void sigSelect (void) {
         default:  // Fallback to off
             spd = 0;
             break;
+    }
+    
+    // Update odometer for CAN speed source
+    // (GPS and Hall sensor update odometer in their respective functions)
+    if (SPEED_SOURCE == 1 && lastCANOdometerUpdateTime != 0) {
+        unsigned long currentTime = millis();
+        unsigned long timeIntervalMs = currentTime - lastCANOdometerUpdateTime;
+        // spdCAN is in km/h * 100 format, convert to km/h for updateOdometer
+        float speedKmh = spdCAN * 0.01;
+        float distTraveled = updateOdometer(speedKmh, timeIntervalMs);
+        if (distTraveled > 0) {
+            moveOdometerMotor(distTraveled);
+        }
+        lastCANOdometerUpdateTime = currentTime;
+    } else if (SPEED_SOURCE == 1 && lastCANOdometerUpdateTime == 0) {
+        // Initialize the timer on first run
+        lastCANOdometerUpdateTime = millis();
     }
     
     // Select engine RPM source: 0=off, 1=CAN, 2=coil negative
