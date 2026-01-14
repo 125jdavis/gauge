@@ -284,7 +284,8 @@ void moveOdometerMotor(float distanceKm) {
  */
 void updateOdometerMotor(void) {
     // Check if there are steps to move
-    long targetStep = (long)odoMotorTargetSteps;
+    // Round target to ensure fractional parts >= 0.5 trigger the next step
+    long targetStep = (long)(odoMotorTargetSteps + 0.5);
     
     if (odoMotorCurrentStep < targetStep) {
         // Check if enough time has passed since last step
