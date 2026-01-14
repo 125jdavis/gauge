@@ -10,6 +10,13 @@
 // ===== CONVERSION CONSTANTS =====
 const float KM_TO_MILES = 0.621371;  // Conversion factor: kilometers to miles
 
+// ===== ODOMETER MOTOR STATE =====
+// Non-blocking stepper motor control for mechanical odometer
+static float odoMotorTargetSteps = 0.0;   // Accumulated target position (includes fractional steps)
+static long odoMotorCurrentStep = 0;       // Current motor position in whole steps
+static unsigned long lastOdoStepTime = 0;  // Time of last step (microseconds)
+static const unsigned long ODO_STEP_DELAY_US = 1000;  // Minimum delay between steps (1ms = 1000 steps/sec max)
+
 void ledShiftLight(int ledRPM){
   static bool tachFlashState = 0;  // Current state of shift light flashing (0=off, 1=on) - local static
   
@@ -220,10 +227,11 @@ void motorSweepSynchronous(void){
 }
 
 /**
- * moveOdometerMotor - Move mechanical odometer motor by calculated distance
+ * moveOdometerMotor - Queue distance for mechanical odometer motor
  * 
  * Calculates the number of steps required to advance the mechanical odometer
- * based on distance traveled, motor characteristics, and gear ratios.
+ * based on distance traveled and adds them to the target position. The motor
+ * will be moved non-blocking via updateOdometerMotor() calls from main loop.
  * 
  * Per specification: One rotation of the mechanical odometer = 1 mile
  * 
@@ -234,7 +242,7 @@ void motorSweepSynchronous(void){
  * 2. Calculate odometer revolutions needed (1 revolution = 1 mile)
  * 3. Apply gear ratio: motor_revs = (ODO_GEAR_TEETH / ODO_MOTOR_TEETH) * odo_revs
  * 4. Calculate motor steps: steps = motor_revs * ODO_STEPS
- * 5. Command motor to move the calculated steps
+ * 5. Add to target position (accumulates fractional steps for precision)
  * 
  * Example with default calibration values (ODO_STEPS=4096, ODO_MOTOR_TEETH=16, ODO_GEAR_TEETH=20):
  * - For 1.60934 km (1 mile):
@@ -255,11 +263,37 @@ void moveOdometerMotor(float distanceKm) {
     float motorRevs = distanceMiles * gearRatio;
     
     // Calculate steps required (steps = motor revolutions * steps per revolution)
-    // Add 0.5 before casting to int for proper rounding instead of truncation
-    int steps = (int)(motorRevs * ODO_STEPS + 0.5);
+    // Keep as float to accumulate fractional steps for better precision
+    float steps = motorRevs * ODO_STEPS;
     
-    // Move the motor if there are steps to command
+    // Add to target position (non-blocking - actual movement happens in updateOdometerMotor)
     if (steps > 0) {
-        odoMotor.step(steps);
+        odoMotorTargetSteps += steps;
+    }
+}
+
+/**
+ * updateOdometerMotor - Non-blocking motor update for mechanical odometer
+ * 
+ * Moves the odometer motor one step at a time toward the target position.
+ * This function should be called frequently from the main loop to ensure
+ * smooth, non-blocking motor operation.
+ * 
+ * The function enforces a minimum delay between steps to prevent the motor
+ * from moving too fast and losing steps or stalling.
+ */
+void updateOdometerMotor(void) {
+    // Check if there are steps to move
+    long targetStep = (long)odoMotorTargetSteps;
+    
+    if (odoMotorCurrentStep < targetStep) {
+        // Check if enough time has passed since last step
+        unsigned long currentTime = micros();
+        if (currentTime - lastOdoStepTime >= ODO_STEP_DELAY_US) {
+            // Move one step forward
+            odoMotor.step(1);
+            odoMotorCurrentStep++;
+            lastOdoStepTime = currentTime;
+        }
     }
 }

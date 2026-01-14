@@ -263,6 +263,7 @@ void loop() {
   motor2.update();
   motor3.update();
   motor4.update();
+  updateOdometerMotor();  // Non-blocking odometer motor update
 
   // ===== SHUTDOWN DETECTION =====
   // Check if ignition voltage has dropped (key turned off)

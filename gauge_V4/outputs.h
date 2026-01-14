@@ -27,6 +27,7 @@ void motorSweepSynchronous(void);             // Full sweep test for all motors
 void ledShiftLight(int ledRPM);               // Update LED tachometer display
 
 // Odometer motor control
-void moveOdometerMotor(float distanceKm);     // Move mechanical odometer motor
+void moveOdometerMotor(float distanceKm);     // Queue distance for mechanical odometer motor
+void updateOdometerMotor(void);                // Non-blocking motor update (call from main loop)
 
 #endif // OUTPUTS_H
