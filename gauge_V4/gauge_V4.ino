@@ -253,8 +253,9 @@ void loop() {
   if (millis() - timerAngleUpdate > ANGLE_UPDATE_RATE) {
     motor1.setPosition(fuelLvlAngle(M1_SWEEP));
     motor2.setPosition(coolantTempAngle(M2_SWEEP));
-    motor3.setPosition(speedometerAngleHall(M3_SWEEP));
+    motor3.setPosition(fuelLvlAngle(M3_SWEEP));  // Motor 3 now same config as motor1
     motor4.setPosition(fuelLvlAngle(M4_SWEEP));
+    motorS.setPosition(speedometerAngleS(MS_SWEEP));  // Motor S is speedometer
     timerAngleUpdate = millis();
   }
 
@@ -263,6 +264,7 @@ void loop() {
   motor2.update();
   motor3.update();
   motor4.update();
+  motorS.update();
   updateOdometerMotor();  // Non-blocking odometer motor update
 
   // ===== SHUTDOWN DETECTION =====

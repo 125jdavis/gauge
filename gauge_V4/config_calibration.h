@@ -16,12 +16,13 @@
 #include <Arduino.h>
 
 // ===== STEPPER MOTOR SWEEP RANGES =====
-// Total steps for full sweep: degrees * 12 steps/degree
+// Total steps for full sweep: degrees * 12 steps/degree (for X25.168 motors)
 // X25.168 motors have 315° range at 1/3° per step
 extern uint16_t M1_SWEEP;        // Motor 1: 58 degrees * 12 = 696 steps (typically fuel level gauge)
 extern uint16_t M2_SWEEP;        // Motor 2: 58 degrees * 12 = 696 steps (typically secondary gauge)
-extern uint16_t M3_SWEEP;       // Motor 3: 118 degrees * 12 = 1416 steps (typically speedometer - wider range)
+extern uint16_t M3_SWEEP;        // Motor 3: 58 degrees * 12 = 696 steps (same config as motor1)
 extern uint16_t M4_SWEEP;        // Motor 4: 58 degrees * 12 = 696 steps (typically coolant temp)
+extern uint16_t MS_SWEEP;        // Motor S: 118 degrees (speedometer - 16 microsteps, 400 steps/rev, 0.9°/step)
 
 // ===== ANALOG SENSOR FILTER COEFFICIENTS =====
 // Battery Voltage Sensor - Filter coefficient out of 64

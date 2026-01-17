@@ -31,6 +31,7 @@ extern SwitecX12 motor1;
 extern SwitecX12 motor2;
 extern SwitecX12 motor3;
 extern SwitecX12 motor4;
+extern SwitecX12 motorS;
 extern Stepper odoMotor;
 extern Adafruit_GPS GPS;
 

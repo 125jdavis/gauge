@@ -114,6 +114,43 @@ int speedometerAngleHall(int sweep) {
   return angle;
 }
 /**
+ * speedometerAngleS - Calculate speedometer needle angle for motorS (integer math)
+ * 
+ * Converts vehicle speed to motor angle using integer math for efficiency.
+ * Uses the generic 'spd' variable which is selected based on SPEED_SOURCE.
+ * 
+ * @param sweep - Maximum motor steps for full gauge sweep
+ * @return Motor angle in steps (1 to sweep-1)
+ * 
+ * Speed format: km/h * 100 (e.g., 5000 = 50 km/h)
+ * Output: mph * 100 (e.g., 3107 = 31.07 mph)
+ * 
+ * Conversion: 1 km/h = 0.621371 mph
+ * Using integer math: (spd * 62137) / 100000 ≈ spd * 0.621371
+ */
+int speedometerAngleS(int sweep) {
+  // Convert km/h*100 to mph*100 using integer math
+  // spd is in km/h * 100, multiply by 62137 then divide by 100000
+  // This gives mph * 100
+  long spd_mph_long = ((long)spd * 62137L) / 100000L;
+  int spd_mph = (int)spd_mph_long;
+  
+  // Dead zone: below 0.5 mph, show zero
+  if (spd_mph < 50) spd_mph = 0;
+  
+  // Clamp to max (100 mph * 100 = 10000)
+  if (spd_mph > SPEEDO_MAX) spd_mph = SPEEDO_MAX;
+  
+  // Map speed to motor angle using integer math
+  // angle = ((spd_mph - 0) * (sweep - 1 - 1)) / (SPEEDO_MAX - 0) + 1
+  // Simplified: angle = (spd_mph * (sweep - 2)) / SPEEDO_MAX + 1
+  int angle = ((long)spd_mph * (long)(sweep - 2)) / (long)SPEEDO_MAX + 1;
+  
+  // Ensure angle is within valid range
+  angle = constrain(angle, 1, sweep - 1);
+  return angle;
+}
+/**
  * fuelLvlAngle - Calculate fuel gauge needle angle from fuel level
  * 
  * Converts fuel level in gallons/liters to motor angle.
@@ -165,26 +202,30 @@ void motorZeroSynchronous(void){
   motor2.currentStep = M2_SWEEP;
   motor3.currentStep = M3_SWEEP;
   motor4.currentStep = M4_SWEEP;
+  motorS.currentStep = MS_SWEEP;
   
   // Command all motors to position 0
   motor1.setPosition(0);
   motor2.setPosition(0);
   motor3.setPosition(0);
   motor4.setPosition(0);
+  motorS.setPosition(0);
   
   // Wait for all motors to reach zero (blocking loop)
-  while (motor1.currentStep > 0 || motor2.currentStep > 0 || motor3.currentStep > 0 || motor4.currentStep > 0)
+  while (motor1.currentStep > 0 || motor2.currentStep > 0 || motor3.currentStep > 0 || motor4.currentStep > 0 || motorS.currentStep > 0)
   {
       motor1.update();  // Step motor 1 if needed
       motor2.update();  // Step motor 2 if needed
       motor3.update();
       motor4.update();
+      motorS.update();
   }
   // Reset position counters to zero
   motor1.currentStep = 0;
   motor2.currentStep = 0;
   motor3.currentStep = 0;
   motor4.currentStep = 0;
+  motorS.currentStep = 0;
 }
 void motorSweepSynchronous(void){
   // Start by zeroing all motors
@@ -196,15 +237,18 @@ void motorSweepSynchronous(void){
   motor2.setPosition(M2_SWEEP);
   motor3.setPosition(M3_SWEEP);
   motor4.setPosition(M4_SWEEP);
+  motorS.setPosition(MS_SWEEP);
   
   // Wait for all motors to reach maximum (blocking loop)
   while (motor1.currentStep < M1_SWEEP-1  || motor2.currentStep < M2_SWEEP-1 || 
-         motor3.currentStep < M3_SWEEP-1  || motor4.currentStep < M4_SWEEP-1)
+         motor3.currentStep < M3_SWEEP-1  || motor4.currentStep < M4_SWEEP-1 || 
+         motorS.currentStep < MS_SWEEP-1)
   {
       motor1.update();  // Step each motor toward target
       motor2.update();
       motor3.update();
       motor4.update();
+      motorS.update();
   }
 
   Serial.println("full sweep");
@@ -214,15 +258,18 @@ void motorSweepSynchronous(void){
   motor2.setPosition(0);
   motor3.setPosition(0);
   motor4.setPosition(0);
+  motorS.setPosition(0);
   
   // Wait for all motors to return to zero (blocking loop)
   while (motor1.currentStep > 0 || motor2.currentStep > 0 || 
-         motor3.currentStep > 0 || motor4.currentStep > 0)
+         motor3.currentStep > 0 || motor4.currentStep > 0 || 
+         motorS.currentStep > 0)
   {
       motor1.update();
       motor2.update();
       motor3.update();
       motor4.update();
+      motorS.update();
   }
 }
 

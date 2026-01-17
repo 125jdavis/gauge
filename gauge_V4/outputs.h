@@ -16,6 +16,7 @@ int speedometerAngle(int sweep);              // GPS speed to speedometer angle
 int speedometerAngleGPS(int sweep);           // GPS speed (original version)
 int speedometerAngleCAN(int sweep);           // CAN speed to angle
 int speedometerAngleHall(int sweep);          // Hall sensor speed to angle
+int speedometerAngleS(int sweep);             // Generic speed to angle for motorS (integer math)
 int fuelLvlAngle(int sweep);                  // Fuel level to gauge angle
 int coolantTempAngle(int sweep);              // Coolant temp to gauge angle
 

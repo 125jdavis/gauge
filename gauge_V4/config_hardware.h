@@ -45,6 +45,10 @@ constexpr uint8_t M3_DIR = 32;      // Motor 3 direction control pin
 constexpr uint8_t M4_STEP = 40;     // Motor 4 step pulse pin
 constexpr uint8_t M4_DIR = 41;      // Motor 4 direction control pin
 
+// Motor S Configuration (speedometer - 16 microsteps, 400 steps/rev, 0.9° per step)
+constexpr uint8_t MS_STEP = 45;     // Motor S step pulse pin
+constexpr uint8_t MS_DIR = 47;      // Motor S direction control pin
+
 // ===== ROTARY ENCODER =====
 constexpr uint8_t SWITCH = 1;       // Rotary encoder push button pin (V4 hardware uses pin 1, V3 used pin 24)
 

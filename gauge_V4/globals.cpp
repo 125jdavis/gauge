@@ -16,6 +16,7 @@ SwitecX12 motor1(M1_SWEEP, M1_STEP, M1_DIR);
 SwitecX12 motor2(M2_SWEEP, M2_STEP, M2_DIR);
 SwitecX12 motor3(M3_SWEEP, M3_STEP, M3_DIR);
 SwitecX12 motor4(M4_SWEEP, M4_STEP, M4_DIR);
+SwitecX12 motorS(MS_SWEEP, MS_STEP, MS_DIR);
 Stepper odoMotor(ODO_STEPS, ODO_PIN1, ODO_PIN2, ODO_PIN3, ODO_PIN4);
 Adafruit_GPS GPS(&Serial2);
 
