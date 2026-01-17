@@ -11,7 +11,7 @@ uint16_t M1_SWEEP = 58 * 12;        // Motor 1: 58 degrees * 12 = 696 steps
 uint16_t M2_SWEEP = 58 * 12;        // Motor 2: 58 degrees * 12 = 696 steps
 uint16_t M3_SWEEP = 58 * 12;        // Motor 3: 58 degrees * 12 = 696 steps (same config as motor1)
 uint16_t M4_SWEEP = 58 * 12;        // Motor 4: 58 degrees * 12 = 696 steps
-uint16_t MS_SWEEP = 2098;           // Motor S: 118° / 0.9° * 16 microsteps = 2098 steps (speedometer)
+uint16_t MS_SWEEP = 2098;           // Motor S: (118° / 0.9°) * 16 microsteps = 2097.78 ≈ 2098 steps (speedometer)
 
 // ===== ANALOG SENSOR FILTER COEFFICIENTS =====
 uint8_t FILTER_VBATT = 8;           // 8/64 = light filtering

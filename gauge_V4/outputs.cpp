@@ -132,6 +132,10 @@ int speedometerAngleS(int sweep) {
   // Convert km/h*100 to mph*100 using integer math
   // spd is in km/h * 100, multiply by 62137 then divide by 100000
   // This gives mph * 100
+  // Bounds check to prevent overflow (spd max is typically ~65535, safe for this calculation)
+  if (spd > 30000) {  // 300 km/h * 100, well above typical max speed
+    spd = 30000;
+  }
   long spd_mph_long = ((long)spd * 62137L) / 100000L;
   int spd_mph = (int)spd_mph_long;
   
@@ -142,8 +146,9 @@ int speedometerAngleS(int sweep) {
   if (spd_mph > SPEEDO_MAX) spd_mph = SPEEDO_MAX;
   
   // Map speed to motor angle using integer math
-  // angle = ((spd_mph - 0) * (sweep - 1 - 1)) / (SPEEDO_MAX - 0) + 1
-  // Simplified: angle = (spd_mph * (sweep - 2)) / SPEEDO_MAX + 1
+  // Standard map formula: output = (input * (out_max - out_min)) / (in_max - in_min) + out_min
+  // For speedometer: angle = (spd_mph * (sweep - 1 - 1)) / SPEEDO_MAX + 1
+  // The (sweep - 2) accounts for valid range being 1 to (sweep-1), giving (sweep-2) steps
   int angle = ((long)spd_mph * (long)(sweep - 2)) / (long)SPEEDO_MAX + 1;
   
   // Ensure angle is within valid range
