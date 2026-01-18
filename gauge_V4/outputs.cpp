@@ -253,6 +253,9 @@ void motorZeroSynchronous(void){
  * Note: This is a blocking function - normal operation resumes after sweep completes
  */
 void motorSweepSynchronous(void){
+  // Minimum delay between motor updates (prevents tight loop issues)
+  static const unsigned long MIN_MOTOR_DELAY_US = 10;
+  
   // Start by zeroing all motors
   motorZeroSynchronous();
   Serial.println("zeroed");
@@ -269,13 +272,13 @@ void motorSweepSynchronous(void){
   uint16_t maxSweep = MS_SWEEP;  // motorS has the largest sweep
   
   // Calculate microseconds per update call to achieve MOTOR_SWEEP_TIME_MS
-  // delay_us = (target_time_ms * 1000) / max_steps
-  // Add bounds checking to prevent division by zero and ensure reasonable delays
+  // Use 64-bit arithmetic to prevent overflow with large MOTOR_SWEEP_TIME_MS values
   unsigned long delayMicros = 0;
   if (maxSweep > 0) {
-    delayMicros = ((unsigned long)MOTOR_SWEEP_TIME_MS * 1000UL) / maxSweep;
-    // Ensure minimum delay of 10 µs to prevent tight loop issues
-    if (delayMicros < 10) delayMicros = 10;
+    unsigned long long temp = (unsigned long long)MOTOR_SWEEP_TIME_MS * 1000ULL;
+    delayMicros = (unsigned long)(temp / maxSweep);
+    // Ensure minimum delay to prevent tight loop issues
+    if (delayMicros < MIN_MOTOR_DELAY_US) delayMicros = MIN_MOTOR_DELAY_US;
   }
   
   // Wait for all motors to reach maximum with timed delays
@@ -285,8 +288,10 @@ void motorSweepSynchronous(void){
          motorS.currentStep < MS_SWEEP-1)
   {
       // Check if enough time has passed for next update
+      // Unsigned arithmetic handles micros() overflow correctly
       unsigned long currentMicros = micros();
-      if (currentMicros - lastUpdateMicros >= delayMicros) {
+      unsigned long elapsed = currentMicros - lastUpdateMicros;
+      if (elapsed >= delayMicros) {
         motor1.update();  // Step each motor toward target
         motor2.update();
         motor3.update();
@@ -312,8 +317,10 @@ void motorSweepSynchronous(void){
          motorS.currentStep > 0)
   {
       // Check if enough time has passed for next update
+      // Unsigned arithmetic handles micros() overflow correctly
       unsigned long currentMicros = micros();
-      if (currentMicros - lastUpdateMicros >= delayMicros) {
+      unsigned long elapsed = currentMicros - lastUpdateMicros;
+      if (elapsed >= delayMicros) {
         motor1.update();
         motor2.update();
         motor3.update();
