@@ -246,8 +246,8 @@ void motorZeroSynchronous(void){
  * 
  * Implementation:
  * - Calculates delay between update() calls based on longest motor sweep
- * - motorS has the longest sweep (2098 steps), so it drives the timing
- * - Other motors complete their shorter sweeps within the same timeframe
+ * - Dynamically finds the motor with the longest sweep range
+ * - All motors complete their sweeps within the same timeframe
  * - Uses micros() for precise timing control
  * 
  * Note: This is a blocking function - normal operation resumes after sweep completes
@@ -268,17 +268,24 @@ void motorSweepSynchronous(void){
   motorS.setPosition(MS_SWEEP);
   
   // Calculate delay between updates to achieve target sweep time
-  // Find the motor with the longest sweep (motorS with 2098 steps)
-  uint16_t maxSweep = MS_SWEEP;  // motorS has the largest sweep
+  // Find the motor with the longest sweep
+  uint16_t maxSweep = M1_SWEEP;
+  if (M2_SWEEP > maxSweep) maxSweep = M2_SWEEP;
+  if (M3_SWEEP > maxSweep) maxSweep = M3_SWEEP;
+  if (M4_SWEEP > maxSweep) maxSweep = M4_SWEEP;
+  if (MS_SWEEP > maxSweep) maxSweep = MS_SWEEP;
   
   // Calculate microseconds per update call to achieve MOTOR_SWEEP_TIME_MS
   // Use 64-bit arithmetic to prevent overflow with large MOTOR_SWEEP_TIME_MS values
   unsigned long delayMicros = 0;
-  if (maxSweep > 0) {
+  if (maxSweep > 0 && MOTOR_SWEEP_TIME_MS > 0) {
     unsigned long long temp = (unsigned long long)MOTOR_SWEEP_TIME_MS * 1000ULL;
     delayMicros = (unsigned long)(temp / maxSweep);
     // Ensure minimum delay to prevent tight loop issues
     if (delayMicros < MIN_MOTOR_DELAY_US) delayMicros = MIN_MOTOR_DELAY_US;
+  } else {
+    // If MOTOR_SWEEP_TIME_MS is 0, use minimum delay (fast sweep)
+    delayMicros = MIN_MOTOR_DELAY_US;
   }
   
   // Wait for all motors to reach maximum with timed delays
