@@ -132,7 +132,7 @@ constexpr unsigned int ENGINE_RPM_UPDATE_RATE = 20; // Check engine RPM timeout 
 constexpr uint32_t MOTOR_UPDATE_FREQ_HZ = 10000;  // Target frequency: 10 kHz (100 µs period)
                                                     // This frequency ensures:
                                                     // - Steps don't accumulate delays at max motor speed
-                                                    // - Overhead is reasonable (~1% CPU at 10kHz with 5 motors)
+                                                    // - Overhead is reasonable (~10-20% CPU at 10kHz with 5 motors)
                                                     // - Compatible with SwitecX12 microDelay (min 90 µs)
 
 #endif // CONFIG_HARDWARE_H

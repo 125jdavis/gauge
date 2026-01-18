@@ -92,7 +92,7 @@
  * 
  * ISR performance:
  * - Executes in ~10-20 µs with 5 motors (measured on Mega 2560)
- * - At 10 kHz: ~1-2% CPU overhead (acceptable for smooth motion)
+ * - At 10 kHz: ~10-20% CPU overhead (10-20 µs per 100 µs period)
  * - Kept minimal: only calls update() on each motor, no complex logic
  * 
  * Motors updated:
