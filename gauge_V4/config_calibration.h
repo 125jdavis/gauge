@@ -24,6 +24,9 @@ extern uint16_t M3_SWEEP;        // Motor 3: 58 degrees * 12 = 696 steps (same c
 extern uint16_t M4_SWEEP;        // Motor 4: 58 degrees * 12 = 696 steps (typically coolant temp)
 extern uint16_t MS_SWEEP;        // Motor S: 118 degrees (speedometer - 16 microsteps, 400 steps/rev, 0.9°/step)
 
+// ===== MOTOR SWEEP TIMING =====
+extern uint16_t MOTOR_SWEEP_TIME_MS;  // Time in milliseconds for motors to sweep full range during startup test
+
 // ===== ANALOG SENSOR FILTER COEFFICIENTS =====
 // Battery Voltage Sensor - Filter coefficient out of 64
 extern uint8_t FILTER_VBATT;           // 8/64 = light filtering

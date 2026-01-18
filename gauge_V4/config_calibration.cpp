@@ -13,6 +13,9 @@ uint16_t M3_SWEEP = 58 * 12;        // Motor 3: 58 degrees * 12 = 696 steps (sam
 uint16_t M4_SWEEP = 58 * 12;        // Motor 4: 58 degrees * 12 = 696 steps
 uint16_t MS_SWEEP = 2098;           // Motor S: (118° / 0.9°) * 16 microsteps = 2097.78 ≈ 2098 steps (speedometer)
 
+// ===== MOTOR SWEEP TIMING =====
+uint16_t MOTOR_SWEEP_TIME_MS = 200;  // Time in milliseconds for motors to sweep full range (calibratable)
+
 // ===== ANALOG SENSOR FILTER COEFFICIENTS =====
 uint8_t FILTER_VBATT = 8;           // 8/64 = light filtering
 float VBATT_SCALER = 0.040923;      // Voltage divider scaling factor
