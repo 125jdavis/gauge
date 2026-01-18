@@ -306,6 +306,8 @@ void motorSweepSynchronous(void){
         motorS.update();
         lastUpdateMicros = currentMicros;
       }
+      // Allow other system tasks to run (prevents watchdog issues)
+      yield();
   }
 
   Serial.println("full sweep");
@@ -335,6 +337,8 @@ void motorSweepSynchronous(void){
         motorS.update();
         lastUpdateMicros = currentMicros;
       }
+      // Allow other system tasks to run (prevents watchdog issues)
+      yield();
   }
 }
 
