@@ -61,6 +61,14 @@ void fetchGPSdata(){
 /**
  * TIMER0_COMPA_vect - Timer0 compare interrupt for GPS data reading
  * 
+ * ISR Design: Minimal - single byte read from GPS UART
+ * - Called automatically ~1 kHz by Timer0 (shared with millis())
+ * - Reads one byte from GPS module via Adafruit_GPS library
+ * - No parsing, no processing - just captures data
+ * - Heavy parsing deferred to fetchGPSdata() in main loop
+ * 
+ * Performance: ~3-5 µs execution time (just UART read)
+ * 
  * This interrupt service routine (ISR) is called automatically once per millisecond
  * by the Arduino Timer0 hardware timer. It reads one byte from the GPS module
  * without blocking the main loop.

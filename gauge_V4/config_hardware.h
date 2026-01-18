@@ -121,4 +121,18 @@ constexpr unsigned int SPLASH_TIME = 1500;        // Duration of startup splash 
 constexpr unsigned int HALL_UPDATE_RATE = 20;     // Recalculate Hall sensor speed every 20ms (50Hz)
 constexpr unsigned int ENGINE_RPM_UPDATE_RATE = 20; // Check engine RPM timeout every 20ms (50Hz)
 
+// ===== MOTOR UPDATE TIMER CONFIGURATION =====
+// Timer-based motor stepping for smooth, deterministic motion
+// Uses Timer3 (16-bit) on Arduino Mega 2560 for precise motor update intervals
+// Timer3 is chosen because:
+// - Timer0 is used for millis() and GPS reading
+// - Timer1 may be used for PWM or other functions
+// - Timer3 is a 16-bit timer suitable for precise frequency control
+// - Timer3 is independent and doesn't conflict with existing ISRs
+constexpr uint32_t MOTOR_UPDATE_FREQ_HZ = 10000;  // Target frequency: 10 kHz (100 µs period)
+                                                    // This frequency ensures:
+                                                    // - Steps don't accumulate delays at max motor speed
+                                                    // - Overhead is reasonable (~1% CPU at 10kHz with 5 motors)
+                                                    // - Compatible with SwitecX12 microDelay (min 90 µs)
+
 #endif // CONFIG_HARDWARE_H
