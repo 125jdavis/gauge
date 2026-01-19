@@ -553,7 +553,7 @@ void sigSelect (void) {
         lastCANOdometerUpdateTime = millis();
     }
     
-    // Select engine RPM source: 0=off, 1=CAN, 2=coil negative
+    // Select engine RPM source: 0=off, 1=CAN, 2=coil negative, 3=synthetic (debug)
     switch (RPM_SOURCE) {
         case 0:  // Off
             RPM = 0;
@@ -564,12 +564,15 @@ void sigSelect (void) {
         case 2:  // Coil negative tachometer
             RPM = engineRPMEMA;
             break;
+        case 3:  // Synthetic RPM (debug)
+            generateRPM();  // Sets global RPM variable
+            break;
         default:  // Fallback to off
             RPM = 0;
             break;
     }
     
-    // Select oil pressure source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+    // Select oil pressure source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=synthetic (debug)
     switch (OIL_PRS_SOURCE) {
         case 0:  // Off
             oilPrs = 0;
@@ -586,12 +589,15 @@ void sigSelect (void) {
         case 4:  // Analog sensor AV3
             oilPrs = sensor_av3 / 10.0;
             break;
+        case 5:  // Synthetic oil pressure (debug)
+            oilPrs = generateSyntheticOilPressure();
+            break;
         default:  // Fallback to off
             oilPrs = 0;
             break;
     }
     
-    // Select fuel pressure source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+    // Select fuel pressure source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=synthetic (debug)
     switch (FUEL_PRS_SOURCE) {
         case 0:  // Off
             fuelPrs = 0;
@@ -608,12 +614,15 @@ void sigSelect (void) {
         case 4:  // Analog sensor AV3
             fuelPrs = sensor_av3 / 10.0;
             break;
+        case 5:  // Synthetic fuel pressure (debug)
+            fuelPrs = generateSyntheticFuelPressure();
+            break;
         default:  // Fallback to off
             fuelPrs = 0;
             break;
     }
     
-    // Select coolant temperature source: 0=off, 1=CAN, 2=therm
+    // Select coolant temperature source: 0=off, 1=CAN, 2=therm, 3=synthetic (debug)
     switch (COOLANT_TEMP_SOURCE) {
         case 0:  // Off
             coolantTemp = 0;
@@ -623,6 +632,9 @@ void sigSelect (void) {
             break;
         case 2:  // Thermistor sensor
             coolantTemp = therm;
+            break;
+        case 3:  // Synthetic coolant temperature (debug)
+            coolantTemp = generateSyntheticCoolantTemp();
             break;
         default:  // Fallback to off
             coolantTemp = 0;
@@ -645,7 +657,7 @@ void sigSelect (void) {
             break;
     }
     
-    // Select manifold pressure/boost source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+    // Select manifold pressure/boost source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=synthetic (debug)
     switch (MAP_SOURCE) {
         case 0:  // Off
             manifoldPrs = 0;
@@ -661,6 +673,9 @@ void sigSelect (void) {
             break;
         case 4:  // Analog sensor AV3
             manifoldPrs = sensor_av3 / 10.0;
+            break;
+        case 5:  // Synthetic manifold pressure (debug)
+            manifoldPrs = generateSyntheticManifoldPressure();
             break;
         default:  // Fallback to off
             manifoldPrs = 0;

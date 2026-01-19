@@ -25,21 +25,13 @@ void shutdown(void);
  * generateRPM - Generate simulated RPM for demo mode
  * 
  * Creates a realistic RPM sweep for testing the LED tachometer
- * without a running engine
+ * without a running engine. Modified to be callable like synthetic signals.
  * 
- * Called from: main loop when demo mode is enabled
+ * Returns: RPM value (integer)
+ * 
+ * Called from: sigSelect() when RPM_SOURCE == 3 (synthetic mode)
  */
-void generateRPM(void);
-
-/**
- * serialInputFunc - Serial port input for manual testing
- * 
- * Reads integer values from serial monitor and updates test variables
- * Used for debugging sensor values without physical sensors
- * 
- * Called from: main loop when debugging
- */
-void serialInputFunc(void);
+int generateRPM(void);
 
 /**
  * generateSyntheticSpeed - Generate realistic synthetic speed signal for debugging
@@ -55,5 +47,66 @@ void serialInputFunc(void);
  * Called from: sigSelect() when SPEED_SOURCE == 4 (synthetic mode)
  */
 int generateSyntheticSpeed(void);
+
+/**
+ * generateSyntheticCoolantTemp - Generate synthetic coolant temperature signal
+ * 
+ * Temperature range: -10°C to 230°C
+ * Max rate: 20°C/second
+ * Spends 75% of time between 60°C and 210°C
+ * 
+ * Returns: Temperature in °C (float)
+ * 
+ * Called from: sigSelect() when COOLANT_TEMP_SOURCE == 3 (synthetic mode)
+ */
+float generateSyntheticCoolantTemp(void);
+
+/**
+ * generateSyntheticOilPressure - Generate synthetic oil pressure signal
+ * 
+ * Pressure range: 0-600 kPa
+ * Max rate: 300 kPa/second
+ * 
+ * Returns: Pressure in kPa (float)
+ * 
+ * Called from: sigSelect() when OIL_PRS_SOURCE == 5 (synthetic mode)
+ */
+float generateSyntheticOilPressure(void);
+
+/**
+ * generateSyntheticFuelPressure - Generate synthetic fuel pressure signal
+ * 
+ * Pressure range: 0-600 kPa
+ * Max rate: 600 kPa/second
+ * 
+ * Returns: Pressure in kPa (float)
+ * 
+ * Called from: sigSelect() when FUEL_PRS_SOURCE == 5 (synthetic mode)
+ */
+float generateSyntheticFuelPressure(void);
+
+/**
+ * generateSyntheticFuelLevel - Generate synthetic fuel level signal
+ * 
+ * Level range: 0-100%
+ * Max rate: 10%/second
+ * 
+ * Returns: Fuel level in percent (float)
+ * 
+ * Called from: main loop or dedicated fuel level function
+ */
+float generateSyntheticFuelLevel(void);
+
+/**
+ * generateSyntheticManifoldPressure - Generate synthetic manifold pressure signal
+ * 
+ * Pressure range: 0-250 kPa
+ * Max rate: 600 kPa/second
+ * 
+ * Returns: Pressure in kPa (float)
+ * 
+ * Called from: sigSelect() when MAP_SOURCE == 5 (synthetic mode)
+ */
+float generateSyntheticManifoldPressure(void);
 
 #endif // UTILITIES_H

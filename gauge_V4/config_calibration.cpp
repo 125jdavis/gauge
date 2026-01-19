@@ -53,12 +53,12 @@ uint8_t ODO_GEAR_TEETH = 20;        // Number of teeth on odometer gear
 
 // ===== SIGNAL SOURCE SELECTION =====
 uint8_t SPEED_SOURCE = 2;           // 0=off, 1=CAN, 2=Hall sensor, 3=GPS, 4=Synthetic (debug)
-uint8_t RPM_SOURCE = 2;             // 0=off, 1=CAN, 2=coil negative (default to coil negative)
-uint8_t OIL_PRS_SOURCE = 1;         // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
-uint8_t FUEL_PRS_SOURCE = 1;        // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
-uint8_t COOLANT_TEMP_SOURCE = 2;    // 0=off, 1=CAN, 2=therm
+uint8_t RPM_SOURCE = 2;             // 0=off, 1=CAN, 2=coil negative, 3=Synthetic (debug)
+uint8_t OIL_PRS_SOURCE = 1;         // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug)
+uint8_t FUEL_PRS_SOURCE = 1;        // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug)
+uint8_t COOLANT_TEMP_SOURCE = 2;    // 0=off, 1=CAN, 2=therm, 3=Synthetic (debug)
 uint8_t OIL_TEMP_SOURCE = 2;        // 0=off, 1=CAN, 2=therm (default to therm sensor)
-uint8_t MAP_SOURCE = 1;             // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+uint8_t MAP_SOURCE = 1;             // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug)
 uint8_t LAMBDA_SOURCE = 1;          // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
 
 // ===== TIME ZONE OFFSET =====
