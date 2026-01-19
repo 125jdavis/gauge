@@ -7,6 +7,7 @@
 #include "sensors.h"
 #include "globals.h"
 #include "outputs.h"
+#include "utilities.h"
 
 // ===== VR-SAFE COMBINED FILTER STATE =====
 // State machine for startup filtering (VR-safe, Hall-compatible)
@@ -513,7 +514,7 @@ float curveLookup(float input, float brkpts[], float curve[], int curveLength){
  * sigSelect - Process and route sensor data
  */
 void sigSelect (void) {
-    // Select vehicle speed source: 0=off, 1=CAN, 2=Hall sensor, 3=GPS
+    // Select vehicle speed source: 0=off, 1=CAN, 2=Hall sensor, 3=GPS, 4=Synthetic (debug)
     switch (SPEED_SOURCE) {
         case 0:  // Off
             spd = 0;
@@ -526,6 +527,9 @@ void sigSelect (void) {
             break;
         case 3:  // GPS speed source
             spd = spdGPS;  // Already in km/h * 100 format
+            break;
+        case 4:  // Synthetic speed source (for debugging)
+            spd = generateSyntheticSpeed();  // Returns km/h * 100 format
             break;
         default:  // Fallback to off
             spd = 0;

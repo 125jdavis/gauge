@@ -91,3 +91,210 @@ void serialInputFunc(void){
     Serial.println("Please enter a new value:");
   }
 }
+
+/**
+ * generateSyntheticSpeed - Generate realistic synthetic speed signal for debugging
+ * 
+ * Creates a realistic speed profile with random accelerations, decelerations,
+ * and constant speed periods. Respects maximum acceleration limits.
+ * 
+ * Speed range: 0-160 km/h
+ * Max acceleration: 20 m/s² = 72 km/h/s = 7200 (km/h*100)/s
+ * 
+ * State machine:
+ * - ACCEL: Accelerating toward target speed
+ * - DECEL: Decelerating toward target speed (or zero)
+ * - HOLD: Holding constant speed
+ * - INTERRUPT: Brief interruption (random accel/decel/hold)
+ * 
+ * Returns: Speed in km/h * 100 format (e.g., 5000 = 50 km/h)
+ */
+int generateSyntheticSpeed(void) {
+    // State machine states
+    enum SyntheticSpeedState {
+        ACCEL,      // Accelerating toward target
+        DECEL,      // Decelerating toward target or zero
+        HOLD,       // Holding constant speed
+        INTERRUPT   // Brief interruption period
+    };
+    
+    // Static variables persist between function calls
+    static SyntheticSpeedState state = HOLD;
+    static int currentSpeed = 0;              // Current speed in km/h * 100
+    static int targetSpeed = 0;               // Target speed in km/h * 100
+    static int accelRate = 0;                 // Current acceleration rate in (km/h*100)/s
+    static unsigned long stateStartTime = 0;  // When current state started (ms)
+    static unsigned long stateDuration = 0;   // How long to stay in current state (ms)
+    static unsigned long lastUpdateTime = 0;  // Last update timestamp for delta calculation
+    
+    // Constants
+    const int MAX_SPEED = 16000;              // 160 km/h * 100
+    const int MAX_ACCEL = 7200;               // 20 m/s² = 72 km/h/s = 7200 (km/h*100)/s
+    const int MIN_ACCEL = 1000;               // Minimum acceleration: 10 km/h/s = 1000 (km/h*100)/s
+    
+    // Initialize on first call
+    if (lastUpdateTime == 0) {
+        lastUpdateTime = millis();
+        stateStartTime = millis();
+        state = HOLD;
+        currentSpeed = 0;
+        targetSpeed = 0;
+        stateDuration = random(2000, 5000);  // Hold at zero for 2-5 seconds
+        return 0;
+    }
+    
+    // Calculate time delta
+    unsigned long currentTime = millis();
+    unsigned long deltaTime = currentTime - lastUpdateTime;
+    lastUpdateTime = currentTime;
+    
+    // Skip if called too quickly (< 10ms)
+    if (deltaTime < 10) {
+        return currentSpeed;
+    }
+    
+    // Update speed based on current acceleration rate
+    // deltaSpeed = accelRate * (deltaTime / 1000.0)
+    // Using integer math: deltaSpeed = (accelRate * deltaTime) / 1000
+    long deltaSpeed = ((long)accelRate * (long)deltaTime) / 1000L;
+    currentSpeed += (int)deltaSpeed;
+    
+    // Clamp speed to valid range
+    if (currentSpeed < 0) currentSpeed = 0;
+    if (currentSpeed > MAX_SPEED) currentSpeed = MAX_SPEED;
+    
+    // Check if it's time to transition states
+    unsigned long timeInState = currentTime - stateStartTime;
+    
+    if (timeInState >= stateDuration) {
+        // State duration expired - transition to new state
+        
+        // Randomly decide if we should have an interruption (20% chance)
+        bool shouldInterrupt = (random(100) < 20) && (state != INTERRUPT);
+        
+        if (shouldInterrupt && currentSpeed > 500) {
+            // Enter interrupt state (brief random behavior)
+            state = INTERRUPT;
+            stateStartTime = currentTime;
+            stateDuration = random(1000, 3000);  // 1-3 second interruption
+            
+            // Random interrupt behavior
+            int interruptType = random(3);
+            if (interruptType == 0) {
+                // Brief acceleration
+                accelRate = random(MIN_ACCEL, MAX_ACCEL);
+            } else if (interruptType == 1) {
+                // Brief deceleration
+                accelRate = -random(MIN_ACCEL, MAX_ACCEL);
+            } else {
+                // Brief hold
+                accelRate = 0;
+            }
+        } else {
+            // Normal state transition
+            switch (state) {
+                case HOLD:
+                case INTERRUPT:
+                    // Transition from hold/interrupt to accel or decel
+                    if (currentSpeed < 500) {
+                        // At or near zero - start accelerating
+                        state = ACCEL;
+                        targetSpeed = random(3000, MAX_SPEED);  // Random target: 30-160 km/h
+                        accelRate = random(MIN_ACCEL, MAX_ACCEL);
+                        stateDuration = random(3000, 8000);  // 3-8 seconds
+                    } else {
+                        // Decide whether to accelerate or decelerate
+                        if (random(2) == 0) {
+                            // Start decelerating (possibly to zero)
+                            state = DECEL;
+                            if (random(3) == 0) {
+                                targetSpeed = 0;  // Decel to stop
+                            } else {
+                                targetSpeed = random(0, currentSpeed);  // Decel to lower speed
+                            }
+                            accelRate = -random(MIN_ACCEL, MAX_ACCEL);
+                            stateDuration = random(3000, 8000);  // 3-8 seconds
+                        } else {
+                            // Start accelerating
+                            state = ACCEL;
+                            targetSpeed = random(currentSpeed, MAX_SPEED);  // Accel to higher speed
+                            accelRate = random(MIN_ACCEL, MAX_ACCEL);
+                            stateDuration = random(3000, 8000);  // 3-8 seconds
+                        }
+                    }
+                    stateStartTime = currentTime;
+                    break;
+                    
+                case ACCEL:
+                    // After accelerating, hold or continue
+                    if (random(2) == 0) {
+                        // Hold at current speed
+                        state = HOLD;
+                        accelRate = 0;
+                        stateDuration = random(2000, 5000);  // 2-5 seconds
+                    } else {
+                        // Decelerate
+                        state = DECEL;
+                        if (random(3) == 0) {
+                            targetSpeed = 0;  // Decel to stop
+                        } else {
+                            targetSpeed = random(0, currentSpeed);  // Decel to lower speed
+                        }
+                        accelRate = -random(MIN_ACCEL, MAX_ACCEL);
+                        stateDuration = random(3000, 8000);  // 3-8 seconds
+                    }
+                    stateStartTime = currentTime;
+                    break;
+                    
+                case DECEL:
+                    // After decelerating, hold or accelerate
+                    if (currentSpeed < 500) {
+                        // Near zero - hold briefly then accelerate
+                        state = HOLD;
+                        currentSpeed = 0;
+                        accelRate = 0;
+                        stateDuration = random(2000, 5000);  // 2-5 seconds at zero
+                    } else if (random(2) == 0) {
+                        // Hold at current speed
+                        state = HOLD;
+                        accelRate = 0;
+                        stateDuration = random(2000, 5000);  // 2-5 seconds
+                    } else {
+                        // Accelerate again
+                        state = ACCEL;
+                        targetSpeed = random(currentSpeed, MAX_SPEED);
+                        accelRate = random(MIN_ACCEL, MAX_ACCEL);
+                        stateDuration = random(3000, 8000);  // 3-8 seconds
+                    }
+                    stateStartTime = currentTime;
+                    break;
+            }
+        }
+    }
+    
+    // Check if we've reached or exceeded target speed (adjust acceleration)
+    if (state == ACCEL && currentSpeed >= targetSpeed) {
+        // Reached target while accelerating - transition to hold
+        currentSpeed = targetSpeed;
+        state = HOLD;
+        accelRate = 0;
+        stateStartTime = currentTime;
+        stateDuration = random(2000, 5000);  // Hold for 2-5 seconds
+    } else if (state == DECEL && currentSpeed <= targetSpeed) {
+        // Reached target while decelerating - transition to hold
+        currentSpeed = targetSpeed;
+        if (currentSpeed < 500) {
+            currentSpeed = 0;  // Snap to zero if very close
+        }
+        state = HOLD;
+        accelRate = 0;
+        stateStartTime = currentTime;
+        stateDuration = random(2000, 5000);  // Hold for 2-5 seconds
+    }
+    
+    // Final clamp
+    if (currentSpeed < 0) currentSpeed = 0;
+    if (currentSpeed > MAX_SPEED) currentSpeed = MAX_SPEED;
+    
+    return currentSpeed;
+}

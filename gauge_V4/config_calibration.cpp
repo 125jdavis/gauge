@@ -52,7 +52,7 @@ uint8_t ODO_MOTOR_TEETH = 16;       // Number of teeth on motor gear
 uint8_t ODO_GEAR_TEETH = 20;        // Number of teeth on odometer gear
 
 // ===== SIGNAL SOURCE SELECTION =====
-uint8_t SPEED_SOURCE = 2;           // 0=off, 1=CAN, 2=Hall sensor, 3=GPS (default to Hall sensor)
+uint8_t SPEED_SOURCE = 2;           // 0=off, 1=CAN, 2=Hall sensor, 3=GPS, 4=Synthetic (debug)
 uint8_t RPM_SOURCE = 2;             // 0=off, 1=CAN, 2=coil negative (default to coil negative)
 uint8_t OIL_PRS_SOURCE = 1;         // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
 uint8_t FUEL_PRS_SOURCE = 1;        // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3

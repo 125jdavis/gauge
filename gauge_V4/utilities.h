@@ -41,4 +41,19 @@ void generateRPM(void);
  */
 void serialInputFunc(void);
 
+/**
+ * generateSyntheticSpeed - Generate realistic synthetic speed signal for debugging
+ * 
+ * Creates a realistic speed profile with random accelerations, decelerations,
+ * and constant speed periods. Respects maximum acceleration limits.
+ * 
+ * Speed range: 0-160 km/h
+ * Max acceleration: 20 m/s² (≈2g, very aggressive)
+ * 
+ * Returns: Speed in km/h * 100 format (e.g., 5000 = 50 km/h)
+ * 
+ * Called from: sigSelect() when SPEED_SOURCE == 4 (synthetic mode)
+ */
+int generateSyntheticSpeed(void);
+
 #endif // UTILITIES_H
