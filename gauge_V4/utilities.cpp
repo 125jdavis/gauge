@@ -44,7 +44,15 @@ void shutdown (void){
   // Cut power to Arduino by releasing power latch
   digitalWrite(PWR_PIN, LOW);  // This will power off the entire system
 }
-void generateRPM(void){
+/**
+ * generateRPM - Generate simulated RPM for demo mode
+ * 
+ * Creates a realistic RPM sweep for testing the LED tachometer
+ * without a running engine. Modified to return value like other synthetic functions.
+ * 
+ * Returns: RPM value (integer)
+ */
+int generateRPM(void){
     static bool rpmSwitch = 0;      // Direction flag for demo RPM sweep - local static
     static int gRPM = 900;          // Generated RPM value for demo mode - local static
     
@@ -60,8 +68,7 @@ void generateRPM(void){
     if (gRPM > 7000) rpmSwitch = 1;  // Start ramping down at 7000 RPM
     if (gRPM < 900) rpmSwitch = 0;   // Start ramping up at 900 RPM
     
-    // Now returns the value instead of setting a global
-    RPM = gRPM;
+    return gRPM;
 }
 void serialInputFunc(void){
   // SERIAL INPUT FOR TESTING ONLY

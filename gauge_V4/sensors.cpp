@@ -565,7 +565,7 @@ void sigSelect (void) {
             RPM = engineRPMEMA;
             break;
         case 3:  // Synthetic RPM (debug)
-            generateRPM();  // Sets global RPM variable
+            RPM = generateRPM();  // Returns RPM value
             break;
         default:  // Fallback to off
             RPM = 0;
