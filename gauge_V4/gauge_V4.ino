@@ -282,8 +282,6 @@ void loop() {
 
   // ===== ANALOG SENSOR READING =====
   if (millis() - timerSensorRead > SENSOR_READ_RATE) {
-    int s = micros();
-
     vBattRaw = readSensor(VBATT_PIN, vBattRaw, FILTER_VBATT);
     vBatt = (float)vBattRaw * VBATT_SCALER;
     
@@ -298,10 +296,10 @@ void loop() {
     sensor_av1 = read30PSIAsensor(PIN_AV1, sensor_av1, FILTER_AV1);
     sensor_av1 = constrain(sensor_av1, 600, 1050);
     baroCAN = sensor_av1;
+
+    swRead();
     
     timerSensorRead = millis();
-
-    int time =  micros() - s;
   }
 
   // ===== HALL SENSOR READING ======
@@ -318,14 +316,10 @@ void loop() {
 
   // ===== CAN BUS TRANSMISSION =====
   if (millis() - timerCANsend > CAN_SEND_RATE) {  
-    int s = micros();
-
     sendCAN_BE(0x200, 0, spdCAN, 0, 0);
     sendCAN_LE(0x201, thermCAN, fuelLvlCAN, baroCAN, 555);
     
     timerCANsend = millis();
-
-    int time =  micros() - s;
   }
 
   // ===== CAN BUS RECEPTION =====
@@ -356,7 +350,6 @@ void loop() {
 
   // ===== DISPLAY UPDATE =====
   if (millis() - timerDispUpdate > DISP_UPDATE_RATE) {
-    swRead();
     dispMenu();
     disp2();
     timerDispUpdate = millis();
