@@ -386,23 +386,5 @@ void loop() {
     shutdown();  // Save settings, zero gauges, display shutdown screen, cut power
   }
 
-  // ===== LOOP RATE LIMITING =====
-  // Throttle main loop to match performance when displays are actively updating
-  // 
-  // Problem: Fast loop rates (2,500-10,000 Hz) cause laggy/steppy motor motion
-  // even though Timer3 ISR handles actual stepping at 10 kHz. When display updates
-  // are active (~20-30ms each via SPI), loop naturally runs at ~30 Hz and motion
-  // is smooth.
-  // 
-  // Root cause: High loop rates cause excessive Timer3 ISR interruptions, creating
-  // timing jitter in motor stepping despite ISR running at consistent 10 kHz.
-  // 
-  // Solution: Delay to maintain consistent ~30-50 Hz loop rate, matching the
-  // steady-state performance when displays are actively updating. This provides
-  // consistent smooth motor motion from startup throughout operation.
-  // 
-  // Timer3 ISR continues deterministic 10 kHz motor stepping (unaffected by delay).
-  delay(20);  // ~50 Hz max loop rate, matches display update behavior
-
 
 }
