@@ -384,4 +384,11 @@ void loop() {
     shutdown();  // Save settings, zero gauges, display shutdown screen, cut power
   }
 
+  // ===== YIELD FOR COOPERATIVE MULTITASKING =====
+  // Prevent main loop from spinning at excessive rates (10,000+ Hz) when no work needs doing
+  // yield() allows background tasks (watchdog, Serial buffers, etc.) to run
+  // This naturally throttles the loop to an appropriate rate (~100-500 Hz)
+  // while Timer3 ISR continues to provide smooth 10 kHz motor updates
+  yield();
+
 }
