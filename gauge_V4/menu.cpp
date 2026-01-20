@@ -12,8 +12,8 @@ void swRead() {
   // and prevent potential interference from other parts of the code
   static bool stateSW = 1;                      // Current state of encoder switch (1 = not pressed)
   static bool lastStateSW = 1;                  // Previous state of encoder switch
-  static unsigned int lastStateChangeTime = 0;  // Timestamp of last switch state change (ms)
-  static unsigned int debounceDelay = 50;       // Debounce time in milliseconds
+  static unsigned long lastStateChangeTime = 0;  // Timestamp of last switch state change (ms)
+  static unsigned int debounceDelay = 50;       // Debounce time in milliseconds (50ms never overflows)
   static bool debounceFlag = 0;                 // Flag to prevent multiple triggers during debounce
        
   stateSW = digitalRead(SWITCH);            // Read current state of encoder button
@@ -40,6 +40,21 @@ void swRead() {
   }
   lastStateSW = stateSW;  // Save current state for next comparison
 }
+
+/**
+ * rotate - Rotary encoder interrupt handler for menu navigation
+ * 
+ * ISR Design: Lightweight and deterministic
+ * - Called on CHANGE for encoder pins (2, 3)
+ * - Processes quadrature encoder signals via Rotary library
+ * - Updates menu position variable (dispArray1[menuLevel])
+ * - No blocking operations, no SPI, no Serial
+ * 
+ * Performance: ~5-10 µs execution time
+ * 
+ * Note: This ISR modifies shared variables (dispArray1) that are also
+ * accessed by main loop. AVR byte writes are atomic, so no race condition.
+ */
 void rotate() {
   unsigned char result = rotary.process();  // Process encoder quadrature signals
   if (result == DIR_CW) {
@@ -57,6 +72,21 @@ void rotate() {
       dispArray1[menuLevel]--;              // Move to previous item
   }
 }
+
+/**
+ * incrementOffset - Rotary encoder interrupt handler for clock offset adjustment
+ * 
+ * ISR Design: Lightweight and deterministic
+ * - Called on CHANGE for encoder pins during clock offset adjustment
+ * - Processes quadrature encoder signals via Rotary library
+ * - Updates clockOffset variable (0-23 hours)
+ * - No blocking operations, no SPI, no Serial
+ * 
+ * Performance: ~5-10 µs execution time
+ * 
+ * Note: This ISR is temporarily attached during clock offset adjustment,
+ * replacing the normal rotate() ISR. See display.cpp for context.
+ */
 void incrementOffset() {
   unsigned char result = rotary.process();  // Process encoder quadrature signals
   

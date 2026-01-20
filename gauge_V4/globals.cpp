@@ -16,6 +16,7 @@ SwitecX12 motor1(M1_SWEEP, M1_STEP, M1_DIR);
 SwitecX12 motor2(M2_SWEEP, M2_STEP, M2_DIR);
 SwitecX12 motor3(M3_SWEEP, M3_STEP, M3_DIR);
 SwitecX12 motor4(M4_SWEEP, M4_STEP, M4_DIR);
+SwitecX12 motorS(MS_SWEEP, MS_STEP, MS_DIR);
 Stepper odoMotor(ODO_STEPS, ODO_PIN1, ODO_PIN2, ODO_PIN3, ODO_PIN4);
 Adafruit_GPS GPS(&Serial2);
 
@@ -72,11 +73,12 @@ bool button = 0;                       // Button press event flag (set when pres
 
 // ===== TIMING VARIABLES =====
 // Manage update rates for different subsystems
-unsigned int timer0, timerDispUpdate, timerCANsend;
-unsigned int timerSensorRead, timerTachUpdate, timerTachFlash;
-unsigned int timerCheckGPS, timerGPSupdate, timerAngleUpdate;
-unsigned int timerHallUpdate;
-unsigned int timerEngineRPMUpdate;
+unsigned long timer0, timerDispUpdate, timerCANsend;
+unsigned long timerSensorRead, timerTachUpdate, timerTachFlash;
+unsigned long timerCheckGPS, timerGPSupdate, timerAngleUpdate;
+unsigned long timerHallUpdate;
+unsigned long timerEngineRPMUpdate;
+unsigned long timerSigSelectUpdate;
 // ===== CAN BUS ENGINE PARAMETERS =====
 // Raw values received from Haltech ECU via CAN bus
 // These are stored as integers to preserve precision from the CAN protocol

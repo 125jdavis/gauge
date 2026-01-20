@@ -7,6 +7,16 @@
 #include "outputs.h"
 #include "globals.h"
 
+// ===== CONVERSION CONSTANTS =====
+const float KM_TO_MILES = 0.621371;  // Conversion factor: kilometers to miles
+
+// ===== ODOMETER MOTOR STATE =====
+// Non-blocking stepper motor control for mechanical odometer
+static float odoMotorTargetSteps = 0.0;   // Accumulated target position (includes fractional steps)
+static unsigned long odoMotorCurrentStep = 0;  // Current motor position in whole steps
+static unsigned long lastOdoStepTime = 0;  // Time of last step (microseconds)
+static const unsigned long ODO_STEP_DELAY_US = 1000;  // Minimum delay between steps (1ms = 1000 steps/sec max)
+
 void ledShiftLight(int ledRPM){
   static bool tachFlashState = 0;  // Current state of shift light flashing (0=off, 1=on) - local static
   
@@ -104,6 +114,48 @@ int speedometerAngleHall(int sweep) {
   return angle;
 }
 /**
+ * speedometerAngleS - Calculate speedometer needle angle for motorS (integer math)
+ * 
+ * Converts vehicle speed to motor angle using integer math for efficiency.
+ * Uses the generic 'spd' variable which is selected based on SPEED_SOURCE.
+ * 
+ * @param sweep - Maximum motor steps for full gauge sweep
+ * @return Motor angle in steps (1 to sweep-1)
+ * 
+ * Speed format: km/h * 100 (e.g., 5000 = 50 km/h)
+ * Output: mph * 100 (e.g., 3107 = 31.07 mph)
+ * 
+ * Conversion: 1 km/h = 0.621371 mph
+ * Using integer math: (spd * 62137) / 100000 ≈ spd * 0.621371
+ */
+int speedometerAngleS(int sweep) {
+  // Convert km/h*100 to mph*100 using integer math
+  // spd is in km/h * 100, multiply by 62137 then divide by 100000
+  // This gives mph * 100
+  // Bounds check to prevent overflow (spd max is typically ~65535, safe for this calculation)
+  if (spd > 30000) {  // 300 km/h * 100, well above typical max speed
+    spd = 30000;
+  }
+  long spd_mph_long = ((long)spd * 62137L) / 100000L;
+  int spd_mph = (int)spd_mph_long;
+  
+  // Dead zone: below 0.5 mph, show zero
+  if (spd_mph < 50) spd_mph = 0;
+  
+  // Clamp to max (100 mph * 100 = 10000)
+  if (spd_mph > SPEEDO_MAX) spd_mph = SPEEDO_MAX;
+  
+  // Map speed to motor angle using integer math
+  // Standard map formula: output = (input * (out_max - out_min)) / (in_max - in_min) + out_min
+  // For speedometer: angle = (spd_mph * (sweep - 1 - 1)) / SPEEDO_MAX + 1
+  // The (sweep - 2) accounts for valid range being 1 to (sweep-1), giving (sweep-2) steps
+  int angle = ((long)spd_mph * (long)(sweep - 2)) / (long)SPEEDO_MAX + 1;
+  
+  // Ensure angle is within valid range
+  angle = constrain(angle, 1, sweep - 1);
+  return angle;
+}
+/**
  * fuelLvlAngle - Calculate fuel gauge needle angle from fuel level
  * 
  * Converts fuel level in gallons/liters to motor angle.
@@ -155,28 +207,55 @@ void motorZeroSynchronous(void){
   motor2.currentStep = M2_SWEEP;
   motor3.currentStep = M3_SWEEP;
   motor4.currentStep = M4_SWEEP;
+  motorS.currentStep = MS_SWEEP;
   
   // Command all motors to position 0
   motor1.setPosition(0);
   motor2.setPosition(0);
   motor3.setPosition(0);
   motor4.setPosition(0);
+  motorS.setPosition(0);
   
   // Wait for all motors to reach zero (blocking loop)
-  while (motor1.currentStep > 0 || motor2.currentStep > 0 || motor3.currentStep > 0 || motor4.currentStep > 0)
+  while (motor1.currentStep > 0 || motor2.currentStep > 0 || motor3.currentStep > 0 || motor4.currentStep > 0 || motorS.currentStep > 0)
   {
       motor1.update();  // Step motor 1 if needed
       motor2.update();  // Step motor 2 if needed
       motor3.update();
       motor4.update();
+      motorS.update();
   }
   // Reset position counters to zero
   motor1.currentStep = 0;
   motor2.currentStep = 0;
   motor3.currentStep = 0;
   motor4.currentStep = 0;
+  motorS.currentStep = 0;
 }
+
+/**
+ * motorSweepSynchronous - Perform timed startup sweep test of all motors
+ * 
+ * Sweeps all motors from zero to maximum and back to zero with configurable timing.
+ * Used during startup to verify motor operation and provide visual feedback.
+ * 
+ * Timing:
+ * - Each direction (0→max, max→0) takes MOTOR_SWEEP_TIME_MS milliseconds
+ * - Default: 200ms per direction (400ms total for full sweep test)
+ * - Configurable via MOTOR_SWEEP_TIME_MS in config_calibration.cpp
+ * 
+ * Implementation:
+ * - Calculates delay between update() calls based on longest motor sweep
+ * - Dynamically finds the motor with the longest sweep range
+ * - All motors complete their sweeps within the same timeframe
+ * - Uses micros() for precise timing control
+ * 
+ * Note: This is a blocking function - normal operation resumes after sweep completes
+ */
 void motorSweepSynchronous(void){
+  // Minimum delay between motor updates (prevents tight loop issues)
+  static const unsigned long MIN_MOTOR_DELAY_US = 10;
+  
   // Start by zeroing all motors
   motorZeroSynchronous();
   Serial.println("zeroed");
@@ -186,15 +265,49 @@ void motorSweepSynchronous(void){
   motor2.setPosition(M2_SWEEP);
   motor3.setPosition(M3_SWEEP);
   motor4.setPosition(M4_SWEEP);
+  motorS.setPosition(MS_SWEEP);
   
-  // Wait for all motors to reach maximum (blocking loop)
+  // Calculate delay between updates to achieve target sweep time
+  // Find the motor with the longest sweep
+  uint16_t maxSweep = M1_SWEEP;
+  if (M2_SWEEP > maxSweep) maxSweep = M2_SWEEP;
+  if (M3_SWEEP > maxSweep) maxSweep = M3_SWEEP;
+  if (M4_SWEEP > maxSweep) maxSweep = M4_SWEEP;
+  if (MS_SWEEP > maxSweep) maxSweep = MS_SWEEP;
+  
+  // Calculate microseconds per update call to achieve MOTOR_SWEEP_TIME_MS
+  // Use 64-bit arithmetic to prevent overflow with large MOTOR_SWEEP_TIME_MS values
+  unsigned long delayMicros = 0;
+  if (maxSweep > 0 && MOTOR_SWEEP_TIME_MS > 0) {
+    unsigned long long temp = (unsigned long long)MOTOR_SWEEP_TIME_MS * 1000ULL;
+    delayMicros = (unsigned long)(temp / maxSweep);
+    // Ensure minimum delay to prevent tight loop issues
+    if (delayMicros < MIN_MOTOR_DELAY_US) delayMicros = MIN_MOTOR_DELAY_US;
+  } else {
+    // If MOTOR_SWEEP_TIME_MS is 0, use minimum delay (fast sweep)
+    delayMicros = MIN_MOTOR_DELAY_US;
+  }
+  
+  // Wait for all motors to reach maximum with timed delays
+  unsigned long lastUpdateMicros = micros();
   while (motor1.currentStep < M1_SWEEP-1  || motor2.currentStep < M2_SWEEP-1 || 
-         motor3.currentStep < M3_SWEEP-1  || motor4.currentStep < M4_SWEEP-1)
+         motor3.currentStep < M3_SWEEP-1  || motor4.currentStep < M4_SWEEP-1 || 
+         motorS.currentStep < MS_SWEEP-1)
   {
-      motor1.update();  // Step each motor toward target
-      motor2.update();
-      motor3.update();
-      motor4.update();
+      // Check if enough time has passed for next update
+      // Unsigned arithmetic handles micros() overflow correctly
+      unsigned long currentMicros = micros();
+      unsigned long elapsed = currentMicros - lastUpdateMicros;
+      if (elapsed >= delayMicros) {
+        motor1.update();  // Step each motor toward target
+        motor2.update();
+        motor3.update();
+        motor4.update();
+        motorS.update();
+        lastUpdateMicros = currentMicros;
+      }
+      // Allow other system tasks to run (prevents watchdog issues)
+      yield();
   }
 
   Serial.println("full sweep");
@@ -204,68 +317,107 @@ void motorSweepSynchronous(void){
   motor2.setPosition(0);
   motor3.setPosition(0);
   motor4.setPosition(0);
+  motorS.setPosition(0);
   
-  // Wait for all motors to return to zero (blocking loop)
+  // Wait for all motors to return to zero with timed delays
+  lastUpdateMicros = micros();
   while (motor1.currentStep > 0 || motor2.currentStep > 0 || 
-         motor3.currentStep > 0 || motor4.currentStep > 0)
+         motor3.currentStep > 0 || motor4.currentStep > 0 || 
+         motorS.currentStep > 0)
   {
-      motor1.update();
-      motor2.update();
-      motor3.update();
-      motor4.update();
+      // Check if enough time has passed for next update
+      // Unsigned arithmetic handles micros() overflow correctly
+      unsigned long currentMicros = micros();
+      unsigned long elapsed = currentMicros - lastUpdateMicros;
+      if (elapsed >= delayMicros) {
+        motor1.update();
+        motor2.update();
+        motor3.update();
+        motor4.update();
+        motorS.update();
+        lastUpdateMicros = currentMicros;
+      }
+      // Allow other system tasks to run (prevents watchdog issues)
+      yield();
   }
 }
 
 /**
- * moveOdometerMotor - Move mechanical odometer motor by calculated distance
+ * moveOdometerMotor - Queue distance for mechanical odometer motor
  * 
  * Calculates the number of steps required to advance the mechanical odometer
- * based on distance traveled, motor characteristics, and gear ratios.
+ * based on distance traveled and adds them to the target position. The motor
+ * will be moved non-blocking via updateOdometerMotor() calls from main loop.
+ * 
+ * Per specification: One rotation of the mechanical odometer = 1 mile
  * 
  * @param distanceKm - Distance to advance the odometer in kilometers
  * 
  * Calculation:
- * 1. Convert distance to steps based on:
- *    - ODO_STEPS: Steps per revolution of the stepper motor
- *    - ODO_MOTOR_TEETH: Number of teeth on motor gear
- *    - ODO_GEAR_TEETH: Number of teeth on odometer gear
- *    - Odometer scale: How many km per full rotation of odometer
+ * 1. Convert distance from kilometers to miles (0.621371 miles per km)
+ * 2. Calculate odometer revolutions needed (1 revolution = 1 mile)
+ * 3. Apply gear ratio: motor_revs = (ODO_GEAR_TEETH / ODO_MOTOR_TEETH) * odo_revs
+ * 4. Calculate motor steps: steps = motor_revs * ODO_STEPS
+ * 5. Add to target position (accumulates fractional steps for precision)
  * 
- * 2. Gear ratio: motor_revs = (ODO_GEAR_TEETH / ODO_MOTOR_TEETH) * odo_revs
- * 3. Motor steps = motor_revs * ODO_STEPS
- * 
- * Example:
- * - Motor: 32 steps/rev, 10 teeth
- * - Odometer gear: 20 teeth, 1 km per revolution
- * - For 0.1 km: 
- *   - Odometer revs = 0.1
- *   - Motor revs = (20/10) * 0.1 = 0.2
- *   - Steps = 0.2 * 32 = 6.4 ≈ 6 steps
- * 
- * Note: This function currently calculates steps but does not move the motor.
- * Motor movement code should be added based on the specific Stepper library
- * implementation and hardware constraints (e.g., non-blocking movement).
+ * Example with default calibration values (ODO_STEPS=4096, ODO_MOTOR_TEETH=16, ODO_GEAR_TEETH=20):
+ * - For 1.60934 km (1 mile):
+ *   - Distance in miles = 1.0
+ *   - Odometer revs = 1.0
+ *   - Gear ratio = 20/16 = 1.25
+ *   - Motor revs = 1.0 * 1.25 = 1.25
+ *   - Steps = 1.25 * 4096 = 5120 steps
  */
 void moveOdometerMotor(float distanceKm) {
-    // Calculate steps required to move odometer motor
-    // 
-    // Formula breakdown:
-    // 1. ODO_GEAR_TEETH / ODO_MOTOR_TEETH = gear ratio (how many motor revs per odo rev)
-    // 2. distanceKm = distance traveled
-    // 3. Assuming odometer advances 1 unit per full rotation (adjust based on actual mechanical design)
-    // 4. steps = distanceKm * gearRatio * ODO_STEPS
+    // Convert distance from kilometers to miles
+    float distanceMiles = distanceKm * KM_TO_MILES;
     
-    // For now, calculate the steps but don't move the motor yet
-    // This is a placeholder for the actual motor movement logic
+    // Calculate odometer revolutions (1 revolution = 1 mile per specification)
+    // and apply gear ratio to get motor revolutions
+    // Gear ratio: how many motor revs needed per odometer revolution
+    float gearRatio = (float)ODO_GEAR_TEETH / (float)ODO_MOTOR_TEETH;
+    float motorRevs = distanceMiles * gearRatio;
     
-    // Example calculation (adjust based on actual mechanical odometer):
-    // If odometer advances 0.1 km per revolution:
-    // float odoRevsPerKm = 10.0;  // 10 revs = 1 km
-    // float odoRevs = distanceKm * odoRevsPerKm;
-    // float gearRatio = (float)ODO_GEAR_TEETH / (float)ODO_MOTOR_TEETH;
-    // float motorRevs = odoRevs * gearRatio;
-    // int steps = (int)(motorRevs * ODO_STEPS);
+    // Calculate steps required (steps = motor revolutions * steps per revolution)
+    // Keep as float to accumulate fractional steps for better precision
+    float steps = motorRevs * ODO_STEPS;
     
-    // TODO: Add actual motor movement using odoMotor.step(steps)
-    // Consider implementing a non-blocking approach if motor movement is slow
+    // Add to target position (non-blocking - actual movement happens in updateOdometerMotor)
+    if (steps > 0) {
+        odoMotorTargetSteps += steps;
+    }
+}
+
+/**
+ * updateOdometerMotor - Non-blocking motor update for mechanical odometer
+ * 
+ * Moves the odometer motor one step at a time toward the target position.
+ * This function should be called frequently from the main loop to ensure
+ * smooth, non-blocking motor operation.
+ * 
+ * The function enforces a minimum delay between steps to prevent the motor
+ * from moving too fast and losing steps or stalling.
+ */
+void updateOdometerMotor(void) {
+    // Check if there are steps to move
+    // Round target to ensure fractional parts >= 0.5 trigger the next step
+    unsigned long targetStep = (unsigned long)(odoMotorTargetSteps + 0.5);
+    
+    if (odoMotorCurrentStep < targetStep) {
+        // Check if enough time has passed since last step
+        unsigned long currentTime = micros();
+        
+        // Initialize timer on first run to avoid immediate step
+        if (lastOdoStepTime == 0) {
+            lastOdoStepTime = currentTime;
+            return;
+        }
+        
+        if (currentTime - lastOdoStepTime >= ODO_STEP_DELAY_US) {
+            // Move one step forward
+            odoMotor.step(1);
+            odoMotorCurrentStep++;
+            lastOdoStepTime = currentTime;
+        }
+    }
 }

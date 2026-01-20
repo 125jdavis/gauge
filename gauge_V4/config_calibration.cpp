@@ -9,8 +9,12 @@
 // ===== STEPPER MOTOR SWEEP RANGES =====
 uint16_t M1_SWEEP = 58 * 12;        // Motor 1: 58 degrees * 12 = 696 steps
 uint16_t M2_SWEEP = 58 * 12;        // Motor 2: 58 degrees * 12 = 696 steps
-uint16_t M3_SWEEP = 118 * 12;       // Motor 3: 118 degrees * 12 = 1416 steps
+uint16_t M3_SWEEP = 58 * 12;        // Motor 3: 58 degrees * 12 = 696 steps (same config as motor1)
 uint16_t M4_SWEEP = 58 * 12;        // Motor 4: 58 degrees * 12 = 696 steps
+uint16_t MS_SWEEP = 2098;           // Motor S: (118° / 0.9°) * 16 microsteps = 2097.78 ≈ 2098 steps (speedometer)
+
+// ===== MOTOR SWEEP TIMING =====
+uint16_t MOTOR_SWEEP_TIME_MS = 200;  // Time in milliseconds for motors to sweep full range (calibratable)
 
 // ===== ANALOG SENSOR FILTER COEFFICIENTS =====
 uint8_t FILTER_VBATT = 8;           // 8/64 = light filtering
@@ -43,18 +47,18 @@ unsigned int TACH_MAX = 6000;       // RPM at shift point
 unsigned int TACH_MIN = 3000;       // Minimum RPM to show
 
 // ===== ODOMETER MOTOR CALIBRATION =====
-uint8_t ODO_STEPS = 4096;             // Steps per revolution
+uint16_t ODO_STEPS = 4096;             // Steps per revolution
 uint8_t ODO_MOTOR_TEETH = 16;       // Number of teeth on motor gear
 uint8_t ODO_GEAR_TEETH = 20;        // Number of teeth on odometer gear
 
 // ===== SIGNAL SOURCE SELECTION =====
-uint8_t SPEED_SOURCE = 2;           // 0=off, 1=CAN, 2=Hall sensor, 3=GPS (default to Hall sensor)
-uint8_t RPM_SOURCE = 2;             // 0=off, 1=CAN, 2=coil negative (default to coil negative)
-uint8_t OIL_PRS_SOURCE = 1;         // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
-uint8_t FUEL_PRS_SOURCE = 1;        // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
-uint8_t COOLANT_TEMP_SOURCE = 2;    // 0=off, 1=CAN, 2=therm
+uint8_t SPEED_SOURCE = 4;           // 0=off, 1=CAN, 2=Hall sensor, 3=GPS, 4=Synthetic (debug)
+uint8_t RPM_SOURCE = 3;             // 0=off, 1=CAN, 2=coil negative, 3=Synthetic (debug)
+uint8_t OIL_PRS_SOURCE = 5;         // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug)
+uint8_t FUEL_PRS_SOURCE = 5;        // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug)
+uint8_t COOLANT_TEMP_SOURCE = 3;    // 0=off, 1=CAN, 2=therm, 3=Synthetic (debug)
 uint8_t OIL_TEMP_SOURCE = 2;        // 0=off, 1=CAN, 2=therm (default to therm sensor)
-uint8_t MAP_SOURCE = 1;             // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+uint8_t MAP_SOURCE = 5;             // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug)
 uint8_t LAMBDA_SOURCE = 1;          // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
 
 // ===== TIME ZONE OFFSET =====

@@ -6,6 +6,8 @@
 
 #include "sensors.h"
 #include "globals.h"
+#include "outputs.h"
+#include "utilities.h"
 
 // ===== VR-SAFE COMBINED FILTER STATE =====
 // State machine for startup filtering (VR-safe, Hall-compatible)
@@ -29,6 +31,12 @@ static unsigned long lastPulseArrivalTime = 0;  // Track when last pulse was add
 // Previous speed for acceleration limiting
 static unsigned int spdHallPrev = 0;
 static unsigned long lastSpeedUpdateTime = 0;
+
+// CAN odometer update tracking
+static unsigned long lastCANOdometerUpdateTime = 0;
+
+// Synthetic speed odometer update tracking
+static unsigned long lastSyntheticOdometerUpdateTime = 0;
 
 // VR-Safe filter constants
 #define LOW_SPEED_THRESHOLD_FOR_VR_REJECTION 1000  // 10 km/h in units of km/h*100
@@ -132,11 +140,26 @@ static bool checkIntervalCoherence() {
 
 /**
  * hallSpeedISR - Hall effect speed sensor interrupt handler
+ * 
+ * ISR Design: Lightweight and deterministic
+ * - Captures pulse timestamp using micros()
+ * - Performs basic sanity checks on pulse interval
+ * - Enqueues interval into ring buffer for median filtering
+ * - All heavy processing deferred to hallSpeedUpdate() in main loop
+ * 
+ * Performance: ~8-15 µs execution time (mostly conditional checks)
+ * 
  * VR-Safe Combined Filter Implementation:
  * - Timestamps pulses and enqueues intervals into ring buffer
  * - Rejects intervals that fail basic sanity checks
  * - VR-Safe: Rejects edge misfires at low speed (interval < 0.4× previous)
  * - Hall-Compatible: All checks pass transparently for clean Hall signals
+ * 
+ * Heavy processing deferred to main loop:
+ * - Median filtering
+ * - State machine transitions
+ * - Speed calculation
+ * - Acceleration limiting
  */
 void hallSpeedISR() {
     unsigned long currentTime = micros();
@@ -216,7 +239,10 @@ void hallSpeedUpdate() {
         if (SPEED_SOURCE == 2 && lastUpdateTime != 0) {
             unsigned long timeIntervalMicros = currentTime - lastUpdateTime;
             unsigned long timeIntervalMs = timeIntervalMicros / 1000;
-            updateOdometer(0, timeIntervalMs);
+            float distTraveled = updateOdometer(0, timeIntervalMs);
+            if (distTraveled > 0) {
+                moveOdometerMotor(distTraveled);
+            }
         }
         lastUpdateTime = currentTime;
         return;
@@ -336,7 +362,10 @@ void hallSpeedUpdate() {
         unsigned long timeIntervalMs = timeIntervalMicros / 1000;
         // spdHall is already in km/h * 100, convert to km/h for updateOdometer
         float speedKmh = spdHall * 0.01;
-        updateOdometer(speedKmh, timeIntervalMs);
+        float distTraveled = updateOdometer(speedKmh, timeIntervalMs);
+        if (distTraveled > 0) {
+            moveOdometerMotor(distTraveled);
+        }
     }
     lastUpdateTime = currentTime;
 }
@@ -384,6 +413,23 @@ float updateOdometer(float speedKmh, unsigned long timeIntervalMs) {
 
 /**
  * ignitionPulseISR - Interrupt service routine for engine RPM measurement
+ * 
+ * ISR Design: Lightweight with minimal calculation
+ * - Captures pulse timestamp using micros()
+ * - Calculates pulse interval
+ * - Computes RPM using integer math and division
+ * - Applies exponential moving average filter
+ * 
+ * Performance: ~10-15 µs execution time
+ * 
+ * Note: Division in ISR is not ideal but acceptable here because:
+ * - Engine pulses are relatively infrequent (max ~300 Hz at 18k RPM)
+ * - Calculation is simple enough to complete quickly
+ * - No complex loops or blocking operations
+ * 
+ * Alternative considered but not implemented:
+ * - Could defer division to main loop (capture interval only in ISR)
+ * - Current approach is simpler and performs adequately
  */
 void ignitionPulseISR() {
     unsigned long currentTime = micros();
@@ -471,7 +517,7 @@ float curveLookup(float input, float brkpts[], float curve[], int curveLength){
  * sigSelect - Process and route sensor data
  */
 void sigSelect (void) {
-    // Select vehicle speed source: 0=off, 1=CAN, 2=Hall sensor, 3=GPS
+    // Select vehicle speed source: 0=off, 1=CAN, 2=Hall sensor, 3=GPS, 4=Synthetic (debug)
     switch (SPEED_SOURCE) {
         case 0:  // Off
             spd = 0;
@@ -485,12 +531,48 @@ void sigSelect (void) {
         case 3:  // GPS speed source
             spd = spdGPS;  // Already in km/h * 100 format
             break;
+        case 4:  // Synthetic speed source (for debugging)
+            spd = generateSyntheticSpeed();  // Returns km/h * 100 format
+            break;
         default:  // Fallback to off
             spd = 0;
             break;
     }
     
-    // Select engine RPM source: 0=off, 1=CAN, 2=coil negative
+    // Update odometer for CAN speed source
+    // (GPS and Hall sensor update odometer in their respective functions)
+    if (SPEED_SOURCE == 1 && lastCANOdometerUpdateTime != 0) {
+        unsigned long currentTime = millis();
+        unsigned long timeIntervalMs = currentTime - lastCANOdometerUpdateTime;
+        // spdCAN is in km/h * 100 format, convert to km/h for updateOdometer
+        float speedKmh = spdCAN * 0.01;
+        float distTraveled = updateOdometer(speedKmh, timeIntervalMs);
+        if (distTraveled > 0) {
+            moveOdometerMotor(distTraveled);
+        }
+        lastCANOdometerUpdateTime = currentTime;
+    } else if (SPEED_SOURCE == 1 && lastCANOdometerUpdateTime == 0) {
+        // Initialize the timer on first run
+        lastCANOdometerUpdateTime = millis();
+    }
+    
+    // Update odometer for synthetic speed source (for debugging)
+    if (SPEED_SOURCE == 4 && lastSyntheticOdometerUpdateTime != 0) {
+        unsigned long currentTime = millis();
+        unsigned long timeIntervalMs = currentTime - lastSyntheticOdometerUpdateTime;
+        // spd is in km/h * 100 format, convert to km/h for updateOdometer
+        float speedKmh = spd * 0.01;
+        float distTraveled = updateOdometer(speedKmh, timeIntervalMs);
+        if (distTraveled > 0) {
+            moveOdometerMotor(distTraveled);
+        }
+        lastSyntheticOdometerUpdateTime = currentTime;
+    } else if (SPEED_SOURCE == 4 && lastSyntheticOdometerUpdateTime == 0) {
+        // Initialize the timer on first run
+        lastSyntheticOdometerUpdateTime = millis();
+    }
+    
+    // Select engine RPM source: 0=off, 1=CAN, 2=coil negative, 3=synthetic (debug)
     switch (RPM_SOURCE) {
         case 0:  // Off
             RPM = 0;
@@ -501,12 +583,15 @@ void sigSelect (void) {
         case 2:  // Coil negative tachometer
             RPM = engineRPMEMA;
             break;
+        case 3:  // Synthetic RPM (debug)
+            RPM = generateRPM();  // Returns RPM value
+            break;
         default:  // Fallback to off
             RPM = 0;
             break;
     }
     
-    // Select oil pressure source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+    // Select oil pressure source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=synthetic (debug)
     switch (OIL_PRS_SOURCE) {
         case 0:  // Off
             oilPrs = 0;
@@ -523,12 +608,15 @@ void sigSelect (void) {
         case 4:  // Analog sensor AV3
             oilPrs = sensor_av3 / 10.0;
             break;
+        case 5:  // Synthetic oil pressure (debug)
+            oilPrs = generateSyntheticOilPressure();
+            break;
         default:  // Fallback to off
             oilPrs = 0;
             break;
     }
     
-    // Select fuel pressure source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+    // Select fuel pressure source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=synthetic (debug)
     switch (FUEL_PRS_SOURCE) {
         case 0:  // Off
             fuelPrs = 0;
@@ -545,12 +633,15 @@ void sigSelect (void) {
         case 4:  // Analog sensor AV3
             fuelPrs = sensor_av3 / 10.0;
             break;
+        case 5:  // Synthetic fuel pressure (debug)
+            fuelPrs = generateSyntheticFuelPressure();
+            break;
         default:  // Fallback to off
             fuelPrs = 0;
             break;
     }
     
-    // Select coolant temperature source: 0=off, 1=CAN, 2=therm
+    // Select coolant temperature source: 0=off, 1=CAN, 2=therm, 3=synthetic (debug)
     switch (COOLANT_TEMP_SOURCE) {
         case 0:  // Off
             coolantTemp = 0;
@@ -560,6 +651,9 @@ void sigSelect (void) {
             break;
         case 2:  // Thermistor sensor
             coolantTemp = therm;
+            break;
+        case 3:  // Synthetic coolant temperature (debug)
+            coolantTemp = generateSyntheticCoolantTemp();
             break;
         default:  // Fallback to off
             coolantTemp = 0;
@@ -582,7 +676,7 @@ void sigSelect (void) {
             break;
     }
     
-    // Select manifold pressure/boost source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+    // Select manifold pressure/boost source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=synthetic (debug)
     switch (MAP_SOURCE) {
         case 0:  // Off
             manifoldPrs = 0;
@@ -598,6 +692,9 @@ void sigSelect (void) {
             break;
         case 4:  // Analog sensor AV3
             manifoldPrs = sensor_av3 / 10.0;
+            break;
+        case 5:  // Synthetic manifold pressure (debug)
+            manifoldPrs = generateSyntheticManifoldPressure();
             break;
         default:  // Fallback to off
             manifoldPrs = 0;

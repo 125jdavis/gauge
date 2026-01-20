@@ -16,6 +16,7 @@
 #include <mcp_can.h>
 #include <SwitecX12.h>
 #include <Stepper.h>
+#define HALF_STEP
 #include <Rotary.h>
 #include <FastLED.h>
 #include "config_hardware.h"
@@ -31,6 +32,7 @@ extern SwitecX12 motor1;
 extern SwitecX12 motor2;
 extern SwitecX12 motor3;
 extern SwitecX12 motor4;
+extern SwitecX12 motorS;
 extern Stepper odoMotor;
 extern Adafruit_GPS GPS;
 
@@ -80,11 +82,12 @@ extern unsigned int coolantTemp_g;  // Coolant temperature for gauge calculation
 extern bool button;                 // Button press event flag (set when press completes)
 
 // ===== TIMING VARIABLES =====
-extern unsigned int timer0, timerDispUpdate, timerCANsend;
-extern unsigned int timerSensorRead, timerTachUpdate, timerTachFlash;
-extern unsigned int timerCheckGPS, timerGPSupdate, timerAngleUpdate;
-extern unsigned int timerHallUpdate;
-extern unsigned int timerEngineRPMUpdate;
+extern unsigned long timer0, timerDispUpdate, timerCANsend;
+extern unsigned long timerSensorRead, timerTachUpdate, timerTachFlash;
+extern unsigned long timerCheckGPS, timerGPSupdate, timerAngleUpdate;
+extern unsigned long timerHallUpdate;
+extern unsigned long timerEngineRPMUpdate;
+extern unsigned long timerSigSelectUpdate;
 
 // ===== CAN BUS ENGINE PARAMETERS =====
 extern int rpmCAN;                  // Engine RPM (direct value, 0-10000+)

@@ -7,6 +7,7 @@
 #include "gps.h"
 #include "globals.h"
 #include "sensors.h"
+#include "outputs.h"
 
 /**
  * fetchGPSdata - Process new GPS data when available
@@ -38,6 +39,9 @@ void fetchGPSdata(){
             // Calculate distance traveled for odometer (only if GPS is selected as speed source)
             if (SPEED_SOURCE == 3) {
               distLast = updateOdometer(v, lagGPS);
+              if (distLast > 0) {
+                moveOdometerMotor(distLast);
+              }
             } else {
               // Still calculate distLast for potential display/debugging, but don't update odometer
               if (v > 2) {
@@ -56,6 +60,14 @@ void fetchGPSdata(){
 
 /**
  * TIMER0_COMPA_vect - Timer0 compare interrupt for GPS data reading
+ * 
+ * ISR Design: Minimal - single byte read from GPS UART
+ * - Called automatically ~1 kHz by Timer0 (shared with millis())
+ * - Reads one byte from GPS module via Adafruit_GPS library
+ * - No parsing, no processing - just captures data
+ * - Heavy parsing deferred to fetchGPSdata() in main loop
+ * 
+ * Performance: ~3-5 µs execution time (just UART read)
  * 
  * This interrupt service routine (ISR) is called automatically once per millisecond
  * by the Arduino Timer0 hardware timer. It reads one byte from the GPS module

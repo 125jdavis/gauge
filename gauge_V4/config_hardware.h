@@ -45,6 +45,10 @@ constexpr uint8_t M3_DIR = 32;      // Motor 3 direction control pin
 constexpr uint8_t M4_STEP = 40;     // Motor 4 step pulse pin
 constexpr uint8_t M4_DIR = 41;      // Motor 4 direction control pin
 
+// Motor S Configuration (speedometer - 16 microsteps, 400 steps/rev, 0.9° per step)
+constexpr uint8_t MS_STEP = 45;     // Motor S step pulse pin
+constexpr uint8_t MS_DIR = 47;      // Motor S direction control pin
+
 // ===== ROTARY ENCODER =====
 constexpr uint8_t SWITCH = 1;       // Rotary encoder push button pin (V4 hardware uses pin 1, V3 used pin 24)
 
@@ -98,10 +102,10 @@ constexpr uint8_t PULSES_TO_SKIP_AFTER_STANDSTILL = 2;  // Number of initial pul
 constexpr unsigned long IGNITION_PULSE_TIMEOUT = 500000UL; // Timeout (μs) for "engine stopped" (0.5 second)
 
 // ===== ODOMETER MOTOR HARDWARE =====
-constexpr uint8_t ODO_PIN1 = 10;    // Odometer motor coil 1 pin
-constexpr uint8_t ODO_PIN2 = 11;    // Odometer motor coil 2 pin
-constexpr uint8_t ODO_PIN3 = 12;    // Odometer motor coil 3 pin
-constexpr uint8_t ODO_PIN4 = 13;    // Odometer motor coil 4 pin
+constexpr uint8_t ODO_PIN1 = 8;    // Odometer motor coil 1 pin
+constexpr uint8_t ODO_PIN2 = 9;    // Odometer motor coil 2 pin
+constexpr uint8_t ODO_PIN3 = 10;    // Odometer motor coil 3 pin
+constexpr uint8_t ODO_PIN4 = 11;    // Odometer motor coil 4 pin
 
 // ===== TIMING CONSTANTS =====
 // Update rate periods (in milliseconds)
@@ -110,11 +114,26 @@ constexpr unsigned int DISP_UPDATE_RATE = 75;     // Update displays every 75ms 
 constexpr unsigned int SENSOR_READ_RATE = 10;     // Read analog sensors every 10ms (100Hz for responsive readings)
 constexpr unsigned int TACH_UPDATE_RATE = 50;     // Update LED tachometer every 50ms (20Hz)
 constexpr unsigned int TACH_FLASH_RATE = 50;      // Flash shift light every 50ms when over redline
+constexpr unsigned int SIG_SELECT_UPDATE_RATE = 10; // Update signal selection/synthetic generators every 10ms (100Hz)
 constexpr unsigned int GPS_UPDATE_RATE = 100;     // GPS update check rate (might not be needed)
 constexpr unsigned int CHECK_GPS_RATE = 1;        // Check for GPS data every 1ms
 constexpr unsigned int ANGLE_UPDATE_RATE = 20;    // Update motor angles every 20ms (50Hz)
 constexpr unsigned int SPLASH_TIME = 1500;        // Duration of startup splash screens (milliseconds)
 constexpr unsigned int HALL_UPDATE_RATE = 20;     // Recalculate Hall sensor speed every 20ms (50Hz)
 constexpr unsigned int ENGINE_RPM_UPDATE_RATE = 20; // Check engine RPM timeout every 20ms (50Hz)
+
+// ===== MOTOR UPDATE TIMER CONFIGURATION =====
+// Timer-based motor stepping for smooth, deterministic motion
+// Uses Timer3 (16-bit) on Arduino Mega 2560 for precise motor update intervals
+// Timer3 is chosen because:
+// - Timer0 is used for millis() and GPS reading
+// - Timer1 may be used for PWM or other functions
+// - Timer3 is a 16-bit timer suitable for precise frequency control
+// - Timer3 is independent and doesn't conflict with existing ISRs
+constexpr uint32_t MOTOR_UPDATE_FREQ_HZ = 10000;  // Target frequency: 10 kHz (100 µs period)
+                                                    // This frequency ensures:
+                                                    // - Steps don't accumulate delays at max motor speed
+                                                    // - Overhead is reasonable (~10-20% CPU at 10kHz with 5 motors)
+                                                    // - Compatible with SwitecX12 microDelay (min 90 µs)
 
 #endif // CONFIG_HARDWARE_H
