@@ -35,6 +35,9 @@ static unsigned long lastSpeedUpdateTime = 0;
 // CAN odometer update tracking
 static unsigned long lastCANOdometerUpdateTime = 0;
 
+// Synthetic speed odometer update tracking
+static unsigned long lastSyntheticOdometerUpdateTime = 0;
+
 // VR-Safe filter constants
 #define LOW_SPEED_THRESHOLD_FOR_VR_REJECTION 1000  // 10 km/h in units of km/h*100
 #define MAX_ACCELERATION_UNITS 3530UL  // 1g acceleration ≈ 35.3 km/h/s ≈ 3530 (km/h*100)/s
@@ -551,6 +554,22 @@ void sigSelect (void) {
     } else if (SPEED_SOURCE == 1 && lastCANOdometerUpdateTime == 0) {
         // Initialize the timer on first run
         lastCANOdometerUpdateTime = millis();
+    }
+    
+    // Update odometer for synthetic speed source (for debugging)
+    if (SPEED_SOURCE == 4 && lastSyntheticOdometerUpdateTime != 0) {
+        unsigned long currentTime = millis();
+        unsigned long timeIntervalMs = currentTime - lastSyntheticOdometerUpdateTime;
+        // spd is in km/h * 100 format, convert to km/h for updateOdometer
+        float speedKmh = spd * 0.01;
+        float distTraveled = updateOdometer(speedKmh, timeIntervalMs);
+        if (distTraveled > 0) {
+            moveOdometerMotor(distTraveled);
+        }
+        lastSyntheticOdometerUpdateTime = currentTime;
+    } else if (SPEED_SOURCE == 4 && lastSyntheticOdometerUpdateTime == 0) {
+        // Initialize the timer on first run
+        lastSyntheticOdometerUpdateTime = millis();
     }
     
     // Select engine RPM source: 0=off, 1=CAN, 2=coil negative, 3=synthetic (debug)
