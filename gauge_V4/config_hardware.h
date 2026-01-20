@@ -110,7 +110,7 @@ constexpr uint8_t ODO_PIN4 = 11;    // Odometer motor coil 4 pin
 // ===== TIMING CONSTANTS =====
 // Update rate periods (in milliseconds)
 constexpr unsigned int CAN_SEND_RATE = 50;        // Send CAN messages every 50ms (20Hz)
-constexpr unsigned int DISP_UPDATE_RATE = 75;     // Update displays every 75ms (~13Hz)
+constexpr unsigned int DISP_UPDATE_RATE = 100;     // Update displays every 100ms (~10Hz)
 constexpr unsigned int SENSOR_READ_RATE = 10;     // Read analog sensors every 10ms (100Hz for responsive readings)
 constexpr unsigned int TACH_UPDATE_RATE = 50;     // Update LED tachometer every 50ms (20Hz)
 constexpr unsigned int TACH_FLASH_RATE = 50;      // Flash shift light every 50ms when over redline
