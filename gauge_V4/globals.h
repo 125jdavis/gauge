@@ -15,7 +15,6 @@
 #include <Adafruit_GPS.h>
 #include <mcp_can.h>
 #include <SwitecX12.h>
-#include <Stepper.h>
 #define HALF_STEP
 #include <Rotary.h>
 #include <FastLED.h>
@@ -33,7 +32,8 @@ extern SwitecX12 motor2;
 extern SwitecX12 motor3;
 extern SwitecX12 motor4;
 extern SwitecX12 motorS;
-extern Stepper odoMotor;
+// Note: odoMotor no longer uses Arduino Stepper library
+// Direct pin control is used in outputs.cpp for non-blocking operation
 extern Adafruit_GPS GPS;
 
 // ===== ANALOG SENSOR READINGS =====

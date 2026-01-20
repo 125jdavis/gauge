@@ -17,7 +17,8 @@ SwitecX12 motor2(M2_SWEEP, M2_STEP, M2_DIR);
 SwitecX12 motor3(M3_SWEEP, M3_STEP, M3_DIR);
 SwitecX12 motor4(M4_SWEEP, M4_STEP, M4_DIR);
 SwitecX12 motorS(MS_SWEEP, MS_STEP, MS_DIR);
-Stepper odoMotor(ODO_STEPS, ODO_PIN1, ODO_PIN2, ODO_PIN3, ODO_PIN4);
+// Note: odoMotor no longer uses Arduino Stepper library
+// Direct pin control is used in outputs.cpp for non-blocking operation
 Adafruit_GPS GPS(&Serial2);
 
 // ===== ANALOG SENSOR READINGS =====
