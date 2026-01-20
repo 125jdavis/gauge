@@ -102,10 +102,10 @@ constexpr uint8_t PULSES_TO_SKIP_AFTER_STANDSTILL = 2;  // Number of initial pul
 constexpr unsigned long IGNITION_PULSE_TIMEOUT = 500000UL; // Timeout (μs) for "engine stopped" (0.5 second)
 
 // ===== ODOMETER MOTOR HARDWARE =====
-constexpr uint8_t ODO_PIN1 = 10;    // Odometer motor coil 1 pin
-constexpr uint8_t ODO_PIN2 = 11;    // Odometer motor coil 2 pin
-constexpr uint8_t ODO_PIN3 = 12;    // Odometer motor coil 3 pin
-constexpr uint8_t ODO_PIN4 = 13;    // Odometer motor coil 4 pin
+constexpr uint8_t ODO_PIN1 = 8;    // Odometer motor coil 1 pin
+constexpr uint8_t ODO_PIN2 = 9;    // Odometer motor coil 2 pin
+constexpr uint8_t ODO_PIN3 = 10;    // Odometer motor coil 3 pin
+constexpr uint8_t ODO_PIN4 = 11;    // Odometer motor coil 4 pin
 
 // ===== TIMING CONSTANTS =====
 // Update rate periods (in milliseconds)
