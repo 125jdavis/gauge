@@ -88,7 +88,10 @@ If testing with synthetic speed (SPEED_SOURCE = 4 in config_calibration.cpp):
 
 #### Motor moving in wrong direction
 - This is normal - direction can be reversed by changing the step sequence
-- To reverse: change `odoMotorStepIndex + 1` to `odoMotorStepIndex + 3` (or equivalently subtract 1)
+- To reverse: change the increment to decrement in the step sequence
+  - Current (forward): `odoMotorStepIndex = (odoMotorStepIndex + 1) % 4`
+  - Reverse: `odoMotorStepIndex = (odoMotorStepIndex + 3) % 4`
+  - Note: Adding 3 mod 4 is equivalent to subtracting 1 (with wraparound)
 
 #### Motor gets hot
 - Wave drive should minimize heat, but some warmth is normal
