@@ -82,11 +82,11 @@ extern unsigned int coolantTemp_g;  // Coolant temperature for gauge calculation
 extern bool button;                 // Button press event flag (set when press completes)
 
 // ===== TIMING VARIABLES =====
-extern unsigned int timer0, timerDispUpdate, timerCANsend;
-extern unsigned int timerSensorRead, timerTachUpdate, timerTachFlash;
-extern unsigned int timerCheckGPS, timerGPSupdate, timerAngleUpdate;
-extern unsigned int timerHallUpdate;
-extern unsigned int timerEngineRPMUpdate;
+extern unsigned long timer0, timerDispUpdate, timerCANsend;
+extern unsigned long timerSensorRead, timerTachUpdate, timerTachFlash;
+extern unsigned long timerCheckGPS, timerGPSupdate, timerAngleUpdate;
+extern unsigned long timerHallUpdate;
+extern unsigned long timerEngineRPMUpdate;
 
 // ===== CAN BUS ENGINE PARAMETERS =====
 extern int rpmCAN;                  // Engine RPM (direct value, 0-10000+)

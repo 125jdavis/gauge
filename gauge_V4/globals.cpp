@@ -73,11 +73,11 @@ bool button = 0;                       // Button press event flag (set when pres
 
 // ===== TIMING VARIABLES =====
 // Manage update rates for different subsystems
-unsigned int timer0, timerDispUpdate, timerCANsend;
-unsigned int timerSensorRead, timerTachUpdate, timerTachFlash;
-unsigned int timerCheckGPS, timerGPSupdate, timerAngleUpdate;
-unsigned int timerHallUpdate;
-unsigned int timerEngineRPMUpdate;
+unsigned long timer0, timerDispUpdate, timerCANsend;
+unsigned long timerSensorRead, timerTachUpdate, timerTachFlash;
+unsigned long timerCheckGPS, timerGPSupdate, timerAngleUpdate;
+unsigned long timerHallUpdate;
+unsigned long timerEngineRPMUpdate;
 // ===== CAN BUS ENGINE PARAMETERS =====
 // Raw values received from Haltech ECU via CAN bus
 // These are stored as integers to preserve precision from the CAN protocol

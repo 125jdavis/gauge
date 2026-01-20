@@ -12,8 +12,8 @@ void swRead() {
   // and prevent potential interference from other parts of the code
   static bool stateSW = 1;                      // Current state of encoder switch (1 = not pressed)
   static bool lastStateSW = 1;                  // Previous state of encoder switch
-  static unsigned int lastStateChangeTime = 0;  // Timestamp of last switch state change (ms)
-  static unsigned int debounceDelay = 50;       // Debounce time in milliseconds
+  static unsigned long lastStateChangeTime = 0;  // Timestamp of last switch state change (ms)
+  static unsigned int debounceDelay = 50;       // Debounce time in milliseconds (50ms never overflows)
   static bool debounceFlag = 0;                 // Flag to prevent multiple triggers during debounce
        
   stateSW = digitalRead(SWITCH);            // Read current state of encoder button
