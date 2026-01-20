@@ -87,6 +87,7 @@ extern unsigned long timerSensorRead, timerTachUpdate, timerTachFlash;
 extern unsigned long timerCheckGPS, timerGPSupdate, timerAngleUpdate;
 extern unsigned long timerHallUpdate;
 extern unsigned long timerEngineRPMUpdate;
+extern unsigned long timerSigSelectUpdate;
 
 // ===== CAN BUS ENGINE PARAMETERS =====
 extern int rpmCAN;                  // Engine RPM (direct value, 0-10000+)

@@ -114,6 +114,7 @@ constexpr unsigned int DISP_UPDATE_RATE = 75;     // Update displays every 75ms 
 constexpr unsigned int SENSOR_READ_RATE = 10;     // Read analog sensors every 10ms (100Hz for responsive readings)
 constexpr unsigned int TACH_UPDATE_RATE = 50;     // Update LED tachometer every 50ms (20Hz)
 constexpr unsigned int TACH_FLASH_RATE = 50;      // Flash shift light every 50ms when over redline
+constexpr unsigned int SIG_SELECT_UPDATE_RATE = 10; // Update signal selection/synthetic generators every 10ms (100Hz)
 constexpr unsigned int GPS_UPDATE_RATE = 100;     // GPS update check rate (might not be needed)
 constexpr unsigned int CHECK_GPS_RATE = 1;        // Check for GPS data every 1ms
 constexpr unsigned int ANGLE_UPDATE_RATE = 20;    // Update motor angles every 20ms (50Hz)

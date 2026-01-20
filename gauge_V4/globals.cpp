@@ -78,6 +78,7 @@ unsigned long timerSensorRead, timerTachUpdate, timerTachFlash;
 unsigned long timerCheckGPS, timerGPSupdate, timerAngleUpdate;
 unsigned long timerHallUpdate;
 unsigned long timerEngineRPMUpdate;
+unsigned long timerSigSelectUpdate;
 // ===== CAN BUS ENGINE PARAMETERS =====
 // Raw values received from Haltech ECU via CAN bus
 // These are stored as integers to preserve precision from the CAN protocol

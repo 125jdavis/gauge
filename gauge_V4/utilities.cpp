@@ -48,25 +48,69 @@ void shutdown (void){
  * generateRPM - Generate simulated RPM for demo mode
  * 
  * Creates a realistic RPM sweep for testing the LED tachometer
- * without a running engine. Modified to return value like other synthetic functions.
+ * without a running engine. Time-based implementation for smooth operation.
+ * 
+ * RPM range: 900-7000 RPM
+ * Max rate of change: Configurable via MAX_RPM_RATE
  * 
  * Returns: RPM value (integer)
  */
 int generateRPM(void){
-    static bool rpmSwitch = 0;      // Direction flag for demo RPM sweep - local static
-    static int gRPM = 900;          // Generated RPM value for demo mode - local static
+    // Static variables persist between function calls
+    static bool rpmSwitch = 0;              // Direction flag: 0=up, 1=down
+    static int gRPM = 900;                  // Current RPM value
+    static unsigned long lastUpdateTime = 0; // Last update timestamp for delta calculation
     
-    // RPM signal generation for demo/testing
-    if (rpmSwitch == 0){
-      gRPM = gRPM + 120;  // Ramp up by 120 RPM per update
-    }
-    else if (rpmSwitch == 1) {
-      gRPM = gRPM - 160;  // Ramp down by 160 RPM per update
+    // Constants - calibratable parameters
+    const int MIN_RPM = 900;                // Minimum RPM
+    const int MAX_RPM = 7000;               // Maximum RPM
+    const int MAX_RPM_RATE = 3000;          // Maximum rate of change: 3000 RPM/second
+    const int RPM_UP_RATE = 2400;           // Ramp up rate: 2400 RPM/second (adjustable)
+    const int RPM_DOWN_RATE = 3200;         // Ramp down rate: 3200 RPM/second (adjustable)
+    
+    // Initialize on first call
+    if (lastUpdateTime == 0) {
+        lastUpdateTime = millis();
+        gRPM = MIN_RPM;
+        rpmSwitch = 0;
+        return gRPM;
     }
     
-    // Reverse direction at limits
-    if (gRPM > 7000) rpmSwitch = 1;  // Start ramping down at 7000 RPM
-    if (gRPM < 900) rpmSwitch = 0;   // Start ramping up at 900 RPM
+    // Calculate time delta
+    unsigned long currentTime = millis();
+    unsigned long deltaTime = currentTime - lastUpdateTime;
+    lastUpdateTime = currentTime;
+    
+    // Skip if called too quickly (< 5ms) or if time wrapped
+    if (deltaTime < 5 || deltaTime > 1000) {
+        return gRPM;
+    }
+    
+    // Calculate RPM change based on time delta
+    // delta_RPM = (rate_in_RPM_per_sec * deltaTime_in_ms) / 1000
+    int deltaRPM;
+    if (rpmSwitch == 0) {
+        // Ramping up
+        deltaRPM = (RPM_UP_RATE * deltaTime) / 1000;
+        gRPM += deltaRPM;
+        
+        // Check if we've hit the upper limit
+        if (gRPM >= MAX_RPM) {
+            gRPM = MAX_RPM;
+            rpmSwitch = 1;  // Start ramping down
+        }
+    }
+    else {
+        // Ramping down
+        deltaRPM = (RPM_DOWN_RATE * deltaTime) / 1000;
+        gRPM -= deltaRPM;
+        
+        // Check if we've hit the lower limit
+        if (gRPM <= MIN_RPM) {
+            gRPM = MIN_RPM;
+            rpmSwitch = 0;  // Start ramping up
+        }
+    }
     
     return gRPM;
 }

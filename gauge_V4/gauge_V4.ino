@@ -346,10 +346,17 @@ void loop() {
     timerTachUpdate = millis();
   }
 
+  // ===== SIGNAL SELECTION UPDATE =====
+  // Process sensor readings and synthetic signal generators
+  // Runs at 100Hz for responsive synthetic signals
+  if (millis() - timerSigSelectUpdate > SIG_SELECT_UPDATE_RATE) {
+    sigSelect();
+    timerSigSelectUpdate = millis();
+  }
+
   // ===== DISPLAY UPDATE =====
   if (millis() - timerDispUpdate > DISP_UPDATE_RATE) {
     swRead();
-    sigSelect();
     dispMenu();
     disp2();
     timerDispUpdate = millis();

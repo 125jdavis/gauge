@@ -25,11 +25,15 @@ void shutdown(void);
  * generateRPM - Generate simulated RPM for demo mode
  * 
  * Creates a realistic RPM sweep for testing the LED tachometer
- * without a running engine. Modified to be callable like synthetic signals.
+ * without a running engine. Time-based implementation with configurable rates.
  * 
- * Returns: RPM value (integer)
+ * RPM range: 900-7000 RPM
+ * Ramp up rate: 2400 RPM/second (calibratable)
+ * Ramp down rate: 3200 RPM/second (calibratable)
  * 
  * Called from: sigSelect() when RPM_SOURCE == 3 (synthetic mode)
+ * 
+ * Returns: Simulated RPM value (integer, 900-7000)
  */
 int generateRPM(void);
 
