@@ -16,6 +16,7 @@
 #include <mcp_can.h>
 #include <SwitecX12.h>
 #include <Stepper.h>
+#define HALF_STEP
 #include <Rotary.h>
 #include <FastLED.h>
 #include "config_hardware.h"

@@ -251,12 +251,12 @@ int generateSyntheticSpeed(void) {
                         state = HOLD;
                         currentSpeed = 0;
                         accelRate = 0;
-                        stateDuration = random(2000, 5000);  // 2-5 seconds at zero
+                        stateDuration = random(500, 2000);  // .5-2 seconds at zero
                     } else if (random(2) == 0) {
                         // Hold at current speed
                         state = HOLD;
                         accelRate = 0;
-                        stateDuration = random(2000, 5000);  // 2-5 seconds
+                        stateDuration = random(500, 2000);  // .5-2 seconds
                     } else {
                         // Accelerate again
                         state = ACCEL;
@@ -277,7 +277,7 @@ int generateSyntheticSpeed(void) {
         state = HOLD;
         accelRate = 0;
         stateStartTime = currentTime;
-        stateDuration = random(2000, 5000);  // Hold for 2-5 seconds
+        stateDuration = random(0, 2000);  // Hold for 0-2 seconds
     } else if (state == DECEL && currentSpeed <= targetSpeed) {
         // Reached target while decelerating - transition to hold
         currentSpeed = targetSpeed;
