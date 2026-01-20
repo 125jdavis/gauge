@@ -386,12 +386,20 @@ void loop() {
     shutdown();  // Save settings, zero gauges, display shutdown screen, cut power
   }
 
-  // ===== YIELD FOR COOPERATIVE MULTITASKING =====
-  // Prevent main loop from spinning at excessive rates (10,000+ Hz) when no work needs doing
-  // yield() allows background tasks (watchdog, Serial buffers, etc.) to run
-  // This naturally throttles the loop to an appropriate rate (~100-500 Hz)
-  // while Timer3 ISR continues to provide smooth 10 kHz motor updates
-  yield();
+  // ===== LOOP RATE LIMITING =====
+  // Prevent main loop from spinning wastefully at 10,000+ Hz when no work pending
+  // 
+  // Problem: Loop checks timer conditions rapidly (~10,000 Hz) but only enters
+  // heavy code paths (display, GPS parsing) every 10-75ms. This wastes CPU and
+  // causes ISR jitter.
+  // 
+  // Solution: Add small delay to limit maximum spin rate to ~3,000-5,000 Hz
+  // when idle, while allowing natural throttling to ~31 Hz when displays/GPS active.
+  // 
+  // The 100µs delay won't affect performance when real work is happening (31 Hz
+  // is much slower than 10,000 Hz). Timer3 ISR continues smooth 10 kHz motor updates.
+  delayMicroseconds(100);
+  yield();  // Also allow background tasks to run
 
 
 }
