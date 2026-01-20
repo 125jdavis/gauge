@@ -76,6 +76,8 @@
 #include "utilities.h"
 #include "image_data.h"
 
+
+
 /*
  * ========================================
  * TIMER-BASED MOTOR UPDATE ISR
@@ -277,7 +279,7 @@ void setup() {
  * ========================================
  */
 void loop() {
-    
+
   // ===== ANALOG SENSOR READING =====
   if (millis() - timerSensorRead > SENSOR_READ_RATE) {
     int s = micros();
@@ -390,5 +392,6 @@ void loop() {
   // This naturally throttles the loop to an appropriate rate (~100-500 Hz)
   // while Timer3 ISR continues to provide smooth 10 kHz motor updates
   yield();
+
 
 }
