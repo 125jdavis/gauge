@@ -387,19 +387,22 @@ void loop() {
   }
 
   // ===== LOOP RATE LIMITING =====
-  // Prevent main loop from spinning wastefully at 10,000+ Hz when no work pending
+  // Throttle main loop to match performance when displays are actively updating
   // 
-  // Problem: Loop checks timer conditions rapidly (~10,000 Hz) but only enters
-  // heavy code paths (display, GPS parsing) every 10-75ms. This wastes CPU and
-  // causes ISR jitter.
+  // Problem: Fast loop rates (2,500-10,000 Hz) cause laggy/steppy motor motion
+  // even though Timer3 ISR handles actual stepping at 10 kHz. When display updates
+  // are active (~20-30ms each via SPI), loop naturally runs at ~30 Hz and motion
+  // is smooth.
   // 
-  // Solution: Add small delay to limit maximum spin rate to ~3,000-5,000 Hz
-  // when idle, while allowing natural throttling to ~31 Hz when displays/GPS active.
+  // Root cause: High loop rates cause excessive Timer3 ISR interruptions, creating
+  // timing jitter in motor stepping despite ISR running at consistent 10 kHz.
   // 
-  // The 100µs delay won't affect performance when real work is happening (31 Hz
-  // is much slower than 10,000 Hz). Timer3 ISR continues smooth 10 kHz motor updates.
-  delayMicroseconds(100);
-  yield();  // Also allow background tasks to run
+  // Solution: Delay to maintain consistent ~30-50 Hz loop rate, matching the
+  // steady-state performance when displays are actively updating. This provides
+  // consistent smooth motor motion from startup throughout operation.
+  // 
+  // Timer3 ISR continues deterministic 10 kHz motor stepping (unaffected by delay).
+  delay(20);  // ~50 Hz max loop rate, matches display update behavior
 
 
 }
