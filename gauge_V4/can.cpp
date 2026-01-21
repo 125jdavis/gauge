@@ -51,7 +51,7 @@ void sendCAN_BE(int CANaddress, int inputVal_1, int inputVal_2, int inputVal_3, 
         data[5] = lowByte(inputVal_3);
         // Word 4 (bytes 6-7)
         data[6] = highByte(inputVal_4);
-        data[7] = highByte(inputVal_4);
+        data[7] = lowByte(inputVal_4);  // Fixed: was highByte, should be lowByte
 
         byte sndStat = CAN0.sendMsgBuf(CANaddress, 0, 8, data);  // Send 8-byte message, standard ID
 }
@@ -183,7 +183,8 @@ void parseCANMegasquirt(unsigned long id)
   else if (id == 0x5F1) {  // Offset 1: Coolant Temp, CLT correction
     // Coolant temp: bytes 0-1 (deg F * 10, need conversion)
     int tempF = rxBuf[0] + (rxBuf[1]<<8);
-    coolantTempCAN = (int)(((tempF / 10.0) - 32.0) * 5.0/9.0 * 10.0 + 2731.5);  // Convert F to K*10
+    // Convert F*10 to K*10: (F/10 - 32) * 5/9 + 273.15, then * 10
+    coolantTempCAN = (int)((((tempF / 10.0) - 32.0) * 5.0/9.0 + 273.15) * 10.0);  // Convert F*10 to K*10
   }
   else if (id == 0x5F2) {  // Offset 2: TPS, Battery voltage
     // TPS: bytes 0-1 (% * 10)
@@ -299,7 +300,7 @@ void parseCANOBDII(unsigned long id)
       // Formula: ((A*256)+B) * 0.0000305 (lambda)
       // Convert to lambda * 1000
       unsigned int lambdaRaw = (rxBuf[3] << 8) + rxBuf[4];
-      afr1CAN = (int)(lambdaRaw * 0.0305);  // Result is lambda * 1000
+      afr1CAN = (int)(lambdaRaw * 0.0000305 * 1000.0);  // Convert to lambda * 1000
       obdiiAwaitingResponse = false;
       break;
     }
