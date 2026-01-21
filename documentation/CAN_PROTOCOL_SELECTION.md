@@ -51,7 +51,7 @@ The system attempts to read the following parameters from each protocol:
 
 | Parameter | Haltech v2 | Megasquirt | AiM | OBDII |
 |-----------|-----------|------------|-----|-------|
-| Vehicle Speed | ✓ | ✓ | ✓ | ✓ (polled) |
+| Vehicle Speed | - | - | ✓ | ✓ (polled) |
 | Engine RPM | ✓ | ✓ | ✓ | ✓ (polled) |
 | Coolant Temp | ✓ | ✓ | ✓ | ✓ (polled) |
 | Fuel Pressure | ✓ | - | ✓ | - |
@@ -61,6 +61,8 @@ The system attempts to read the following parameters from each protocol:
 | Manifold Pressure | ✓ | ✓ | ✓ | ✓ (polled) |
 
 **Note:** Parameters marked with "-" are not available in that protocol. The system will ignore unavailable parameters and continue to operate normally.
+
+**Note on Vehicle Speed:** Haltech v2 and Megasquirt do not broadcast vehicle speed in their standard protocols. To use CAN for vehicle speed input, select AiM or OBDII protocol and set `SPEED_SOURCE = 1` in config_calibration.cpp. Otherwise, use GPS (`SPEED_SOURCE = 3`) or Hall sensor (`SPEED_SOURCE = 2`).
 
 ## Protocol-Specific Details
 

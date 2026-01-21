@@ -45,13 +45,13 @@ uint8_t CAN_PROTOCOL = CAN_PROTOCOL_OBDII;       // OBDII
 ### ⚠️ Protocol Limitations:
 - **Megasquirt**: No oil/fuel pressure (not in standard broadcast)
 - **OBDII**: No oil/fuel pressure (not in standard PIDs)
-- **Vehicle Speed**: System uses GPS or Hall sensor (not CAN)
+- **Haltech/Megasquirt**: No vehicle speed (not in standard broadcast)
 
 ### ℹ️ Note on Vehicle Speed:
-- Haltech/Megasquirt don't broadcast vehicle speed
-- AiM broadcasts it but we use GPS/Hall sensor for better accuracy
-- OBDII can provide it but not currently stored
-- Configure `SPEED_SOURCE` in config_calibration.cpp (GPS=3, Hall=2)
+- **Haltech/Megasquirt** don't broadcast vehicle speed - use GPS or Hall sensor
+- **AiM** broadcasts vehicle speed - can use CAN (`SPEED_SOURCE=1`)
+- **OBDII** provides vehicle speed via polling - can use CAN (`SPEED_SOURCE=1`)
+- Configure `SPEED_SOURCE` in config_calibration.cpp (CAN=1, Hall=2, GPS=3)
 
 ---
 
