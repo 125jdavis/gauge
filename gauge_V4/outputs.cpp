@@ -445,7 +445,7 @@ void updateOdometerMotor(void) {
         
         if (currentTime - lastOdoStepTime >= ODO_STEP_DELAY_US) {
             // Advance to next step in sequence
-            odoMotorStepIndex = (odoMotorStepIndex + 1) % 4;
+            odoMotorStepIndex = (odoMotorStepIndex + 3) % 4; //(odoMotorStepIndex + x) FWD: x=1 REV: x=3 
             
             // Apply step sequence to motor pins
             digitalWrite(ODO_PIN1, ODO_STEP_SEQUENCE[odoMotorStepIndex][0]);
