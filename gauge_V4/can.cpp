@@ -7,6 +7,11 @@
 #include "can.h"
 #include "globals.h"
 
+// ===== OBDII CONSTANTS =====
+#define OBDII_PRIORITY1_INTERVAL_MS 100   // 10 Hz polling rate for priority 1 parameters
+#define OBDII_PRIORITY2_INTERVAL_MS 1000  // 1 Hz polling rate for priority 2 parameters
+#define OBDII_LAMBDA_SCALE_FACTOR 0.0000305  // OBDII lambda scaling factor
+
 /**
  * sendCAN_LE - Send CAN message with Little Endian byte order
  */
@@ -276,9 +281,10 @@ void parseCANOBDII(unsigned long id)
       
     case 0x0D:  // Vehicle Speed
       // Formula: A (km/h)
-      // Store as km/h * 100 for compatibility
-      // Note: This updates a different variable, as spdCAN is for output
-      // Speed input typically comes from Hall sensor or GPS in this system
+      // Note: Vehicle speed from OBDII is available but not currently stored
+      // This system typically uses Hall sensor (SPEED_SOURCE=2) or GPS (SPEED_SOURCE=3) for speed input
+      // spdCAN is used for OUTPUT to other CAN modules, not INPUT
+      // If you want to use OBDII for speed input, add a dedicated variable or modify SPEED_SOURCE logic
       obdiiAwaitingResponse = false;
       break;
       
@@ -300,7 +306,7 @@ void parseCANOBDII(unsigned long id)
       // Formula: ((A*256)+B) * 0.0000305 (lambda)
       // Convert to lambda * 1000
       unsigned int lambdaRaw = (rxBuf[3] << 8) + rxBuf[4];
-      afr1CAN = (int)(lambdaRaw * 0.0000305 * 1000.0);  // Convert to lambda * 1000
+      afr1CAN = (int)(lambdaRaw * OBDII_LAMBDA_SCALE_FACTOR * 1000.0);  // Convert to lambda * 1000
       obdiiAwaitingResponse = false;
       break;
     }
@@ -341,7 +347,7 @@ void pollOBDII()
 {
   static uint8_t priority1Index = 0;  // Current priority 1 PID index
   const uint8_t priority1PIDs[] = {0x0D, 0x0C, 0x24, 0x0B};  // Speed, RPM, Lambda, MAP
-  const uint8_t priority1Count = 4;
+  constexpr uint8_t priority1Count = sizeof(priority1PIDs) / sizeof(priority1PIDs[0]);
   
   // Don't send new request if still waiting for response
   if (obdiiAwaitingResponse) {
@@ -349,14 +355,14 @@ void pollOBDII()
   }
   
   // Priority 1 polling at 10Hz (100ms interval)
-  if (millis() - timerOBDIIPriority1 >= 100) {
+  if (millis() - timerOBDIIPriority1 >= OBDII_PRIORITY1_INTERVAL_MS) {
     sendOBDIIRequest(priority1PIDs[priority1Index]);
     priority1Index = (priority1Index + 1) % priority1Count;  // Rotate through PIDs
     timerOBDIIPriority1 = millis();
   }
   
   // Priority 2 polling at 1Hz (1000ms interval)
-  if (millis() - timerOBDIIPriority2 >= 1000) {
+  if (millis() - timerOBDIIPriority2 >= OBDII_PRIORITY2_INTERVAL_MS) {
     sendOBDIIRequest(0x05);  // Coolant temp
     timerOBDIIPriority2 = millis();
   }
