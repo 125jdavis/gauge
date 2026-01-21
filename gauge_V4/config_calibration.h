@@ -114,4 +114,15 @@ extern byte clockOffset;
 // ===== FUEL TANK CAPACITY =====
 extern float fuelCapacity;            // Total fuel tank capacity in gallons (used for percentage calculations)
 
+// ===== CAN PROTOCOL SELECTION =====
+// CAN protocol options for ECU communication
+enum CANProtocol {
+  CAN_PROTOCOL_HALTECH_V2 = 0,  // Haltech v2 protocol
+  CAN_PROTOCOL_MEGASQUIRT = 1,   // Megasquirt CAN broadcast
+  CAN_PROTOCOL_AIM = 2,          // AiM CAN protocol
+  CAN_PROTOCOL_OBDII = 3         // OBDII polling protocol
+};
+
+extern uint8_t CAN_PROTOCOL;          // Selected CAN protocol (0=Haltech v2, 1=Megasquirt, 2=Aim, 3=OBDII)
+
 #endif // CONFIG_CALIBRATION_H

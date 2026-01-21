@@ -327,6 +327,12 @@ void loop() {
     parseCAN(rxId, 0);
   }
 
+  // ===== OBDII POLLING =====
+  // Poll ECU for parameters when using OBDII protocol
+  if (CAN_PROTOCOL == CAN_PROTOCOL_OBDII) {
+    pollOBDII();
+  }
+
   // ===== GPS DATA PROCESSING =====
   if (millis() - timerCheckGPS > CHECK_GPS_RATE) {
     fetchGPSdata();

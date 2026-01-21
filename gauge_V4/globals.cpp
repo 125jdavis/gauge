@@ -80,6 +80,12 @@ unsigned long timerCheckGPS, timerGPSupdate, timerAngleUpdate;
 unsigned long timerHallUpdate;
 unsigned long timerEngineRPMUpdate;
 unsigned long timerSigSelectUpdate;
+
+// ===== OBDII POLLING VARIABLES =====
+unsigned long timerOBDIIPriority1 = 0;  // Timer for 10Hz priority 1 polls (vehicle speed, RPM, lambda, MAP)
+unsigned long timerOBDIIPriority2 = 0;  // Timer for 1Hz priority 2 polls (coolant temp, oil temp)
+bool obdiiAwaitingResponse = false;     // Flag indicating waiting for OBDII response
+uint8_t obdiiCurrentPID = 0;            // Current PID being polled
 // ===== CAN BUS ENGINE PARAMETERS =====
 // Raw values received from Haltech ECU via CAN bus
 // These are stored as integers to preserve precision from the CAN protocol

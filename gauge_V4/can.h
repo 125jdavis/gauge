@@ -92,4 +92,66 @@ void receiveCAN();
  */
 void parseCAN(unsigned long id, unsigned long msg);
 
+/**
+ * parseCANHaltechV2 - Parse CAN messages using Haltech v2 protocol
+ * 
+ * Decodes messages according to Haltech CAN Broadcast Protocol V2.35.0
+ * Supports: Vehicle Speed, Engine RPM, Coolant Temp, Fuel Pressure,
+ * Oil Pressure, Oil Temperature, Lambda, Manifold Pressure
+ * 
+ * @param id - CAN message ID
+ */
+void parseCANHaltechV2(unsigned long id);
+
+/**
+ * parseCANMegasquirt - Parse CAN messages using Megasquirt protocol
+ * 
+ * Decodes messages according to Megasquirt CAN Broadcast protocol
+ * Supports available parameters from the protocol spec
+ * 
+ * @param id - CAN message ID
+ */
+void parseCANMegasquirt(unsigned long id);
+
+/**
+ * parseCANAim - Parse CAN messages using AiM protocol
+ * 
+ * Decodes messages according to AiM CAN protocol
+ * Supports available parameters from the protocol spec
+ * 
+ * @param id - CAN message ID
+ */
+void parseCANAim(unsigned long id);
+
+/**
+ * parseCANOBDII - Parse OBDII response messages
+ * 
+ * Decodes OBDII responses (ID 0x7E8-0x7EF) for polled PIDs
+ * Supports: Vehicle Speed, Engine RPM, Coolant Temp, Lambda, Manifold Pressure
+ * 
+ * @param id - CAN message ID
+ */
+void parseCANOBDII(unsigned long id);
+
+/**
+ * sendOBDIIRequest - Send OBDII PID request
+ * 
+ * Sends a request to the ECU for a specific PID using standard OBDII protocol
+ * Request is sent to ID 0x7DF (broadcast) or specific ECU ID
+ * 
+ * @param pid - Parameter ID to request (e.g., 0x0C for RPM, 0x0D for speed)
+ */
+void sendOBDIIRequest(uint8_t pid);
+
+/**
+ * pollOBDII - Manage OBDII polling for priority 1 and 2 parameters
+ * 
+ * Sends periodic requests for OBDII PIDs based on priority levels:
+ * - Priority 1 (10Hz): Vehicle Speed, RPM, Lambda, Manifold Pressure
+ * - Priority 2 (1Hz): Coolant Temp, Oil Temp
+ * 
+ * Should be called from main loop
+ */
+void pollOBDII();
+
 #endif // CAN_H
