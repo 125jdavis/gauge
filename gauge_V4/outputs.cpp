@@ -15,7 +15,31 @@ const float KM_TO_MILES = 0.621371;  // Conversion factor: kilometers to miles
 static float odoMotorTargetSteps = 0.0;   // Accumulated target position (includes fractional steps)
 static unsigned long odoMotorCurrentStep = 0;  // Current motor position in whole steps
 static unsigned long lastOdoStepTime = 0;  // Time of last step (microseconds)
-static const unsigned long ODO_STEP_DELAY_US = 1000;  // Minimum delay between steps (1ms = 1000 steps/sec max)
+
+// 20BYJ-48 stepper motor timing and control
+// The 20BYJ-48 is a 5V 4-phase unipolar stepper motor with internal gearing
+// - Full step sequence: 4 steps per electrical revolution
+// - With internal 64:1 gearing: 4096 steps per output shaft revolution
+// - Maximum speed: ~15 RPM (limited by internal gearing and torque)
+// - Target speed: < 3 RPM for odometer application
+//
+// Step delay calculation for target speed:
+// - At 3 RPM: 3 rev/min * 4096 steps/rev = 12,288 steps/min = 204.8 steps/sec
+// - Delay per step: 1,000,000 us / 204.8 = 4,882 us (~5ms)
+// - Using 5000 us (5ms) gives ~200 steps/sec = 2.93 RPM (safe margin below 3 RPM)
+static const unsigned long ODO_STEP_DELAY_US = 5000;  // 5ms between steps = ~2.93 RPM
+
+// 4-phase stepper sequence for 20BYJ-48 (full step mode)
+// Using wave drive (one phase at a time) for lower power consumption
+// Sequence: A -> B -> C -> D -> A ...
+// Phase:    0    1    2    3
+static const uint8_t ODO_STEP_SEQUENCE[4][4] = {
+  {HIGH, LOW,  LOW,  LOW},   // Step 0: Phase A (coil 1)
+  {LOW,  HIGH, LOW,  LOW},   // Step 1: Phase B (coil 2)
+  {LOW,  LOW,  HIGH, LOW},   // Step 2: Phase C (coil 3)
+  {LOW,  LOW,  LOW,  HIGH}   // Step 3: Phase D (coil 4)
+};
+static uint8_t odoMotorStepIndex = 0;  // Current position in step sequence (0-3)
 
 void ledShiftLight(int ledRPM){
   static bool tachFlashState = 0;  // Current state of shift light flashing (0=off, 1=on) - local static
@@ -392,11 +416,17 @@ void moveOdometerMotor(float distanceKm) {
  * updateOdometerMotor - Non-blocking motor update for mechanical odometer
  * 
  * Moves the odometer motor one step at a time toward the target position.
- * This function should be called frequently from the main loop to ensure
+ * This function should be called frequently from the ISR to ensure
  * smooth, non-blocking motor operation.
  * 
- * The function enforces a minimum delay between steps to prevent the motor
- * from moving too fast and losing steps or stalling.
+ * The function enforces a delay between steps to keep motor speed below 3 RPM
+ * and prevent the motor from losing steps or stalling.
+ * 
+ * Implementation:
+ * - Uses direct pin control for 4-phase stepper motor (20BYJ-48)
+ * - Wave drive mode (one phase at a time) for lower power and heat
+ * - 5ms delay between steps = ~2.93 RPM (safely below 3 RPM limit)
+ * - Non-blocking: only advances if enough time has passed
  */
 void updateOdometerMotor(void) {
     // Check if there are steps to move
@@ -414,8 +444,15 @@ void updateOdometerMotor(void) {
         }
         
         if (currentTime - lastOdoStepTime >= ODO_STEP_DELAY_US) {
-            // Move one step forward
-            odoMotor.step(1);
+            // Advance to next step in sequence
+            odoMotorStepIndex = (odoMotorStepIndex + 3) % 4; //(odoMotorStepIndex + x) FWD: x=1 REV: x=3 
+            
+            // Apply step sequence to motor pins
+            digitalWrite(ODO_PIN1, ODO_STEP_SEQUENCE[odoMotorStepIndex][0]);
+            digitalWrite(ODO_PIN2, ODO_STEP_SEQUENCE[odoMotorStepIndex][1]);
+            digitalWrite(ODO_PIN3, ODO_STEP_SEQUENCE[odoMotorStepIndex][2]);
+            digitalWrite(ODO_PIN4, ODO_STEP_SEQUENCE[odoMotorStepIndex][3]);
+            
             odoMotorCurrentStep++;
             lastOdoStepTime = currentTime;
         }

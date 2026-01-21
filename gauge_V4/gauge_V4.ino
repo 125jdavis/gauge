@@ -61,7 +61,6 @@
 // Stepper motor libraries
 #include <SwitecX25.h>
 #include <SwitecX12.h>
-#include <Stepper.h>
 
 ///// PROJECT MODULES /////
 #include "config_hardware.h"
