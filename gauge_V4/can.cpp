@@ -223,8 +223,9 @@ void parseCANAim(unsigned long id)
     // RPM: bytes 0-1 (Big Endian)
     rpmCAN = (rxBuf[0]<<8) + rxBuf[1];
     // Speed: bytes 2-3 (km/h * 10, Big Endian)
-    int spdKmh = (rxBuf[2]<<8) + rxBuf[3];
-    // Store for potential use (currently not used for speedometer in this system)
+    int spdKmh10 = (rxBuf[2]<<8) + rxBuf[3];
+    // Convert from km/h * 10 to km/h * 100 for spdCAN (used when SPEED_SOURCE=1)
+    spdCAN = spdKmh10 * 10;
   }
   else if (id == 0x0B1) {  // Temperatures
     // Coolant temp: bytes 0-1 (deg C * 10, Big Endian)
@@ -281,10 +282,8 @@ void parseCANOBDII(unsigned long id)
       
     case 0x0D:  // Vehicle Speed
       // Formula: A (km/h)
-      // Note: Vehicle speed from OBDII is available but not currently stored
-      // This system typically uses Hall sensor (SPEED_SOURCE=2) or GPS (SPEED_SOURCE=3) for speed input
-      // spdCAN is used for OUTPUT to other CAN modules, not INPUT
-      // If you want to use OBDII for speed input, add a dedicated variable or modify SPEED_SOURCE logic
+      // Convert from km/h to km/h * 100 for spdCAN (used when SPEED_SOURCE=1)
+      spdCAN = rxBuf[3] * 100;
       obdiiAwaitingResponse = false;
       break;
       
