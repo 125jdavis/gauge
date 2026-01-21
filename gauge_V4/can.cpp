@@ -281,12 +281,13 @@ void parseCANOBDII(unsigned long id)
       obdiiAwaitingResponse = false;
       break;
       
-    case 0x05:  // Engine Coolant Temperature
+    case 0x05: {  // Engine Coolant Temperature
       // Formula: A - 40 (deg C)
       int coolantC = rxBuf[3] - 40;
       coolantTempCAN = (coolantC + 273) * 10;  // Convert to K*10
       obdiiAwaitingResponse = false;
       break;
+    }
       
     case 0x0B:  // Intake Manifold Absolute Pressure
       // Formula: A (kPa)
@@ -294,13 +295,14 @@ void parseCANOBDII(unsigned long id)
       obdiiAwaitingResponse = false;
       break;
       
-    case 0x24:  // Oxygen Sensor 1 Lambda (if available)
+    case 0x24: {  // Oxygen Sensor 1 Lambda (if available)
       // Formula: ((A*256)+B) * 0.0000305 (lambda)
       // Convert to lambda * 1000
       unsigned int lambdaRaw = (rxBuf[3] << 8) + rxBuf[4];
       afr1CAN = (int)(lambdaRaw * 0.0305);  // Result is lambda * 1000
       obdiiAwaitingResponse = false;
       break;
+    }
       
     // Note: OBDII doesn't typically provide Oil Pressure, Oil Temp, Fuel Pressure
     // These parameters are not available via standard OBDII PIDs
