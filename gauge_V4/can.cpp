@@ -132,6 +132,12 @@ void parseCAN( unsigned long id, unsigned long msg)
  */
 void parseCANHaltechV2(unsigned long id)
 {
+  // Static variables to store wheel speeds for averaging
+  static int wheelSpeedFL = 0;  // Front Left
+  static int wheelSpeedFR = 0;  // Front Right
+  static int wheelSpeedRL = 0;  // Rear Left
+  static int wheelSpeedRR = 0;  // Rear Right
+  
   if (id == 0x301) {  //test 
     pumpPressureCAN = (rxBuf[0]<<8) + rxBuf[1];
   }
@@ -163,6 +169,35 @@ void parseCANHaltechV2(unsigned long id)
   else if (id == 0x3E1){  // Trans Temp, Fuel Composition
     transTempCAN = (rxBuf[0]<<8) + rxBuf[1];    // Trans temp in C * 10
     fuelCompCAN = (rxBuf[4]<<8) + rxBuf[5];     // Ethanol % * 10
+  }
+  else if (id == 0x470){  // Wheel Speed Front Left
+    wheelSpeedFL = (rxBuf[0]<<8) + rxBuf[1];  // km/h * 10
+  }
+  else if (id == 0x471){  // Wheel Speed Front Right
+    wheelSpeedFR = (rxBuf[0]<<8) + rxBuf[1];  // km/h * 10
+  }
+  else if (id == 0x472){  // Wheel Speed Rear Left
+    wheelSpeedRL = (rxBuf[0]<<8) + rxBuf[1];  // km/h * 10
+  }
+  else if (id == 0x473){  // Wheel Speed Rear Right
+    wheelSpeedRR = (rxBuf[0]<<8) + rxBuf[1];  // km/h * 10
+    
+    // Calculate average of non-zero wheel speeds
+    // This message is typically the last wheel speed, so calculate here
+    int sum = 0;
+    int count = 0;
+    
+    if (wheelSpeedFL > 0) { sum += wheelSpeedFL; count++; }
+    if (wheelSpeedFR > 0) { sum += wheelSpeedFR; count++; }
+    if (wheelSpeedRL > 0) { sum += wheelSpeedRL; count++; }
+    if (wheelSpeedRR > 0) { sum += wheelSpeedRR; count++; }
+    
+    if (count > 0) {
+      // Average is in km/h * 10, convert to km/h * 100 for spdCAN
+      spdCAN = (sum / count) * 10;
+    } else {
+      spdCAN = 0;  // All wheel speeds are zero
+    }
   }
 }
 
@@ -203,6 +238,12 @@ void parseCANMegasquirt(unsigned long id)
   else if (id == 0x5F4) {  // Offset 4: Knock, ego correction
     // Knock: bytes 0-1
     knockCAN = rxBuf[0] + (rxBuf[1]<<8);
+  }
+  else if (id == 0x5EC) {  // Vehicle Speed (VSS1)
+    // VSS1: bytes 0-1 (km/h * 10)
+    int vss1 = rxBuf[0] + (rxBuf[1]<<8);  // Little Endian
+    // Convert from km/h * 10 to km/h * 100 for spdCAN
+    spdCAN = vss1 * 10;
   }
   // Note: Megasquirt doesn't broadcast Oil Pressure, Oil Temp, Fuel Pressure by default
   // These would need to be configured as custom channels if available
