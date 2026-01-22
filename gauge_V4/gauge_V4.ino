@@ -347,17 +347,13 @@ void loop() {
     timerSigSelectUpdate = millis();
   }
 
-  // ===== DISPLAY UPDATE =====
-  if (millis() - timerDispUpdate > DISP_UPDATE_RATE) {
-    dispMenu();
-    disp2();
-    timerDispUpdate = millis();
-  }
-
   // ===== MOTOR ANGLE UPDATE =====
   // Set target positions for motors based on sensor readings
   // The actual stepping is handled by Timer3 ISR at MOTOR_UPDATE_FREQ_HZ
   // This decouples position updates (slow, ~50 Hz) from stepping (fast, 10 kHz)
+  // CRITICAL: This block is positioned BEFORE display updates to ensure consistent timing.
+  // Display updates are blocking operations (~10-20ms) that would otherwise delay
+  // angle updates, causing visible jitter/ticks in motor motion.
   if (millis() - timerAngleUpdate > ANGLE_UPDATE_RATE) {
     motor1.setPosition(fuelLvlAngle(M1_SWEEP));
     motor2.setPosition(coolantTempAngle(M2_SWEEP));
@@ -365,6 +361,15 @@ void loop() {
     motor4.setPosition(fuelLvlAngle(M4_SWEEP));
     motorS.setPosition(speedometerAngleS(MS_SWEEP));  // Motor S is speedometer
     timerAngleUpdate = millis();
+  }
+
+  // ===== DISPLAY UPDATE =====
+  // Positioned AFTER motor angle updates to prevent blocking OLED operations
+  // from delaying time-critical motor position updates
+  if (millis() - timerDispUpdate > DISP_UPDATE_RATE) {
+    dispMenu();
+    disp2();
+    timerDispUpdate = millis();
   }
 
   // ===== MOTOR STEP EXECUTION =====
