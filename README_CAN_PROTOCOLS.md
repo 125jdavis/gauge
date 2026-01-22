@@ -60,14 +60,23 @@ uint8_t CAN_PROTOCOL = CAN_PROTOCOL_OBDII;       // OBDII
 
 ## How It Works
 
-### Message Filtering
-Each protocol automatically filters messages:
-- **Haltech v2**: IDs 0x360-0x362, 0x368-0x369, 0x3E0-0x3E1
-- **Megasquirt**: IDs 0x5F0-0x5F4
-- **AiM**: IDs 0x0B0-0x0B3
-- **OBDII**: Responses 0x7E8-0x7EF
+### Hardware Message Filtering (MCP2515)
+The MCP2515 CAN controller has built-in hardware filters that reject unwanted messages before they reach the Arduino:
+- **Haltech v2**: Accepts 0x300-0x30F, 0x360-0x36F, 0x3E0-0x3EF, 0x470-0x47F
+- **Megasquirt**: Accepts 0x5E0-0x5EF, 0x5F0-0x5FF
+- **AiM**: Accepts 0x0B0-0x0BF
+- **OBDII**: Accepts 0x7E8-0x7EF
 
-Messages not in the protocol are ignored - no wasted processing!
+**Benefits:** 90-99% reduction in CPU interrupt load on busy CAN buses! Only relevant messages trigger interrupts.
+
+See `documentation/CAN_HARDWARE_FILTERING.md` for complete details.
+
+### Software Message Filtering
+After hardware filtering accepts messages, software parsing extracts the needed data:
+- **Haltech v2**: Processes specific IDs 0x301, 0x360-0x362, 0x368-0x369, 0x3E0-0x3E1, 0x470-0x473
+- **Megasquirt**: Processes IDs 0x5EC, 0x5F0-0x5F4
+- **AiM**: Processes IDs 0x0B0-0x0B3
+- **OBDII**: Processes response IDs 0x7E8-0x7EF
 
 ### OBDII Polling
 OBDII is special - it doesn't broadcast, it requires polling:

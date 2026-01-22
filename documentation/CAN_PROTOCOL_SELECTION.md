@@ -43,6 +43,8 @@ uint8_t CAN_PROTOCOL = CAN_PROTOCOL_OBDII;
 
 After changing the protocol, upload the updated firmware to your Arduino.
 
+**Note:** Hardware CAN message filters are automatically configured based on the selected protocol. This significantly reduces MCU interrupt load by filtering irrelevant messages at the hardware level. See `CAN_HARDWARE_FILTERING.md` for details.
+
 ## Monitored Parameters by Protocol
 
 The system attempts to read the following parameters from each protocol:
