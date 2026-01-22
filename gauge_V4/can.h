@@ -154,4 +154,22 @@ void sendOBDIIRequest(uint8_t pid);
  */
 void pollOBDII();
 
+/**
+ * configureCANFilters - Configure MCP2515 hardware filters based on protocol
+ * 
+ * Sets up hardware acceptance filters and masks to reduce MCU processing load.
+ * Only CAN messages matching the configured filters will trigger interrupts.
+ * 
+ * The MCP2515 has:
+ * - 2 receive buffers (RXB0, RXB1)
+ * - 6 acceptance filters (2 for RXB0, 4 for RXB1)
+ * - 2 acceptance masks (1 for each buffer)
+ * 
+ * Filters are configured based on CAN_PROTOCOL setting to accept only
+ * relevant message IDs for the selected ECU protocol.
+ * 
+ * Should be called after CAN0.begin() and before CAN0.setMode(MCP_NORMAL)
+ */
+void configureCANFilters();
+
 #endif // CAN_H

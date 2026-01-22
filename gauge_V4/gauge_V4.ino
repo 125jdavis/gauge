@@ -257,6 +257,11 @@ void setup() {
   else 
     Serial.println("Error Initializing MCP2515...");
   
+  // Configure hardware filters to reduce MCU load
+  configureCANFilters();
+  Serial.print("CAN filters configured for protocol: ");
+  Serial.println(CAN_PROTOCOL);
+  
   pinMode(CAN0_INT, INPUT);
   CAN0.setMode(MCP_NORMAL);
 
