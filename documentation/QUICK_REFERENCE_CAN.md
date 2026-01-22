@@ -48,13 +48,11 @@ Upload the updated firmware to your Arduino.
 ## What Parameters Work?
 
 ### All Protocols Support:
+- Vehicle Speed (set `SPEED_SOURCE=1` to use CAN)
 - Engine RPM  
 - Coolant Temperature
 - Lambda (AFR)
 - Manifold Pressure (MAP)
-
-### AiM & OBDII Also Support:
-- Vehicle Speed (set `SPEED_SOURCE=1` to use CAN speed)
 
 ### Haltech v2 & AiM Only:
 - Fuel Pressure
@@ -64,8 +62,9 @@ Upload the updated firmware to your Arduino.
 ### Notes:
 - **Megasquirt:** No oil/fuel pressure by default
 - **OBDII:** No oil temp/pressure in standard PIDs
-- **Haltech/Megasquirt:** No vehicle speed - use GPS or Hall sensor
-- **AiM/OBDII:** Vehicle speed available - set `SPEED_SOURCE=1` to use
+- **All protocols:** Vehicle speed available via CAN (`SPEED_SOURCE=1`)
+- **Haltech:** Uses wheel speed averaging
+- **Megasquirt:** Uses VSS1 sensor
 
 ---
 

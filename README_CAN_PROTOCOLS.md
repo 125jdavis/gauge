@@ -32,6 +32,7 @@ uint8_t CAN_PROTOCOL = CAN_PROTOCOL_OBDII;       // OBDII
 ## What Parameters Are Monitored
 
 ### ✅ All Protocols Monitor:
+- **Vehicle Speed** - From CAN (set `SPEED_SOURCE=1`)
 - **Engine RPM** - Direct from ECU
 - **Coolant Temperature** - Converted to proper units
 - **Lambda (AFR)** - Air/fuel ratio
@@ -45,13 +46,15 @@ uint8_t CAN_PROTOCOL = CAN_PROTOCOL_OBDII;       // OBDII
 ### ⚠️ Protocol Limitations:
 - **Megasquirt**: No oil/fuel pressure (not in standard broadcast)
 - **OBDII**: No oil/fuel pressure (not in standard PIDs)
-- **Haltech/Megasquirt**: No vehicle speed (not in standard broadcast)
 
 ### ℹ️ Note on Vehicle Speed:
-- **Haltech/Megasquirt** don't broadcast vehicle speed - use GPS or Hall sensor
-- **AiM** broadcasts vehicle speed - can use CAN (`SPEED_SOURCE=1`)
-- **OBDII** provides vehicle speed via polling - can use CAN (`SPEED_SOURCE=1`)
-- Configure `SPEED_SOURCE` in config_calibration.cpp (CAN=1, Hall=2, GPS=3)
+- **All protocols** now support vehicle speed via CAN
+- **Haltech v2**: Averages wheel speeds from all four wheels
+- **Megasquirt**: Reads VSS1 vehicle speed sensor
+- **AiM**: Reads speed from standard broadcast
+- **OBDII**: Polls speed at 10Hz
+- Set `SPEED_SOURCE=1` in config_calibration.cpp to use CAN speed
+- Alternative: GPS (`SPEED_SOURCE=3`) or Hall sensor (`SPEED_SOURCE=2`)
 
 ---
 

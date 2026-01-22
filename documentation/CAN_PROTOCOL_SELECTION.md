@@ -51,7 +51,7 @@ The system attempts to read the following parameters from each protocol:
 
 | Parameter | Haltech v2 | Megasquirt | AiM | OBDII |
 |-----------|-----------|------------|-----|-------|
-| Vehicle Speed | - | - | ✓ | ✓ (polled) |
+| Vehicle Speed | ✓ | ✓ | ✓ | ✓ (polled) |
 | Engine RPM | ✓ | ✓ | ✓ | ✓ (polled) |
 | Coolant Temp | ✓ | ✓ | ✓ | ✓ (polled) |
 | Fuel Pressure | ✓ | - | ✓ | - |
@@ -62,7 +62,13 @@ The system attempts to read the following parameters from each protocol:
 
 **Note:** Parameters marked with "-" are not available in that protocol. The system will ignore unavailable parameters and continue to operate normally.
 
-**Note on Vehicle Speed:** Haltech v2 and Megasquirt do not broadcast vehicle speed in their standard protocols. To use CAN for vehicle speed input, select AiM or OBDII protocol and set `SPEED_SOURCE = 1` in config_calibration.cpp. Otherwise, use GPS (`SPEED_SOURCE = 3`) or Hall sensor (`SPEED_SOURCE = 2`).
+**Note on Vehicle Speed:** All protocols now support vehicle speed via CAN. Set `SPEED_SOURCE = 1` in config_calibration.cpp to use CAN for vehicle speed input.
+- **Haltech v2**: Reads wheel speeds (0x470-0x473) and averages non-zero values
+- **Megasquirt**: Reads VSS1 (0x5EC)
+- **AiM**: Reads speed from standard message (0x0B0)
+- **OBDII**: Polls speed via PID 0x0D at 10Hz
+
+Alternatively, use GPS (`SPEED_SOURCE = 3`) or Hall sensor (`SPEED_SOURCE = 2`).
 
 ## Protocol-Specific Details
 
@@ -79,6 +85,12 @@ The system attempts to read the following parameters from each protocol:
   - 0x369: Knock Level
   - 0x3E0: Coolant Temp, Air Temp, Fuel Temp, Oil Temp
   - 0x3E1: Trans Temp, Fuel Composition
+  - 0x470: Wheel Speed Front Left
+  - 0x471: Wheel Speed Front Right
+  - 0x472: Wheel Speed Rear Left
+  - 0x473: Wheel Speed Rear Right (triggers average calculation)
+
+**Note:** Vehicle speed is calculated by averaging non-zero wheel speeds. If all wheel speeds are zero, vehicle speed is set to zero.
 
 ### Megasquirt Protocol
 
@@ -92,6 +104,7 @@ The system attempts to read the following parameters from each protocol:
   - 0x5F2: TPS
   - 0x5F3: AFR
   - 0x5F4: Knock
+  - 0x5EC: Vehicle Speed (VSS1)
 
 **Note:** Oil pressure, oil temp, and fuel pressure are not standard in Megasquirt broadcasts. These would need to be configured as custom channels in your Megasquirt ECU if required.
 

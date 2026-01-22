@@ -14,7 +14,7 @@ uint8_t CAN_PROTOCOL = CAN_PROTOCOL_HALTECH_V2;
 ```
 
 **Available Parameters:**
-- ✗ Vehicle Speed (not available)
+- ✓ Vehicle Speed (wheel speed averaging)
 - ✓ Engine RPM
 - ✓ Coolant Temperature
 - ✓ Fuel Pressure
@@ -25,10 +25,10 @@ uint8_t CAN_PROTOCOL = CAN_PROTOCOL_HALTECH_V2;
 
 **Notes:**
 - Default configuration
-- All parameters available except vehicle speed
+- All parameters available
 - Big Endian byte order
 - 500 kbps CAN bus
-- Use GPS or Hall sensor for vehicle speed
+- Vehicle speed from averaged wheel speeds (0x470-0x473)
 
 ---
 
@@ -40,7 +40,7 @@ uint8_t CAN_PROTOCOL = CAN_PROTOCOL_MEGASQUIRT;
 ```
 
 **Available Parameters:**
-- ✗ Vehicle Speed (not available)
+- ✓ Vehicle Speed (VSS1)
 - ✓ Engine RPM
 - ✓ Coolant Temperature
 - ✗ Fuel Pressure (not available)
@@ -54,7 +54,7 @@ uint8_t CAN_PROTOCOL = CAN_PROTOCOL_MEGASQUIRT;
 - 500 kbps CAN bus
 - Temperature converted from Fahrenheit to Kelvin
 - Oil/Fuel pressure require custom channel configuration in Megasquirt
-- Use GPS or Hall sensor for vehicle speed
+- Vehicle speed from VSS1 sensor (0x5EC)
 
 ---
 
