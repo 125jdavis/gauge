@@ -313,14 +313,6 @@ void loop() {
     timerEngineRPMUpdate = millis();
   }
 
-  // ===== CAN BUS TRANSMISSION =====
-  if (millis() - timerCANsend > CAN_SEND_RATE) {  
-    sendCAN_BE(0x200, 0, spdCAN, 0, 0);
-    sendCAN_LE(0x201, thermCAN, fuelLvlCAN, baroCAN, 555);
-    
-    timerCANsend = millis();
-  }
-
   // ===== CAN BUS RECEPTION =====
   if(!digitalRead(CAN0_INT)) {
     receiveCAN();
@@ -331,12 +323,6 @@ void loop() {
   if (millis() - timerCheckGPS > CHECK_GPS_RATE) {
     fetchGPSdata();
     timerCheckGPS = millis();
-  }
-
-  // ===== LED TACHOMETER UPDATE =====
-  if (millis() - timerTachUpdate > TACH_UPDATE_RATE) {
-    ledShiftLight(RPM);
-    timerTachUpdate = millis();
   }
 
   // ===== SIGNAL SELECTION UPDATE =====
@@ -363,15 +349,6 @@ void loop() {
     timerAngleUpdate = millis();
   }
 
-  // ===== DISPLAY UPDATE =====
-  // Positioned AFTER motor angle updates to prevent blocking OLED operations
-  // from delaying time-critical motor position updates
-  if (millis() - timerDispUpdate > DISP_UPDATE_RATE) {
-    dispMenu();
-    disp2();
-    timerDispUpdate = millis();
-  }
-
   // ===== MOTOR STEP EXECUTION =====
   // Motor updates (stepping) are now handled by Timer3 ISR for deterministic timing
   // The ISR calls:
@@ -382,6 +359,28 @@ void loop() {
   // caused by display updates, GPS parsing, CAN processing, etc.
   //
   // Note: Do not call update() here - would conflict with ISR and cause race conditions
+
+  // ===== LED TACHOMETER UPDATE =====
+  if (millis() - timerTachUpdate > TACH_UPDATE_RATE) {
+    ledShiftLight(RPM);
+    timerTachUpdate = millis();
+  }
+
+  // ===== DISPLAY UPDATE =====
+  // Positioned AFTER motor angle updates to prevent blocking OLED operations
+  // from delaying time-critical motor position updates
+  if (millis() - timerDispUpdate > DISP_UPDATE_RATE) {
+    dispMenu();
+    disp2();
+    timerDispUpdate = millis();
+  }
+
+  // ===== CAN BUS TRANSMISSION =====
+  if (millis() - timerCANsend > CAN_SEND_RATE) {  
+    //sendCAN_BE(0x200, 0, spdCAN, 0, 0);
+    timerCANsend = millis();
+  }
+
 
   // ===== SHUTDOWN DETECTION =====
   // Check if ignition voltage has dropped (key turned off)
