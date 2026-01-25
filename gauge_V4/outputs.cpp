@@ -244,8 +244,12 @@ void updateMotorSSmoothing(void) {
   // When overflow occurs, currentTime will be less than motorS_lastUpdateTime
   if (motorS_lastUpdateTime == 0 || currentTime < motorS_lastUpdateTime) {
     // On first call, initialize to current motor position to avoid jumping
-    // On overflow, reset to final target to re-sync
     if (motorS_lastUpdateTime == 0) {
+      motorS_previousTarget = motorS.currentStep;
+      motorS_finalTarget = motorS.currentStep;
+    } else {
+      // On overflow, reset both targets to current position to maintain continuity
+      // This prevents a sudden jump when millis() wraps around
       motorS_previousTarget = motorS.currentStep;
       motorS_finalTarget = motorS.currentStep;
     }
