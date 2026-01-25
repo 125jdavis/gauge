@@ -243,16 +243,10 @@ void updateMotorSSmoothing(void) {
   // Handle first call or millis() overflow (occurs every ~50 days)
   // When overflow occurs, currentTime will be less than motorS_lastUpdateTime
   if (motorS_lastUpdateTime == 0 || currentTime < motorS_lastUpdateTime) {
-    // On first call, initialize to current motor position to avoid jumping
-    if (motorS_lastUpdateTime == 0) {
-      motorS_previousTarget = motorS.currentStep;
-      motorS_finalTarget = motorS.currentStep;
-    } else {
-      // On overflow, reset both targets to current position to maintain continuity
-      // This prevents a sudden jump when millis() wraps around
-      motorS_previousTarget = motorS.currentStep;
-      motorS_finalTarget = motorS.currentStep;
-    }
+    // Initialize/reset both targets to current position to maintain continuity
+    // This prevents needle jump on startup or millis() overflow
+    motorS_previousTarget = motorS.currentStep;
+    motorS_finalTarget = motorS.currentStep;
     motorS.setPosition(motorS_finalTarget);
     motorS_lastUpdateTime = currentTime;
     return;
