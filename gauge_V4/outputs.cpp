@@ -16,6 +16,20 @@ static float odoMotorTargetSteps = 0.0;   // Accumulated target position (includ
 static unsigned long odoMotorCurrentStep = 0;  // Current motor position in whole steps
 static unsigned long lastOdoStepTime = 0;  // Time of last step (microseconds)
 
+// ===== MOTOR S SMOOTHING STATE =====
+// Position interpolation for smooth speedometer needle motion
+// The SwitecX12 library can move very fast (300 steps/sec max velocity), which means
+// it can reach a new target position in just a few milliseconds. Since setPosition()
+// is called at 50Hz (every 20ms), without interpolation the needle would move quickly
+// to the target then stop and wait, causing jerky motion.
+//
+// Solution: Instead of jumping directly to the final target angle, we interpolate
+// the position over multiple update cycles. This ensures the motor arrives at the
+// target position "just in time" for the next angle update, creating smooth motion.
+static int motorS_previousTarget = 0;     // Previous target angle (steps)
+static int motorS_finalTarget = 0;        // Final target angle from speedometerAngleS()
+static unsigned long motorS_lastUpdateTime = 0;  // Time of last angle update (millis)
+
 // 20BYJ-48 stepper motor timing and control
 // The 20BYJ-48 is a 5V 4-phase unipolar stepper motor with internal gearing
 // - Full step sequence: 4 steps per electrical revolution
@@ -179,6 +193,80 @@ int speedometerAngleS(int sweep) {
   angle = constrain(angle, 1, sweep - 1);
   return angle;
 }
+
+/**
+ * updateMotorSTarget - Update the final target angle for motorS (called at 50Hz)
+ * 
+ * This function updates the target angle that motorS should reach.
+ * It's called at ANGLE_UPDATE_RATE (50Hz, every 20ms) from the main loop.
+ * The actual motor position is interpolated by updateMotorSSmoothing().
+ * 
+ * @param sweep - Maximum motor steps for full gauge sweep
+ */
+void updateMotorSTarget(int sweep) {
+  // Get the new target angle from speed calculation
+  int newTarget = speedometerAngleS(sweep);
+  
+  // Update the final target and timing
+  motorS_previousTarget = motorS_finalTarget;
+  motorS_finalTarget = newTarget;
+  motorS_lastUpdateTime = millis();
+}
+
+/**
+ * updateMotorSSmoothing - Interpolate and set motorS position for smooth motion
+ * 
+ * This function should be called frequently (much more than 50Hz, ideally from
+ * the Timer3 ISR or at high frequency from main loop) to smoothly interpolate
+ * the speedometer needle position between target updates.
+ * 
+ * Design rationale:
+ * - motorS.update() is called at 10kHz (very fast) via hardware interrupt
+ * - Target angle updates happen at 50Hz (every 20ms) via updateMotorSTarget()
+ * - SwitecX12 library can reach target in ~5ms at max velocity (300 steps/sec)
+ * - Without smoothing: motor moves fast → stops → waits 15ms → moves fast (jerky!)
+ * - With smoothing: motor moves continuously at controlled pace (smooth!)
+ * 
+ * Implementation:
+ * - Calculate time elapsed since last target update
+ * - Interpolate between previous and final target based on elapsed time
+ * - Set intermediate position to create smooth motion
+ * - Motor naturally tracks this slowly-moving target
+ * 
+ * This approach prioritizes motion smoothness over absolute positional accuracy.
+ */
+void updateMotorSSmoothing(void) {
+  unsigned long currentTime = millis();
+  unsigned long elapsed = currentTime - motorS_lastUpdateTime;
+  
+  // Handle first call or time overflow
+  if (motorS_lastUpdateTime == 0) {
+    motorS.setPosition(motorS_finalTarget);
+    return;
+  }
+  
+  // Calculate interpolated position based on time elapsed since last target update
+  // Linear interpolation: pos = previous + (final - previous) * (elapsed / period)
+  // This creates smooth motion that arrives at the target just as the next update occurs
+  int positionDelta = motorS_finalTarget - motorS_previousTarget;
+  
+  // Clamp elapsed time to ANGLE_UPDATE_RATE to prevent overshoot
+  if (elapsed > ANGLE_UPDATE_RATE) {
+    elapsed = ANGLE_UPDATE_RATE;
+  }
+  
+  // Use integer math to avoid floating point
+  // interpolatedPos = previous + (delta * elapsed) / ANGLE_UPDATE_RATE
+  long interpolation = ((long)positionDelta * (long)elapsed) / (long)ANGLE_UPDATE_RATE;
+  int interpolatedPosition = motorS_previousTarget + (int)interpolation;
+  
+  // Constrain to valid range (1 to MS_SWEEP-1)
+  interpolatedPosition = constrain(interpolatedPosition, 1, MS_SWEEP - 1);
+  
+  // Set the interpolated position - motor will smoothly track this moving target
+  motorS.setPosition(interpolatedPosition);
+}
+
 /**
  * fuelLvlAngle - Calculate fuel gauge needle angle from fuel level
  * 
