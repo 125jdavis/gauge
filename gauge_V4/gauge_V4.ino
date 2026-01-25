@@ -102,16 +102,17 @@
  * - updateOdometerMotor() (mechanical odometer, custom non-blocking implementation)
  * 
  * Deterministic angle update for motorS:
- * - Counter increments each ISR call (at 10 kHz)
- * - When counter reaches threshold, update motorS angle (at 50 Hz as configured)
+ * - Counter decrements each ISR call (at 10 kHz)
+ * - When counter reaches zero, update motorS angle (at 50 Hz as configured)
  * - This ensures motorS angle updates are hardware-timed, not dependent on main loop
  */
 
 // Static counter for deterministic motorS angle updates
 // Calculates how many ISR calls needed between motorS angle updates
-// For 50 Hz updates at 10 kHz ISR: 10000 / 50 = 200 calls per update
-static uint16_t motorSAngleCounter = 0;
-static const uint16_t MOTORS_ANGLE_UPDATE_INTERVAL = MOTOR_UPDATE_FREQ_HZ / (1000 / MOTORS_ANGLE_UPDATE_RATE);
+// For 50 Hz updates at 10 kHz ISR: 10000 * 20 / 1000 = 200 calls per update
+// Uses countdown approach for efficiency - only checks for zero
+static const uint16_t MOTORS_ANGLE_UPDATE_INTERVAL = (MOTOR_UPDATE_FREQ_HZ * MOTORS_ANGLE_UPDATE_RATE) / 1000;
+static uint16_t motorSAngleCounter = MOTORS_ANGLE_UPDATE_INTERVAL;
 
 ISR(TIMER3_COMPA_vect) {
   // Update all gauge motors (SwitecX12)
@@ -127,10 +128,10 @@ ISR(TIMER3_COMPA_vect) {
   updateOdometerMotor();
   
   // Deterministic angle update for motorS at configured rate (default 50 Hz)
-  // Increment counter and check if it's time to update angle
-  motorSAngleCounter++;
-  if (motorSAngleCounter >= MOTORS_ANGLE_UPDATE_INTERVAL) {
-    motorSAngleCounter = 0;
+  // Use countdown approach for efficiency - only check for zero
+  motorSAngleCounter--;
+  if (motorSAngleCounter == 0) {
+    motorSAngleCounter = MOTORS_ANGLE_UPDATE_INTERVAL;
     // Update motorS position with latest speed reading
     motorS.setPosition(speedometerAngleS(MS_SWEEP));
   }
