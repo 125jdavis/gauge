@@ -98,9 +98,21 @@
  * 
  * Motors updated:
  * - motor1, motor2, motor3, motor4 (SwitecX12 gauge motors)
- * - motorS (SwitecX12 speedometer motor)
+ * - motorS (SwitecX12 speedometer motor) - angle update is also deterministic
  * - updateOdometerMotor() (mechanical odometer, custom non-blocking implementation)
+ * 
+ * Deterministic angle update for motorS:
+ * - Counter increments each ISR call (at 10 kHz)
+ * - When counter reaches threshold, update motorS angle (at 50 Hz as configured)
+ * - This ensures motorS angle updates are hardware-timed, not dependent on main loop
  */
+
+// Static counter for deterministic motorS angle updates
+// Calculates how many ISR calls needed between motorS angle updates
+// For 50 Hz updates at 10 kHz ISR: 10000 / 50 = 200 calls per update
+static uint16_t motorSAngleCounter = 0;
+static const uint16_t MOTORS_ANGLE_UPDATE_INTERVAL = MOTOR_UPDATE_FREQ_HZ / (1000 / MOTORS_ANGLE_UPDATE_RATE);
+
 ISR(TIMER3_COMPA_vect) {
   // Update all gauge motors (SwitecX12)
   // These motors have internal acceleration/deceleration logic
@@ -113,6 +125,15 @@ ISR(TIMER3_COMPA_vect) {
   
   // Update mechanical odometer motor (custom non-blocking implementation)
   updateOdometerMotor();
+  
+  // Deterministic angle update for motorS at configured rate (default 50 Hz)
+  // Increment counter and check if it's time to update angle
+  motorSAngleCounter++;
+  if (motorSAngleCounter >= MOTORS_ANGLE_UPDATE_INTERVAL) {
+    motorSAngleCounter = 0;
+    // Update motorS position with latest speed reading
+    motorS.setPosition(speedometerAngleS(MS_SWEEP));
+  }
 }
 
 /**
@@ -351,19 +372,23 @@ void loop() {
   // CRITICAL: This block is positioned BEFORE display updates to ensure consistent timing.
   // Display updates are blocking operations (~10-20ms) that would otherwise delay
   // angle updates, causing visible jitter/ticks in motor motion.
+  //
+  // NOTE: motorS angle update is now handled by Timer3 ISR for deterministic timing
+  // at MOTORS_ANGLE_UPDATE_RATE (50 Hz). Only motor1-4 are updated here.
   if (millis() - timerAngleUpdate > ANGLE_UPDATE_RATE) {
     motor1.setPosition(fuelLvlAngle(M1_SWEEP));
     motor2.setPosition(coolantTempAngle(M2_SWEEP));
     motor3.setPosition(fuelLvlAngle(M3_SWEEP));  // Motor 3 now same config as motor1
     motor4.setPosition(fuelLvlAngle(M4_SWEEP));
-    motorS.setPosition(speedometerAngleS(MS_SWEEP));  // Motor S is speedometer
+    // motorS.setPosition() is now called from Timer3 ISR for deterministic timing
     timerAngleUpdate = millis();
   }
 
   // ===== MOTOR STEP EXECUTION =====
   // Motor updates (stepping) are now handled by Timer3 ISR for deterministic timing
   // The ISR calls:
-  //   - motor1/2/3/4/S.update() for gauge motors
+  //   - motor1/2/3/4/S.update() for gauge motors (stepping)
+  //   - motorS.setPosition() for angle updates (deterministic at 50 Hz)
   //   - updateOdometerMotor() for mechanical odometer
   // 
   // This provides smooth motion independent of main loop timing variations

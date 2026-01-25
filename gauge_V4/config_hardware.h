@@ -118,6 +118,7 @@ constexpr unsigned int SIG_SELECT_UPDATE_RATE = 10; // Update signal selection/s
 constexpr unsigned int GPS_UPDATE_RATE = 100;     // GPS update check rate (might not be needed)
 constexpr unsigned int CHECK_GPS_RATE = 1;        // Check for GPS data every 1ms
 constexpr unsigned int ANGLE_UPDATE_RATE = 20;    // Update motor angles every 20ms (50Hz)
+constexpr unsigned int MOTORS_ANGLE_UPDATE_RATE = 20; // Update motorS angle every 20ms (50Hz) - deterministic via Timer3
 constexpr unsigned int SPLASH_TIME = 1500;        // Duration of startup splash screens (milliseconds)
 constexpr unsigned int HALL_UPDATE_RATE = 20;     // Recalculate Hall sensor speed every 20ms (50Hz)
 constexpr unsigned int ENGINE_RPM_UPDATE_RATE = 20; // Check engine RPM timeout every 20ms (50Hz)
