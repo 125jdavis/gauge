@@ -257,6 +257,11 @@ void setup() {
   else 
     Serial.println("Error Initializing MCP2515...");
   
+  // Configure hardware filters to reduce MCU load
+  configureCANFilters();
+  Serial.print("CAN filters configured for protocol: ");
+  Serial.println(CAN_PROTOCOL);
+  
   pinMode(CAN0_INT, INPUT);
   CAN0.setMode(MCP_NORMAL);
 
@@ -317,6 +322,12 @@ void loop() {
   if(!digitalRead(CAN0_INT)) {
     receiveCAN();
     parseCAN(rxId, 0);
+  }
+
+  // ===== OBDII POLLING =====
+  // Poll ECU for parameters when using OBDII protocol
+  if (CAN_PROTOCOL == CAN_PROTOCOL_OBDII) {
+    pollOBDII();
   }
 
   // ===== GPS DATA PROCESSING =====

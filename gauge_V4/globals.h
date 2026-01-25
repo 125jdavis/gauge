@@ -110,6 +110,12 @@ extern int baroCAN;                 // Barometric pressure in kPa * 10
 extern int spdCAN;                  // Vehicle speed sent to CAN bus (km/h * 16)
 extern int pumpPressureCAN;         // Fuel pump pressure (test variable)
 
+// ===== OBDII POLLING VARIABLES =====
+extern unsigned long timerOBDIIPriority1;  // Timer for 10Hz priority 1 polls
+extern unsigned long timerOBDIIPriority2;  // Timer for 1Hz priority 2 polls
+extern bool obdiiAwaitingResponse;         // Flag indicating waiting for OBDII response
+extern uint8_t obdiiCurrentPID;            // Current PID being polled
+
 // ===== PROCESSED ENGINE PARAMETERS FOR DISPLAY =====
 extern float oilPrs;                // Oil pressure in kPa (gauge pressure)
 extern float coolantTemp;           // Coolant temperature in Celsius

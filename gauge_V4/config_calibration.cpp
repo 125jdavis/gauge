@@ -66,3 +66,6 @@ byte clockOffset = 0;               // Hours to add to UTC time
 
 // ===== FUEL TANK CAPACITY =====
 float fuelCapacity = 16;            // Total fuel tank capacity in gallons
+
+// ===== CAN PROTOCOL SELECTION =====
+uint8_t CAN_PROTOCOL = CAN_PROTOCOL_HALTECH_V2;  // Default to Haltech v2 protocol
