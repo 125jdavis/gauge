@@ -109,8 +109,10 @@
 
 // Static counter for deterministic motorS angle updates
 // Calculates how many ISR calls needed between motorS angle updates
-// For 50 Hz updates at 10 kHz ISR: 10000 * 20 / 1000 = 200 calls per update
+// For 50 Hz updates at 10 kHz ISR: 10000 * 20ms / 1000 = 200 calls per update
+// Note: MOTORS_ANGLE_UPDATE_RATE is in milliseconds (ms)
 // Uses countdown approach for efficiency - only checks for zero
+// Static initialization occurs before setup() and before Timer3 ISR is enabled (safe from race conditions)
 static const uint16_t MOTORS_ANGLE_UPDATE_INTERVAL = (MOTOR_UPDATE_FREQ_HZ * MOTORS_ANGLE_UPDATE_RATE) / 1000;
 static uint16_t motorSAngleCounter = MOTORS_ANGLE_UPDATE_INTERVAL;
 
