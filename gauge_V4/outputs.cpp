@@ -243,6 +243,12 @@ void updateMotorSSmoothing(void) {
   // Handle first call or millis() overflow (occurs every ~50 days)
   // When overflow occurs, currentTime will be less than motorS_lastUpdateTime
   if (motorS_lastUpdateTime == 0 || currentTime < motorS_lastUpdateTime) {
+    // On first call, initialize to current motor position to avoid jumping
+    // On overflow, reset to final target to re-sync
+    if (motorS_lastUpdateTime == 0) {
+      motorS_previousTarget = motorS.currentStep;
+      motorS_finalTarget = motorS.currentStep;
+    }
     motorS.setPosition(motorS_finalTarget);
     motorS_lastUpdateTime = currentTime;
     return;
@@ -262,6 +268,9 @@ void updateMotorSSmoothing(void) {
   
   // Use integer math to avoid floating point
   // interpolatedPos = previous + (delta * elapsed) / ANGLE_UPDATE_RATE
+  // Note: positionDelta can be negative (moving backward), which is fine
+  // long (32-bit signed) can handle values up to ±2 billion, so no overflow risk
+  // Max calculation: positionDelta (-8000 to +8000) * elapsed (0-20) = ±160,000
   long interpolation = ((long)positionDelta * (long)elapsed) / (long)ANGLE_UPDATE_RATE;
   int interpolatedPosition = motorS_previousTarget + (int)interpolation;
   
