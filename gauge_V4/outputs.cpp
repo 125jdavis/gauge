@@ -171,10 +171,12 @@ int speedometerAngleS(int sweep) {
   // spd is in km/h * 100, multiply by 62137 then divide by 100000
   // This gives mph * 100
   // Bounds check to prevent overflow (spd max is typically ~65535, safe for this calculation)
-  if (spd > 30000) {  // 300 km/h * 100, well above typical max speed
-    spd = 30000;
+  // Use local copy to avoid modifying the global spd variable
+  int local_spd = spd;
+  if (local_spd > 30000) {  // 300 km/h * 100, well above typical max speed
+    local_spd = 30000;
   }
-  long spd_mph_long = ((long)spd * 62137L) / 100000L;
+  long spd_mph_long = ((long)local_spd * 62137L) / 100000L;
   int spd_mph = (int)spd_mph_long;
   
   // Dead zone: below 0.5 mph, show zero
@@ -237,13 +239,16 @@ void updateMotorSTarget(int sweep) {
  */
 void updateMotorSSmoothing(void) {
   unsigned long currentTime = millis();
-  unsigned long elapsed = currentTime - motorS_lastUpdateTime;
   
-  // Handle first call or time overflow
-  if (motorS_lastUpdateTime == 0) {
+  // Handle first call or millis() overflow (occurs every ~50 days)
+  // When overflow occurs, currentTime will be less than motorS_lastUpdateTime
+  if (motorS_lastUpdateTime == 0 || currentTime < motorS_lastUpdateTime) {
     motorS.setPosition(motorS_finalTarget);
+    motorS_lastUpdateTime = currentTime;
     return;
   }
+  
+  unsigned long elapsed = currentTime - motorS_lastUpdateTime;
   
   // Calculate interpolated position based on time elapsed since last target update
   // Linear interpolation: pos = previous + (final - previous) * (elapsed / period)
