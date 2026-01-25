@@ -7,14 +7,14 @@
 #include "config_calibration.h"
 
 // ===== STEPPER MOTOR SWEEP RANGES =====
-uint16_t M1_SWEEP = 58 * 12;        // Motor 1: 58 degrees * 12 = 696 steps
-uint16_t M2_SWEEP = 58 * 12;        // Motor 2: 58 degrees * 12 = 696 steps
-uint16_t M3_SWEEP = 58 * 12;        // Motor 3: 58 degrees * 12 = 696 steps (same config as motor1)
-uint16_t M4_SWEEP = 58 * 12;        // Motor 4: 58 degrees * 12 = 696 steps
-uint16_t MS_SWEEP = 2098;           // Motor S: (118° / 0.9°) * 16 microsteps = 2097.78 ≈ 2098 steps (speedometer)
+uint16_t M1_SWEEP = 58 * 12;        // Motor 1: 58 degrees * 3 steps/degree * 4 microsteps/step = 696 steps
+uint16_t M2_SWEEP = 58 * 12;        // Motor 2: 58 degrees * 3 steps/degree * 4 microsteps/step = 696 steps
+uint16_t M3_SWEEP = 58 * 12;        // Motor 3: 58 degrees * 3 steps/degree * 4 microsteps/step = 696 steps (same config as motor1)
+uint16_t M4_SWEEP = 58 * 12;        // Motor 4: 58 degrees * 3 steps/degree * 4 microsteps/step = 696 steps
+uint16_t MS_SWEEP = 8000;           // Motor S: (118° / 0.9°) * 32 microsteps = 4195.555 ≈ 4196 steps (speedometer)
 
 // ===== MOTOR SWEEP TIMING =====
-uint16_t MOTOR_SWEEP_TIME_MS = 200;  // Time in milliseconds for motors to sweep full range (calibratable)
+uint16_t MOTOR_SWEEP_TIME_MS = 400;  // Time in milliseconds for motors to sweep full range (calibratable)
 
 // ===== ANALOG SENSOR FILTER COEFFICIENTS =====
 uint8_t FILTER_VBATT = 8;           // 8/64 = light filtering
