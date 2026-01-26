@@ -20,15 +20,19 @@ static unsigned long lastOdoStepTime = 0;  // Time of last step (microseconds)
 // Position interpolation for smooth speedometer needle motion
 // The SwitecX12 library can move very fast (300 steps/sec max velocity), which means
 // it can reach a new target position in just a few milliseconds. Since setPosition()
-// is called at 50Hz (every 20ms), without interpolation the needle would move quickly
-// to the target then stop and wait, causing jerky motion.
+// is called at ~50Hz (target: every 20ms, but actual: 21-40ms with occasional spikes),
+// without interpolation the needle would move quickly to the target then stop and wait,
+// causing jerky motion.
 //
 // Solution: Instead of jumping directly to the final target angle, we interpolate
 // the position over multiple update cycles. This ensures the motor arrives at the
 // target position "just in time" for the next angle update, creating smooth motion.
+// The interpolation adapts to variable update rates by using the actual time between
+// target updates rather than assuming a fixed 20ms interval.
 static int motorS_previousTarget = 0;     // Previous target angle (steps)
 static int motorS_finalTarget = 0;        // Final target angle from speedometerAngleS()
 static unsigned long motorS_lastUpdateTime = 0;  // Time of last angle update (millis)
+static unsigned long motorS_updateInterval = ANGLE_UPDATE_RATE;  // Actual time between last two updates (millis)
 
 // 20BYJ-48 stepper motor timing and control
 // The 20BYJ-48 is a 5V 4-phase unipolar stepper motor with internal gearing
@@ -197,10 +201,11 @@ int speedometerAngleS(int sweep) {
 }
 
 /**
- * updateMotorSTarget - Update the final target angle for motorS (called at 50Hz)
+ * updateMotorSTarget - Update the final target angle for motorS (called at ~50Hz)
  * 
  * This function updates the target angle that motorS should reach.
- * It's called at ANGLE_UPDATE_RATE (50Hz, every 20ms) from the main loop.
+ * It's called nominally at ANGLE_UPDATE_RATE (50Hz, every 20ms) from the main loop,
+ * but actual timing varies (typically 21-40ms, with occasional spikes to 6000ms).
  * The actual motor position is interpolated by updateMotorSSmoothing().
  * 
  * @param sweep - Maximum motor steps for full gauge sweep
@@ -209,29 +214,45 @@ void updateMotorSTarget(int sweep) {
   // Get the new target angle from speed calculation
   int newTarget = speedometerAngleS(sweep);
   
+  unsigned long currentTime = millis();
+  
+  // Calculate actual interval since last update for adaptive interpolation
+  // This handles variable update rates (21-40ms typical, with occasional spikes)
+  if (motorS_lastUpdateTime > 0 && currentTime >= motorS_lastUpdateTime) {
+    motorS_updateInterval = currentTime - motorS_lastUpdateTime;
+    // Sanity check: limit to reasonable range (5ms to 10 seconds)
+    // Prevents issues with extreme spikes or millis() overflow edge cases
+    if (motorS_updateInterval < 5) motorS_updateInterval = 5;
+    if (motorS_updateInterval > 10000) motorS_updateInterval = 10000;
+  } else {
+    // First call or overflow: use nominal rate
+    motorS_updateInterval = ANGLE_UPDATE_RATE;
+  }
+  
   // Update the final target and timing
   motorS_previousTarget = motorS_finalTarget;
   motorS_finalTarget = newTarget;
-  motorS_lastUpdateTime = millis();
+  motorS_lastUpdateTime = currentTime;
 }
 
 /**
  * updateMotorSSmoothing - Interpolate and set motorS position for smooth motion
  * 
  * This function should be called frequently (much more than 50Hz, ideally from
- * the Timer3 ISR or at high frequency from main loop) to smoothly interpolate
- * the speedometer needle position between target updates.
+ * high frequency main loop) to smoothly interpolate the speedometer needle 
+ * position between target updates.
  * 
  * Design rationale:
  * - motorS.update() is called at 10kHz (very fast) via hardware interrupt
- * - Target angle updates happen at 50Hz (every 20ms) via updateMotorSTarget()
+ * - Target angle updates happen at ~50Hz (variable: 21-40ms typical, occasional spikes to 6000ms)
  * - SwitecX12 library can reach target in ~5ms at max velocity (300 steps/sec)
- * - Without smoothing: motor moves fast → stops → waits 15ms → moves fast (jerky!)
+ * - Without smoothing: motor moves fast → stops → waits → moves fast (jerky!)
  * - With smoothing: motor moves continuously at controlled pace (smooth!)
  * 
  * Implementation:
  * - Calculate time elapsed since last target update
  * - Interpolate between previous and final target based on elapsed time
+ * - Use actual measured update interval (not fixed 20ms) for robustness to variable rates
  * - Set intermediate position to create smooth motion
  * - Motor naturally tracks this slowly-moving target
  * 
@@ -247,6 +268,7 @@ void updateMotorSSmoothing(void) {
     // This prevents needle jump on startup or millis() overflow
     motorS_previousTarget = motorS.currentStep;
     motorS_finalTarget = motorS.currentStep;
+    motorS_updateInterval = ANGLE_UPDATE_RATE;
     motorS.setPosition(motorS_finalTarget);
     motorS_lastUpdateTime = currentTime;
     return;
@@ -255,21 +277,22 @@ void updateMotorSSmoothing(void) {
   unsigned long elapsed = currentTime - motorS_lastUpdateTime;
   
   // Calculate interpolated position based on time elapsed since last target update
-  // Linear interpolation: pos = previous + (final - previous) * (elapsed / period)
+  // Linear interpolation: pos = previous + (final - previous) * (elapsed / interval)
   // This creates smooth motion that arrives at the target just as the next update occurs
   int positionDelta = motorS_finalTarget - motorS_previousTarget;
   
-  // Clamp elapsed time to ANGLE_UPDATE_RATE to prevent overshoot
-  if (elapsed > ANGLE_UPDATE_RATE) {
-    elapsed = ANGLE_UPDATE_RATE;
+  // Use the actual measured update interval for interpolation (handles variable rates)
+  // Clamp elapsed to updateInterval to prevent overshoot when we reach the target
+  if (elapsed > motorS_updateInterval) {
+    elapsed = motorS_updateInterval;
   }
   
   // Use integer math to avoid floating point
-  // interpolatedPos = previous + (delta * elapsed) / ANGLE_UPDATE_RATE
+  // interpolatedPos = previous + (delta * elapsed) / updateInterval
   // Note: positionDelta can be negative (moving backward), which is fine
   // long (32-bit signed) can handle values up to ±2 billion, so no overflow risk
-  // Max calculation: positionDelta (-8000 to +8000) * elapsed (0-20) = ±160,000
-  long interpolation = ((long)positionDelta * (long)elapsed) / (long)ANGLE_UPDATE_RATE;
+  // Max calculation: positionDelta (-8000 to +8000) * elapsed (0-10000) = ±80,000,000
+  long interpolation = ((long)positionDelta * (long)elapsed) / (long)motorS_updateInterval;
   int interpolatedPosition = motorS_previousTarget + (int)interpolation;
   
   // Constrain to valid range (1 to MS_SWEEP-1)
