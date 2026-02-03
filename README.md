@@ -7,14 +7,24 @@ The system is designed to be modular, intended to simplify retrofitting vintage 
 ## Platform Support
 
 This codebase is designed for **STM32F407 (pazi88/STM32_mega board)**:
-- Native CAN controller using HardwareCAN library (built-in)
+- Native CAN controller using arduino-STM32-CAN library (by nopnop2002)
 - 12-bit ADC (0-3.3V with hardware voltage dividers for 5V sensors)
 - 168 MHz ARM Cortex-M4 processor
 - STM32duino 2.12.0 compatible
 
 **Note:** Arduino Mega 2560 support has been removed. For the original Arduino Mega version, see earlier commits.
 
+## Required Library Installation
+
+**IMPORTANT:** Before compiling, you must install the **arduino-STM32-CAN** library:
+1. Open Arduino IDE
+2. Go to Sketch → Include Library → Manage Libraries
+3. Search for "STM32 CAN"
+4. Install "arduino-STM32-CAN" by nopnop2002
+
+## Documentation
+
 For details on the STM32F407 implementation, see:
+- [documentation/CAN_LIBRARY_SETUP.md](documentation/CAN_LIBRARY_SETUP.md) - **START HERE** - CAN library installation and setup
 - [documentation/STM32_PORT.md](documentation/STM32_PORT.md) - Hardware details and pin mappings
-- [documentation/HARDWARECAN_MIGRATION.md](documentation/HARDWARECAN_MIGRATION.md) - CAN library migration guide
 - [documentation/BUILD_NOTES.md](documentation/BUILD_NOTES.md) - Build and flash instructions
