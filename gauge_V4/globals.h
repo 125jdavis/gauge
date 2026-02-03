@@ -13,7 +13,12 @@
 #include <Arduino.h>
 #include <Adafruit_SSD1306.h>
 #include <Adafruit_GPS.h>
-#include <mcp_can.h>
+// Conditional CAN library inclusion
+#ifdef STM32_CORE_VERSION
+  #include <STM32_CAN.h>
+#else
+  #include <mcp_can.h>
+#endif
 #include <SwitecX12.h>
 #define HALF_STEP
 #include <Rotary.h>
@@ -22,7 +27,9 @@
 #include "config_calibration.h"
 
 // ===== HARDWARE OBJECT INSTANCES =====
-extern MCP_CAN CAN0;
+#ifndef STM32_CORE_VERSION
+extern MCP_CAN CAN0;  // Only for Arduino Mega with MCP2515
+#endif
 extern Adafruit_SSD1306 display1;
 extern Adafruit_SSD1306 display2;
 extern Rotary rotary;
