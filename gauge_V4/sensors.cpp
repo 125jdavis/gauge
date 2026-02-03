@@ -45,16 +45,21 @@ static unsigned long lastSyntheticOdometerUpdateTime = 0;
 /**
  * readSensor - Generic analog sensor reader with filtering
  * 
- * Note: MEGA F407 board includes voltage dividers on analog inputs,
- * so 5V inputs are scaled to 3.3V. Despite 12-bit ADC resolution (0-4095),
- * we can use the same scaling as Arduino Mega (0-1023 mapped to 0-500).
+ * Note: MEGA F407 board includes voltage dividers on analog inputs (5V→3.3V scaling).
+ * Arduino Mega: 10-bit ADC (0-1023), 5V reference
+ * STM32F407: 12-bit ADC (0-4095), 3.3V reference with hardware voltage dividers
  */
 unsigned long readSensor(int inputPin, int oldVal, int filt)  
 {
-    int raw = analogRead (inputPin);  // Read ADC: 0-1023 (Arduino) or 0-4095 (STM32)
-    // MEGA F407 has voltage dividers: 5V input → 3.3V at ADC
-    // Map to 0-500 (0.00-5.00V in 0.01V steps) using same scaling as Arduino Mega
-    unsigned long newVal = map( raw, 0, 1023, 0, 500);  
+    int raw = analogRead (inputPin);  // Read ADC
+#ifdef STM32_CORE_VERSION
+    // STM32: 12-bit ADC (0-4095) with hardware voltage dividers
+    // Voltage dividers scale 5V→3.3V, so we can map full 12-bit range to 0-5V
+    unsigned long newVal = map( raw, 0, 4095, 0, 500);  // Map to 0-500 (0.00-5.00V in 0.01V steps)
+#else
+    // Arduino Mega: 10-bit ADC (0-1023), 5V reference
+    unsigned long newVal = map( raw, 0, 1023, 0, 500);  // Map to 0-500 (0.00-5.00V in 0.01V steps)
+#endif
     unsigned long filtVal = ((newVal*filt) + (oldVal*(64-filt)))>>6;  // Exponential filter (>>6 is divide by 64)
     return filtVal; 
 }
@@ -62,15 +67,22 @@ unsigned long readSensor(int inputPin, int oldVal, int filt)
 /**
  * read30PSIAsensor - Read 30 PSI absolute pressure sensor
  * 
- * Note: MEGA F407 board includes voltage dividers on analog inputs,
- * so 5V inputs are scaled to 3.3V. We can use the same scaling as Arduino Mega.
+ * Note: MEGA F407 board includes voltage dividers on analog inputs (5V→3.3V scaling).
+ * Sensor outputs 0.5-4.5V for 0-30 PSI range.
+ * Arduino Mega: 10-bit ADC (0-1023), 5V reference
+ * STM32F407: 12-bit ADC (0-4095), 3.3V reference with hardware voltage dividers
  */
 unsigned long read30PSIAsensor(int inputPin, int oldVal, int filt)
 {
-    int raw = analogRead (inputPin);  // Read ADC: 0-1023 (Arduino) or 0-4095 (STM32)
-    // MEGA F407 has voltage dividers: sensor's 0.5-4.5V → scaled to fit 3.3V ADC
-    // Map 0.5-4.5V to 0-30 PSIA (0-206.8 kPa) using same scaling as Arduino Mega
-    unsigned long newVal = map( raw, 102, 921, 0, 2068);  
+    int raw = analogRead (inputPin);  // Read ADC
+#ifdef STM32_CORE_VERSION
+    // STM32: 12-bit ADC (0-4095) with hardware voltage dividers
+    // Sensor: 0.5V = 102 (10-bit) × 4 = 408 (12-bit), 4.5V = 921 × 4 = 3684 (12-bit)
+    unsigned long newVal = map( raw, 408, 3684, 0, 2068);  // Map 0.5-4.5V to 0-30 PSIA (0-206.8 kPa)
+#else
+    // Arduino Mega: 10-bit ADC (0-1023)
+    unsigned long newVal = map( raw, 102, 921, 0, 2068);  // Map 0.5-4.5V to 0-30 PSIA (0-206.8 kPa)
+#endif
     unsigned long filtVal = ((newVal*filt) + (oldVal*(16-filt)))>>4;  // Filter (>>4 is divide by 16)
     return filtVal; 
 }
@@ -78,15 +90,21 @@ unsigned long read30PSIAsensor(int inputPin, int oldVal, int filt)
 /**
  * readThermSensor - Read GM-style thermistor temperature sensor
  * 
- * Note: MEGA F407 board includes voltage dividers on analog inputs,
- * so 5V inputs are scaled to 3.3V. We can use the same scaling as Arduino Mega.
+ * Note: MEGA F407 board includes voltage dividers on analog inputs (5V→3.3V scaling).
+ * Arduino Mega: 10-bit ADC (0-1023), 5V reference
+ * STM32F407: 12-bit ADC (0-4095), 3.3V reference with hardware voltage dividers
  */
 float readThermSensor(int inputPin, float oldVal, int filt)
 {
-    int raw = analogRead (inputPin);  // Read ADC: 0-1023 (Arduino) or 0-4095 (STM32)
-    // MEGA F407 has voltage dividers: sensor voltage → scaled to fit 3.3V ADC
-    // Map to 0-5V as float using same scaling as Arduino Mega
-    float newVal = map( raw, 0, 1023, 0, 500)*0.01;  
+    int raw = analogRead (inputPin);  // Read ADC
+#ifdef STM32_CORE_VERSION
+    // STM32: 12-bit ADC (0-4095) with hardware voltage dividers
+    // Map full 12-bit range to 0-5V
+    float newVal = map( raw, 0, 4095, 0, 500)*0.01;  // Map to 0-5V as float
+#else
+    // Arduino Mega: 10-bit ADC (0-1023)
+    float newVal = map( raw, 0, 1023, 0, 500)*0.01;  // Map to 0-5V as float
+#endif
     float filtVal = ((newVal*filt) + (oldVal*(100-filt)))*0.01;  // Filter (*0.01 for percentage)
     return filtVal; 
 }

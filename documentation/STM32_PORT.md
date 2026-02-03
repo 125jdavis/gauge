@@ -157,27 +157,31 @@ gpsTimer->attachInterrupt(gpsTimerCallback);
 - 12-bit ADC: 0-4095 range  
 - Reference voltage: 3.3V
 - **Hardware voltage dividers**: 5V sensor inputs are scaled to 3.3V on the board
-- Code uses SAME mapping as Arduino Mega: `map(raw, 0, 1023, 0, 500)`
+- Code uses 12-bit range: `map(raw, 0, 4095, 0, 500)` for full resolution
 
 **Key Advantage:**
 The MEGA F407 board includes hardware voltage dividers on all analog input pins. This means:
 - 5V sensors can be connected directly (no external level shifters needed)
 - The voltage dividers scale 5V inputs down to fit the 3.3V ADC range
-- Software can use identical ADC scaling code as Arduino Mega
+- Full 12-bit ADC resolution is utilized for better precision
 - Full sensor voltage range (0-5V) is preserved
 
 **Implementation:**
 ```cpp
 unsigned long readSensor(int inputPin, int oldVal, int filt) {
-    int raw = analogRead(inputPin);  // 0-1023 (Mega) or 0-4095 (STM32)
-    // MEGA F407 voltage dividers handle 5V→3.3V conversion
-    // Use same scaling as Arduino Mega
-    unsigned long newVal = map(raw, 0, 1023, 0, 500);  
+    int raw = analogRead(inputPin);
+#ifdef STM32_CORE_VERSION
+    // STM32: 12-bit ADC with voltage dividers handling 5V→3.3V
+    unsigned long newVal = map(raw, 0, 4095, 0, 500);  // Full 12-bit resolution
+#else
+    // Arduino Mega: 10-bit ADC
+    unsigned long newVal = map(raw, 0, 1023, 0, 500);  // 10-bit resolution
+#endif
     // ... filtering code
 }
 ```
 
-✅ No conditional compilation needed for ADC scaling - both platforms use the same code!
+✅ Hardware voltage dividers enable 5V sensor compatibility while utilizing full 12-bit ADC precision!
 
 ### 4. GPIO Pin References
 
