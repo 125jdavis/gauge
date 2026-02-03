@@ -70,6 +70,20 @@ Global variables use XXXX bytes (X%) of dynamic memory, leaving XXXXX bytes for 
 **Error: "HardwareTimer was not declared in this scope"**
 - Solution: Update STM32duino core to latest version
 
+**Error: "'CAN_HandleTypeDef' does not name a type" or CAN-related HAL errors**
+- **Cause**: STM32 HAL CAN module is not enabled in board configuration
+- **Solution**: See detailed troubleshooting in [STM32_CAN_SETUP.md](STM32_CAN_SETUP.md)
+- **Quick Fix**: 
+  1. Ensure STM32duino core is version 2.6.0 or newer
+  2. Check board settings for CAN support option and enable it
+  3. Consider using alternative CAN library if issues persist
+  4. As a fallback, compile for Arduino Mega first to verify code logic
+
+**Error: "'CAN0_CS' was not declared in this scope"**
+- **Cause**: Conditional compilation issue (fixed in recent commits)
+- **Solution**: Pull latest changes from the repository
+- **Explanation**: CAN0_CS is only defined for Arduino Mega builds, not STM32
+
 ## Flashing to Hardware
 
 ### Method 1: STM32CubeProgrammer (Recommended)
