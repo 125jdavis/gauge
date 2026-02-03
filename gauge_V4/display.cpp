@@ -349,20 +349,20 @@ void dispMenu() {
               // Level 2 - Display current offset and adjust with encoder
               if (button == 1) {
                 // Button pressed - save clock offset and return to main menu
-                detachInterrupt(0);  // Temporarily detach encoder interrupts
-                detachInterrupt(1);
-                attachInterrupt(0, rotate, CHANGE);  // Reattach normal menu rotation handler
-                attachInterrupt(1, rotate, CHANGE);
+                detachInterrupt(digitalPinToInterrupt(ROTARY_DT));  // Temporarily detach encoder interrupts
+                detachInterrupt(digitalPinToInterrupt(ROTARY_CLK));
+                attachInterrupt(digitalPinToInterrupt(ROTARY_DT), rotate, CHANGE);  // Reattach normal menu rotation handler
+                attachInterrupt(digitalPinToInterrupt(ROTARY_CLK), rotate, CHANGE);
                 EEPROM.write(clockOffset, clockOffsetAddress);  // Save offset to EEPROM
                 goToLevel0();  // Return to main menu
               } 
               else {
                 // Rotary encoder adjusts clock offset value (-12 to +12 hours)
                 // Temporarily change encoder handler to modify clockOffset directly
-                detachInterrupt(0);
-                detachInterrupt(1);
-                attachInterrupt(0, incrementOffset, CHANGE);  // Use special offset increment handler
-                attachInterrupt(1, incrementOffset, CHANGE);
+                detachInterrupt(digitalPinToInterrupt(ROTARY_DT));
+                detachInterrupt(digitalPinToInterrupt(ROTARY_CLK));
+                attachInterrupt(digitalPinToInterrupt(ROTARY_DT), incrementOffset, CHANGE);  // Use special offset increment handler
+                attachInterrupt(digitalPinToInterrupt(ROTARY_CLK), incrementOffset, CHANGE);
                 dispClock(&display1);  // Display time with current offset applied
               }
             } // End level 2 - Clock offset adjustment

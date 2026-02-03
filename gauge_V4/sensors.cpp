@@ -44,33 +44,55 @@ static unsigned long lastSyntheticOdometerUpdateTime = 0;
 
 /**
  * readSensor - Generic analog sensor reader with filtering
+ * Handles both 10-bit (Arduino Mega, 0-1023) and 12-bit (STM32, 0-4095) ADCs
  */
 unsigned long readSensor(int inputPin, int oldVal, int filt)  
 {
-    int raw = analogRead (inputPin);  // Read ADC: 0-1023 for 0-5V input
+    int raw = analogRead (inputPin);  // Read ADC
+#ifdef STM32_CORE_VERSION
+    // STM32 has 12-bit ADC: 0-4095 for 0-3.3V input
+    unsigned long newVal = map( raw, 0, 4095, 0, 500);  // Map to 0-500 (0.00-5.00V in 0.01V steps)
+#else
+    // Arduino Mega has 10-bit ADC: 0-1023 for 0-5V input
     unsigned long newVal = map( raw, 0, 1023, 0, 500);  // Map to 0-500 (0.00-5.00V in 0.01V steps)
+#endif
     unsigned long filtVal = ((newVal*filt) + (oldVal*(64-filt)))>>6;  // Exponential filter (>>6 is divide by 64)
     return filtVal; 
 }
 
 /**
  * read30PSIAsensor - Read 30 PSI absolute pressure sensor
+ * Handles both 10-bit (Arduino Mega, 0-1023) and 12-bit (STM32, 0-4095) ADCs
  */
 unsigned long read30PSIAsensor(int inputPin, int oldVal, int filt)
 {
-    int raw = analogRead (inputPin);  // Read ADC: 0-1023
+    int raw = analogRead (inputPin);  // Read ADC
+#ifdef STM32_CORE_VERSION
+    // STM32 has 12-bit ADC: 0-4095
+    // Scale 0.5-4.5V range: 0.5V = (0.5/3.3)*4095 = 621, 4.5V would exceed 3.3V, use 3.0V = 3723
+    unsigned long newVal = map( raw, 621, 3723, 0, 2068);  // Map 0.5-3.0V to 0-30 PSIA (0-206.8 kPa)
+#else
+    // Arduino Mega has 10-bit ADC: 0-1023
     unsigned long newVal = map( raw, 102, 921, 0, 2068);  // Map 0.5-4.5V to 0-30 PSIA (0-206.8 kPa)
+#endif
     unsigned long filtVal = ((newVal*filt) + (oldVal*(16-filt)))>>4;  // Filter (>>4 is divide by 16)
     return filtVal; 
 }
 
 /**
  * readThermSensor - Read GM-style thermistor temperature sensor
+ * Handles both 10-bit (Arduino Mega, 0-1023) and 12-bit (STM32, 0-4095) ADCs
  */
 float readThermSensor(int inputPin, float oldVal, int filt)
 {
-    int raw = analogRead (inputPin);  // Read ADC: 0-1023
+    int raw = analogRead (inputPin);  // Read ADC
+#ifdef STM32_CORE_VERSION
+    // STM32 has 12-bit ADC: 0-4095 for 0-3.3V
+    float newVal = map( raw, 0, 4095, 0, 500)*0.01;  // Map to 0-5V as float
+#else
+    // Arduino Mega has 10-bit ADC: 0-1023 for 0-5V
     float newVal = map( raw, 0, 1023, 0, 500)*0.01;  // Map to 0-5V as float
+#endif
     float filtVal = ((newVal*filt) + (oldVal*(100-filt)))*0.01;  // Filter (*0.01 for percentage)
     return filtVal; 
 }

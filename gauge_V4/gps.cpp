@@ -59,10 +59,10 @@ void fetchGPSdata(){
 }
 
 /**
- * TIMER0_COMPA_vect - Timer0 compare interrupt for GPS data reading
+ * TIMER0_COMPA_vect / GPS Timer Callback - Timer interrupt for GPS data reading
  * 
  * ISR Design: Minimal - single byte read from GPS UART
- * - Called automatically ~1 kHz by Timer0 (shared with millis())
+ * - Called automatically ~1 kHz by hardware timer
  * - Reads one byte from GPS module via Adafruit_GPS library
  * - No parsing, no processing - just captures data
  * - Heavy parsing deferred to fetchGPSdata() in main loop
@@ -70,16 +70,27 @@ void fetchGPSdata(){
  * Performance: ~3-5 µs execution time (just UART read)
  * 
  * This interrupt service routine (ISR) is called automatically once per millisecond
- * by the Arduino Timer0 hardware timer. It reads one byte from the GPS module
+ * by the hardware timer. It reads one byte from the GPS module
  * without blocking the main loop.
  * 
  * The GPS module sends NMEA sentences at 9600 baud (960 characters/second).
  * This ISR ensures no characters are missed even when main loop is busy.
  * 
  * Interrupt context: Keep fast and simple - just read one character
- * 
- * Note: Original comment preserved - this is boilerplate code from Adafruit GPS library
  */
+#ifdef STM32_CORE_VERSION
+// STM32 version - use HardwareTimer callback
+HardwareTimer *gpsTimer = nullptr;
+
+void gpsTimerCallback() {
+  char c = GPS.read();  // Read one byte from GPS module
+  // Debug option: echo GPS data to serial (very slow - only for debugging)
+  if (GPSECHO && c) {
+    Serial.write(c);
+  }
+}
+#else
+// AVR version - use TIMER0_COMPA interrupt
 SIGNAL(TIMER0_COMPA_vect) {
   char c = GPS.read();  // Read one byte from GPS module
   // Debug option: echo GPS data to serial (very slow - only for debugging)
@@ -90,11 +101,37 @@ SIGNAL(TIMER0_COMPA_vect) {
     // but only one character can be written at a time
 #endif
 }
+#endif
 
 /**
  * useInterrupt - Enable or disable GPS interrupt-based reading
  */
 void useInterrupt(boolean v) {
+#ifdef STM32_CORE_VERSION
+  // STM32 HardwareTimer configuration
+  if (v) {
+    // Use TIM3 for GPS reading at 1kHz
+    TIM_TypeDef *Instance = TIM3;
+    gpsTimer = new HardwareTimer(Instance);
+    
+    // Set timer frequency to 1kHz (1ms period)
+    gpsTimer->setOverflow(1000, HERTZ_FORMAT);
+    
+    // Attach callback function
+    gpsTimer->attachInterrupt(gpsTimerCallback);
+    
+    // Start timer
+    gpsTimer->resume();
+    usingInterrupt = true;
+  } else {
+    // Disable GPS interrupt
+    if (gpsTimer != nullptr) {
+      gpsTimer->pause();
+    }
+    usingInterrupt = false;
+  }
+#else
+  // AVR Timer0 configuration
   if (v) {
     // Enable GPS reading via Timer0 interrupt
     // Timer0 is already used for millis() - we add our interrupt to it
@@ -106,4 +143,5 @@ void useInterrupt(boolean v) {
     TIMSK0 &= ~_BV(OCIE0A);  // Disable Timer0 Compare A interrupt
     usingInterrupt = false;
   }
+#endif
 }

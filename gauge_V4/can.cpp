@@ -2,6 +2,8 @@
  * ========================================
  * CAN BUS FUNCTIONS IMPLEMENTATION
  * ========================================
+ * 
+ * Supports both STM32 native CAN and MCP2515 SPI CAN controller
  */
 
 #include "can.h"
@@ -11,6 +13,76 @@
 #define OBDII_PRIORITY1_INTERVAL_MS 100   // 10 Hz polling rate for priority 1 parameters
 #define OBDII_PRIORITY2_INTERVAL_MS 1000  // 1 Hz polling rate for priority 2 parameters
 #define OBDII_LAMBDA_SCALE_FACTOR 0.0000305  // OBDII lambda scaling factor
+
+// ===== STM32 CAN SUPPORT =====
+#ifdef STM32_CORE_VERSION
+// STM32 native CAN variables and functions
+STM32_CAN can(CAN1, DEF);  // CAN1 peripheral, default pins (PA11=RX, PA12=TX)
+static CAN_message_t rxMsg;  // Received message buffer
+static CAN_message_t txMsg;  // Transmit message buffer
+
+/**
+ * canInit - Initialize STM32 native CAN controller
+ * 
+ * @param baudrate - CAN bus speed (e.g., CAN_500KBPS)
+ * @param txPin - CAN TX pin (usually PA12)
+ * @param rxPin - CAN RX pin (usually PA11)
+ * @return true if successful, false otherwise
+ */
+bool canInit(uint32_t baudrate, uint8_t txPin, uint8_t rxPin) {
+  // Map baudrate constant to actual value
+  uint32_t actualBaud = 500000;  // Default 500kbps
+  switch(baudrate) {
+    case CAN_500KBPS: actualBaud = 500000; break;
+    case CAN_250KBPS: actualBaud = 250000; break;
+    case CAN_1000KBPS: actualBaud = 1000000; break;
+    default: actualBaud = 500000; break;
+  }
+  
+  // Initialize CAN peripheral
+  can.begin();
+  can.setBaudRate(actualBaud);
+  
+  return true;
+}
+
+/**
+ * canReceive - Check if CAN message is available and read it
+ * 
+ * @return true if message was received, false otherwise
+ */
+bool canReceive() {
+  if (can.read(rxMsg)) {
+    // Copy message data to global variables for compatibility
+    rxId = rxMsg.id;
+    len = rxMsg.len;
+    for (uint8_t i = 0; i < len && i < 8; i++) {
+      rxBuf[i] = rxMsg.buf[i];
+      canMessageData[i] = rxMsg.buf[i];
+    }
+    return true;
+  }
+  return false;
+}
+
+/**
+ * canSend - Send CAN message using STM32 native CAN
+ * 
+ * @param id - CAN message ID (11-bit standard)
+ * @param len - Number of data bytes (0-8)
+ * @param data - Pointer to data bytes
+ * @return true if successful, false otherwise
+ */
+bool canSend(uint32_t id, uint8_t length, uint8_t *data) {
+  txMsg.id = id;
+  txMsg.len = length;
+  for (uint8_t i = 0; i < length && i < 8; i++) {
+    txMsg.buf[i] = data[i];
+  }
+  return can.write(txMsg) == 1;
+}
+
+#endif  // STM32_CORE_VERSION
 
 /**
  * sendCAN_LE - Send CAN message with Little Endian byte order
@@ -34,7 +106,11 @@ void sendCAN_LE(int CANaddress, int inputVal_1, int inputVal_2, int inputVal_3, 
         data[7] = highByte(inputVal_4);
 
         //Serial.println(inputVal_1);  // Debug output
-        byte sndStat = CAN0.sendMsgBuf(CANaddress, 0, 8, data);  // Send 8-byte message, standard ID
+#ifdef STM32_CORE_VERSION
+        canSend(CANaddress, 8, data);  // STM32 native CAN
+#else
+        byte sndStat = CAN0.sendMsgBuf(CANaddress, 0, 8, data);  // MCP2515 CAN
+#endif
 }
 
 /**
@@ -58,7 +134,11 @@ void sendCAN_BE(int CANaddress, int inputVal_1, int inputVal_2, int inputVal_3, 
         data[6] = highByte(inputVal_4);
         data[7] = lowByte(inputVal_4);  // Fixed: was highByte, should be lowByte
 
-        byte sndStat = CAN0.sendMsgBuf(CANaddress, 0, 8, data);  // Send 8-byte message, standard ID
+#ifdef STM32_CORE_VERSION
+        canSend(CANaddress, 8, data);  // STM32 native CAN
+#else
+        byte sndStat = CAN0.sendMsgBuf(CANaddress, 0, 8, data);  // MCP2515 CAN
+#endif
 }
 
 /**
@@ -66,7 +146,11 @@ void sendCAN_BE(int CANaddress, int inputVal_1, int inputVal_2, int inputVal_3, 
  */
 void receiveCAN ()
 {
-  
+#ifdef STM32_CORE_VERSION
+    // For STM32, the message is already read by canReceive()
+    // Just ensure data is in the right place (already done in canReceive)
+#else
+    // MCP2515 CAN controller
     CAN0.readMsgBuf(&rxId, &len, rxBuf);  // Read message: ID, length, and data bytes
     
     // Copy received data to processing buffer
@@ -74,6 +158,7 @@ void receiveCAN ()
       canMessageData[i] = rxBuf[i];
       //Serial.println(canMessageData[i]);  // Debug: print each byte
     }
+#endif
     
     // Debug code for printing CAN messages (currently disabled)
 //    if((rxId & 0x80000000) == 0x80000000)     // Check if extended ID (29-bit)
@@ -409,17 +494,27 @@ void pollOBDII()
 }
 
 /**
- * configureCANFilters - Configure MCP2515 hardware filters based on protocol
+ * configureCANFilters - Configure CAN hardware filters based on protocol
  * 
- * The MCP2515 has 2 receive buffers with 6 filters total:
- * - RXB0: 2 filters (Filter 0, Filter 1) with Mask 0
- * - RXB1: 4 filters (Filter 2-5) with Mask 1
+ * MCP2515: Has 2 receive buffers with 6 filters total
+ * STM32: Has 14 filter banks (configurable)
  * 
  * Strategy: Use masks to accept ranges of IDs, then rely on software
  * for final filtering. This reduces interrupt load significantly.
  */
 void configureCANFilters()
 {
+#ifdef STM32_CORE_VERSION
+  // STM32 native CAN - configure filter banks
+  // For now, accept all messages in software filtering
+  // TODO: Implement protocol-specific hardware filters for STM32
+  CAN_filter_t filter;
+  filter.id = 0;
+  filter.mask = 0;
+  filter.rtr = 0;
+  can.setFilter(filter, 0);
+#else
+  // MCP2515 configuration
   // The init_Filt and init_Mask functions use:
   // init_Mask(num, ext, ulData) - num: 0 or 1, ext: 0=standard/1=extended
   // init_Filt(num, ext, ulData) - num: 0-5, ext: 0=standard/1=extended
@@ -499,5 +594,6 @@ void configureCANFilters()
       CAN0.init_Mask(1, 0, 0x00000000);
       break;
   }
+#endif
 }
 

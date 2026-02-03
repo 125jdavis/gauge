@@ -7,10 +7,10 @@
 #include "globals.h"
 
 // ===== HARDWARE OBJECT INSTANCES =====
-MCP_CAN CAN0(CAN0_CS);
+MCP_CAN CAN0(CAN0_CS);  // This will be replaced with STM32 native CAN
 Adafruit_SSD1306 display1(SCREEN_W, SCREEN_H, &SPI, OLED_DC_1, OLED_RST_1, OLED_CS_1);
 Adafruit_SSD1306 display2(SCREEN_W, SCREEN_H, &SPI, OLED_DC_2, OLED_RST_2, OLED_CS_2);
-Rotary rotary = Rotary(2, 3);
+Rotary rotary = Rotary(ROTARY_DT, ROTARY_CLK);  // Use STM32 rotary encoder pins
 CRGB leds[MAX_LEDS];
 SwitecX12 motor1(M1_SWEEP, M1_STEP, M1_DIR);
 SwitecX12 motor2(M2_SWEEP, M2_STEP, M2_DIR);

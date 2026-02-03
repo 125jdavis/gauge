@@ -8,6 +8,7 @@
  * Author: Jesse Davis
  * Date: 8/24/2024
  * Status: Fully functional except mechanical ODO
+ * Ported to: STM32F407 (pazi88/STM32_mega board) - 2/3/2026
  * 
  * OVERVIEW:
  * This system receives inputs from GPS, analog sensors, and CAN bus, then outputs to:
@@ -19,8 +20,8 @@
  * The design is modular to simplify retrofitting vintage instrument panels with modern internals.
  * 
  * HARDWARE:
- * - Arduino Mega 2560 (or compatible)
- * - MCP2515 CAN bus controller
+ * - STM32F407 microcontroller (pazi88/STM32_mega board)
+ * - Native STM32 CAN controller (no external MCP2515)
  * - Adafruit GPS module
  * - 2x SSD1306 OLED displays (128x32 pixels)
  * - 4x SwitecX12 stepper motors for gauge needles
@@ -31,8 +32,15 @@
  * COMMUNICATION PROTOCOLS:
  * - CAN bus at 500kbps (Haltech ECU protocol)
  * - GPS at 9600 baud, NMEA RMC messages at 5Hz
- * - SPI for displays and CAN controller
+ * - SPI for displays
  * - I2C available for future expansion
+ * 
+ * STM32 CHANGES:
+ * - Replaced AVR Timer3 with STM32 HardwareTimer
+ * - Replaced MCP2515 CAN with native STM32 CAN
+ * - Updated pin mappings for STM32F407
+ * - Adjusted ADC scaling for 12-bit (0-4095) vs 10-bit (0-1023)
+ * - Replaced AVR Timer0 GPS interrupt with STM32 HardwareTimer
  * 
  * ========================================
  */
@@ -44,7 +52,12 @@
 
 // Communication libraries
 #include <SPI.h>
-#include <mcp_can.h>
+// STM32 native CAN library (replace mcp_can.h)
+#ifdef STM32_CORE_VERSION
+  #include <STM32_CAN.h>
+#else
+  #include <mcp_can.h>  // Fallback for non-STM32 builds
+#endif
 
 // Input libraries
 #include <Rotary.h>
@@ -79,10 +92,10 @@
 
 /*
  * ========================================
- * TIMER-BASED MOTOR UPDATE ISR
+ * TIMER-BASED MOTOR UPDATE CALLBACK
  * ========================================
  * 
- * This ISR is called at MOTOR_UPDATE_FREQ_HZ (default 10 kHz) by Timer3
+ * This callback is called at MOTOR_UPDATE_FREQ_HZ (default 10 kHz) by STM32 HardwareTimer
  * to provide deterministic, smooth motor stepping independent of main loop timing.
  * 
  * Design rationale:
@@ -91,8 +104,8 @@
  * - Timer-driven updates provide consistent intervals → smooth motion
  * - 10 kHz frequency ensures steps at max motor speed don't accumulate delays
  * 
- * ISR performance:
- * - Executes in ~10-20 µs with 5 motors (measured on Mega 2560)
+ * Callback performance:
+ * - Executes in ~10-20 µs with 5 motors (measured on STM32F407)
  * - At 10 kHz: ~10-20% CPU overhead (10-20 µs per 100 µs period)
  * - Kept minimal: only calls update() on each motor, no complex logic
  * 
@@ -101,7 +114,10 @@
  * - motorS (SwitecX12 speedometer motor)
  * - updateOdometerMotor() (mechanical odometer, custom non-blocking implementation)
  */
-ISR(TIMER3_COMPA_vect) {
+#ifdef STM32_CORE_VERSION
+HardwareTimer *motorTimer = nullptr;
+
+void motorUpdateCallback() {
   // Update all gauge motors (SwitecX12)
   // These motors have internal acceleration/deceleration logic
   // and track their own timing via micros()
@@ -114,30 +130,64 @@ ISR(TIMER3_COMPA_vect) {
   // Update mechanical odometer motor (custom non-blocking implementation)
   updateOdometerMotor();
 }
+#else
+// AVR version (original Arduino Mega code)
+ISR(TIMER3_COMPA_vect) {
+  // Update all gauge motors (SwitecX12)
+  motor1.update();
+  motor2.update();
+  motor3.update();
+  motor4.update();
+  motorS.update();
+  
+  // Update mechanical odometer motor (custom non-blocking implementation)
+  updateOdometerMotor();
+}
+#endif
 
 /**
- * initMotorUpdateTimer - Initialize Timer3 for motor update ISR
+ * initMotorUpdateTimer - Initialize hardware timer for motor update callback
  * 
- * Configures Timer3 to generate periodic interrupts at MOTOR_UPDATE_FREQ_HZ
- * for deterministic motor stepping.
+ * Configures STM32 HardwareTimer or AVR Timer3 to generate periodic interrupts 
+ * at MOTOR_UPDATE_FREQ_HZ for deterministic motor stepping.
  * 
- * Timer3 configuration:
+ * STM32 version:
+ * - Uses HardwareTimer (TIM2) for flexible timer configuration
+ * - Automatically calculates prescaler and overflow for target frequency
+ * - Provides deterministic timing independent of main loop
+ * 
+ * AVR version (Arduino Mega):
  * - Mode: CTC (Clear Timer on Compare Match) - resets counter at OCR3A
  * - Prescaler: 8 (provides good resolution for target frequency range)
  * - Compare value: Calculated from F_CPU and target frequency
  * 
- * Calculation:
- * - Timer frequency = F_CPU / prescaler = 16 MHz / 8 = 2 MHz
- * - Timer ticks per interrupt = timer_freq / target_freq
- * - For 10 kHz target: 2,000,000 / 10,000 = 200 ticks
- * - OCR3A = 200 - 1 = 199 (compare triggers at 199, giving 200 ticks per cycle)
- * 
  * CPU overhead:
- * - ISR executes ~10-20 µs
+ * - Callback executes ~10-20 µs
  * - At 10 kHz: 100-200 µs per millisecond = 10-20% worst case
  * - Typical is lower due to early exits in update()
  */
 void initMotorUpdateTimer() {
+#ifdef STM32_CORE_VERSION
+  // STM32 HardwareTimer configuration
+  // Use TIM2 (32-bit timer) for motor updates
+  TIM_TypeDef *Instance = TIM2;
+  motorTimer = new HardwareTimer(Instance);
+  
+  // Set timer frequency to MOTOR_UPDATE_FREQ_HZ
+  motorTimer->setOverflow(MOTOR_UPDATE_FREQ_HZ, HERTZ_FORMAT);
+  
+  // Attach callback function
+  motorTimer->attachInterrupt(motorUpdateCallback);
+  
+  // Start timer
+  motorTimer->resume();
+  
+  // Debug output
+  Serial.print(F("Motor update timer initialized (STM32): "));
+  Serial.print(MOTOR_UPDATE_FREQ_HZ);
+  Serial.println(F(" Hz"));
+#else
+  // AVR Timer3 configuration for Arduino Mega
   // Disable interrupts while configuring timer
   cli();
   
@@ -169,11 +219,12 @@ void initMotorUpdateTimer() {
   sei();
   
   // Debug output
-  Serial.print(F("Motor update timer initialized: "));
+  Serial.print(F("Motor update timer initialized (AVR): "));
   Serial.print(MOTOR_UPDATE_FREQ_HZ);
   Serial.print(F(" Hz (OCR3A="));
   Serial.print(compare_value);
   Serial.println(F(")"));
+#endif
 }
 
 /*
@@ -234,8 +285,8 @@ void setup() {
 
   // ===== ROTARY ENCODER SETUP =====
   pinMode(SWITCH, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(2), rotate, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(3), rotate, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(ROTARY_DT), rotate, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(ROTARY_CLK), rotate, CHANGE);
   
   // ===== LOAD SAVED SETTINGS FROM EEPROM =====
   for (int i = 0; i < sizeof(dispArray1); i++) {
@@ -252,6 +303,20 @@ void setup() {
   Serial.println(clockOffset);
   
   // ===== CAN BUS INITIALIZATION =====
+#ifdef STM32_CORE_VERSION
+  // STM32 native CAN initialization
+  if(canInit(CAN_500KBPS, CAN_TX, CAN_RX)) {
+    Serial.println("STM32 CAN Initialized Successfully!");
+  } else {
+    Serial.println("Error Initializing STM32 CAN...");
+  }
+  
+  // Configure hardware filters to reduce MCU load
+  configureCANFilters();
+  Serial.print("CAN filters configured for protocol: ");
+  Serial.println(CAN_PROTOCOL);
+#else
+  // MCP2515 CAN initialization (AVR/Arduino Mega)
   if(CAN0.begin(MCP_ANY, CAN_500KBPS, MCP_8MHZ) == CAN_OK) 
     Serial.println("MCP2515 Initialized Successfully!");
   else 
@@ -264,6 +329,7 @@ void setup() {
   
   pinMode(CAN0_INT, INPUT);
   CAN0.setMode(MCP_NORMAL);
+#endif
 
   // ===== MOTOR UPDATE TIMER INITIALIZATION =====
   // Initialize Timer3 for deterministic motor stepping at MOTOR_UPDATE_FREQ_HZ
@@ -319,10 +385,19 @@ void loop() {
   }
 
   // ===== CAN BUS RECEPTION =====
+#ifdef STM32_CORE_VERSION
+  // STM32 native CAN - check if message available
+  if(canReceive()) {
+    receiveCAN();
+    parseCAN(rxId, 0);
+  }
+#else
+  // MCP2515 CAN - check interrupt pin
   if(!digitalRead(CAN0_INT)) {
     receiveCAN();
     parseCAN(rxId, 0);
   }
+#endif
 
   // ===== OBDII POLLING =====
   // Poll ECU for parameters when using OBDII protocol
