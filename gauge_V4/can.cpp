@@ -3,7 +3,7 @@
  * CAN BUS FUNCTIONS IMPLEMENTATION
  * ========================================
  * 
- * Supports both STM32 native CAN and MCP2515 SPI CAN controller
+ * Uses STM32duino HardwareCAN library for STM32F407
  */
 
 #include "can.h"
@@ -15,11 +15,12 @@
 #define OBDII_LAMBDA_SCALE_FACTOR 0.0000305  // OBDII lambda scaling factor
 
 // ===== STM32 CAN SUPPORT =====
-#ifdef STM32_CORE_VERSION
-// STM32 native CAN variables and functions
-STM32_CAN can(CAN1, DEF);  // CAN1 peripheral, default pins (PA11=RX, PA12=TX)
-static CAN_message_t rxMsg;  // Received message buffer
-static CAN_message_t txMsg;  // Transmit message buffer
+// HardwareCAN instance for CAN1 peripheral
+HardwareCAN canBus(CAN1);
+
+// Message buffers
+static CanMsg rxMsg;  // Received message buffer
+static CanMsg txMsg;  // Transmit message buffer
 
 /**
  * canInit - Initialize STM32 native CAN controller
@@ -40,8 +41,8 @@ bool canInit(uint32_t baudrate, uint8_t txPin, uint8_t rxPin) {
   }
   
   // Initialize CAN peripheral
-  can.begin();
-  can.setBaudRate(actualBaud);
+  canBus.begin();
+  canBus.setBaudRate(actualBaud);
   
   return true;
 }
@@ -52,13 +53,15 @@ bool canInit(uint32_t baudrate, uint8_t txPin, uint8_t rxPin) {
  * @return true if message was received, false otherwise
  */
 bool canReceive() {
-  if (can.read(rxMsg)) {
+  if (canBus.available()) {
+    canBus.read(rxMsg);
+    
     // Copy message data to global variables for compatibility
     rxId = rxMsg.id;
     len = rxMsg.len;
     for (uint8_t i = 0; i < len && i < 8; i++) {
-      rxBuf[i] = rxMsg.buf[i];
-      canMessageData[i] = rxMsg.buf[i];
+      rxBuf[i] = rxMsg.data[i];
+      canMessageData[i] = rxMsg.data[i];
     }
     return true;
   }
@@ -69,7 +72,7 @@ bool canReceive() {
  * canSend - Send CAN message using STM32 native CAN
  * 
  * @param id - CAN message ID (11-bit standard)
- * @param len - Number of data bytes (0-8)
+ * @param length - Number of data bytes (0-8)
  * @param data - Pointer to data bytes
  * @return true if successful, false otherwise
  */
@@ -77,12 +80,10 @@ bool canSend(uint32_t id, uint8_t length, uint8_t *data) {
   txMsg.id = id;
   txMsg.len = length;
   for (uint8_t i = 0; i < length && i < 8; i++) {
-    txMsg.buf[i] = data[i];
+    txMsg.data[i] = data[i];
   }
-  return can.write(txMsg) == 1;
+  return canBus.write(txMsg) == 1;
 }
-
-#endif  // STM32_CORE_VERSION
 
 /**
  * sendCAN_LE - Send CAN message with Little Endian byte order
@@ -106,11 +107,7 @@ void sendCAN_LE(int CANaddress, int inputVal_1, int inputVal_2, int inputVal_3, 
         data[7] = highByte(inputVal_4);
 
         //Serial.println(inputVal_1);  // Debug output
-#ifdef STM32_CORE_VERSION
         canSend(CANaddress, 8, data);  // STM32 native CAN
-#else
-        byte sndStat = CAN0.sendMsgBuf(CANaddress, 0, 8, data);  // MCP2515 CAN
-#endif
 }
 
 /**
@@ -132,13 +129,9 @@ void sendCAN_BE(int CANaddress, int inputVal_1, int inputVal_2, int inputVal_3, 
         data[5] = lowByte(inputVal_3);
         // Word 4 (bytes 6-7)
         data[6] = highByte(inputVal_4);
-        data[7] = lowByte(inputVal_4);  // Fixed: was highByte, should be lowByte
+        data[7] = lowByte(inputVal_4);
 
-#ifdef STM32_CORE_VERSION
         canSend(CANaddress, 8, data);  // STM32 native CAN
-#else
-        byte sndStat = CAN0.sendMsgBuf(CANaddress, 0, 8, data);  // MCP2515 CAN
-#endif
 }
 
 /**
@@ -146,19 +139,8 @@ void sendCAN_BE(int CANaddress, int inputVal_1, int inputVal_2, int inputVal_3, 
  */
 void receiveCAN ()
 {
-#ifdef STM32_CORE_VERSION
     // For STM32, the message is already read by canReceive()
     // Just ensure data is in the right place (already done in canReceive)
-#else
-    // MCP2515 CAN controller
-    CAN0.readMsgBuf(&rxId, &len, rxBuf);  // Read message: ID, length, and data bytes
-    
-    // Copy received data to processing buffer
-    for (byte i =0; i< len; i++){
-      canMessageData[i] = rxBuf[i];
-      //Serial.println(canMessageData[i]);  // Debug: print each byte
-    }
-#endif
     
     // Debug code for printing CAN messages (currently disabled)
 //    if((rxId & 0x80000000) == 0x80000000)     // Check if extended ID (29-bit)
@@ -496,104 +478,18 @@ void pollOBDII()
 /**
  * configureCANFilters - Configure CAN hardware filters based on protocol
  * 
- * MCP2515: Has 2 receive buffers with 6 filters total
- * STM32: Has 14 filter banks (configurable)
+ * For STM32 HardwareCAN, filters can be configured to reduce CPU load.
+ * For now, we accept all messages and rely on software filtering.
  * 
- * Strategy: Use masks to accept ranges of IDs, then rely on software
- * for final filtering. This reduces interrupt load significantly.
+ * Strategy: Accept all messages in hardware, filter in software by protocol
  */
 void configureCANFilters()
 {
-#ifdef STM32_CORE_VERSION
-  // STM32 native CAN - configure filter banks
-  // For now, accept all messages in software filtering
-  // TODO: Implement protocol-specific hardware filters for STM32
-  CAN_filter_t filter;
-  filter.id = 0;
-  filter.mask = 0;
-  filter.rtr = 0;
-  can.setFilter(filter, 0);
-#else
-  // MCP2515 configuration
-  // The init_Filt and init_Mask functions use:
-  // init_Mask(num, ext, ulData) - num: 0 or 1, ext: 0=standard/1=extended
-  // init_Filt(num, ext, ulData) - num: 0-5, ext: 0=standard/1=extended
+  // STM32 HardwareCAN - accept all messages for now
+  // Software filtering is done in parseCAN functions
+  // TODO: Implement protocol-specific hardware filters using HardwareCAN filter API
   
-  switch (CAN_PROTOCOL) {
-    case CAN_PROTOCOL_HALTECH_V2:
-      // Haltech IDs: 0x301, 0x360-0x362, 0x368-0x369, 0x3E0-0x3E1, 0x470-0x473
-      // Use masks to accept ranges, reducing unnecessary interrupts
-      
-      // Mask 0 for RXB0: Accept 0x360-0x36F and 0x3E0-0x3EF (mask 0x7F0)
-      CAN0.init_Mask(0, 0, 0x7F0);
-      CAN0.init_Filt(0, 0, 0x360);  // Accepts 0x360-0x36F
-      CAN0.init_Filt(1, 0, 0x3E0);  // Accepts 0x3E0-0x3EF
-      
-      // Mask 1 for RXB1: Accept 0x470-0x47F and specific IDs (mask varies)
-      CAN0.init_Mask(1, 0, 0x7F0);
-      CAN0.init_Filt(2, 0, 0x470);  // Accepts 0x470-0x47F (wheel speeds)
-      CAN0.init_Filt(3, 0, 0x300);  // Accepts 0x300-0x30F (test messages)
-      CAN0.init_Filt(4, 0, 0x360);  // Duplicate for redundancy
-      CAN0.init_Filt(5, 0, 0x3E0);  // Duplicate for redundancy
-      break;
-      
-    case CAN_PROTOCOL_MEGASQUIRT:
-      // Megasquirt IDs: 0x5EC, 0x5F0-0x5F4
-      // These are close together, can use a mask
-      
-      // Mask 0 for RXB0: Accept 0x5E0-0x5EF
-      CAN0.init_Mask(0, 0, 0x7F0);
-      CAN0.init_Filt(0, 0, 0x5E0);  // Accepts 0x5E0-0x5EF (includes 0x5EC)
-      CAN0.init_Filt(1, 0, 0x5F0);  // Accepts 0x5F0-0x5FF
-      
-      // Mask 1 for RXB1: Accept 0x5F0-0x5FF
-      CAN0.init_Mask(1, 0, 0x7F0);
-      CAN0.init_Filt(2, 0, 0x5F0);  // Accepts 0x5F0-0x5FF
-      CAN0.init_Filt(3, 0, 0x5F0);  // Duplicate for redundancy
-      CAN0.init_Filt(4, 0, 0x5E0);  // Accepts 0x5E0-0x5EF
-      CAN0.init_Filt(5, 0, 0x5E0);  // Duplicate for redundancy
-      break;
-      
-    case CAN_PROTOCOL_AIM:
-      // AiM IDs: 0x0B0-0x0B3
-      // Very compact range
-      
-      // Mask 0 for RXB0: Accept 0x0B0-0x0BF
-      CAN0.init_Mask(0, 0, 0x7F0);
-      CAN0.init_Filt(0, 0, 0x0B0);  // Accepts 0x0B0-0x0BF
-      CAN0.init_Filt(1, 0, 0x0B0);  // Duplicate for redundancy
-      
-      // Mask 1 for RXB1: Accept 0x0B0-0x0BF
-      CAN0.init_Mask(1, 0, 0x7F0);
-      CAN0.init_Filt(2, 0, 0x0B0);  // Accepts 0x0B0-0x0BF
-      CAN0.init_Filt(3, 0, 0x0B0);  // Duplicate for redundancy
-      CAN0.init_Filt(4, 0, 0x0B0);  // Duplicate for redundancy
-      CAN0.init_Filt(5, 0, 0x0B0);  // Duplicate for redundancy
-      break;
-      
-    case CAN_PROTOCOL_OBDII:
-      // OBDII response IDs: 0x7E8-0x7EF
-      // Single contiguous range
-      
-      // Mask 0 for RXB0: Accept 0x7E8-0x7EF (mask 0x7F8)
-      CAN0.init_Mask(0, 0, 0x7F8);
-      CAN0.init_Filt(0, 0, 0x7E8);  // Accepts 0x7E8-0x7EF
-      CAN0.init_Filt(1, 0, 0x7E8);  // Duplicate for redundancy
-      
-      // Mask 1 for RXB1: Accept 0x7E8-0x7EF
-      CAN0.init_Mask(1, 0, 0x7F8);
-      CAN0.init_Filt(2, 0, 0x7E8);  // Accepts 0x7E8-0x7EF
-      CAN0.init_Filt(3, 0, 0x7E8);  // Duplicate for redundancy
-      CAN0.init_Filt(4, 0, 0x7E8);  // Duplicate for redundancy
-      CAN0.init_Filt(5, 0, 0x7E8);  // Duplicate for redundancy
-      break;
-      
-    default:
-      // Unknown protocol - accept all messages (no filtering)
-      CAN0.init_Mask(0, 0, 0x00000000);  // Mask all zeros = accept all
-      CAN0.init_Mask(1, 0, 0x00000000);
-      break;
-  }
-#endif
+  // The default filter accepts all messages, which is fine for now
+  // HardwareCAN library handles basic filtering internally
 }
 

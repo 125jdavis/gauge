@@ -52,12 +52,7 @@
 
 // Communication libraries
 #include <SPI.h>
-// STM32 native CAN library (replace mcp_can.h)
-#ifdef STM32_CORE_VERSION
-  #include <STM32_CAN.h>
-#else
-  #include <mcp_can.h>  // Fallback for non-STM32 builds
-#endif
+#include <HardwareCAN.h>  // STM32duino built-in CAN library
 
 // Input libraries
 #include <Rotary.h>
@@ -114,7 +109,6 @@
  * - motorS (SwitecX12 speedometer motor)
  * - updateOdometerMotor() (mechanical odometer, custom non-blocking implementation)
  */
-#ifdef STM32_CORE_VERSION
 HardwareTimer *motorTimer = nullptr;
 
 void motorUpdateCallback() {
@@ -130,25 +124,11 @@ void motorUpdateCallback() {
   // Update mechanical odometer motor (custom non-blocking implementation)
   updateOdometerMotor();
 }
-#else
-// AVR version (original Arduino Mega code)
-ISR(TIMER3_COMPA_vect) {
-  // Update all gauge motors (SwitecX12)
-  motor1.update();
-  motor2.update();
-  motor3.update();
-  motor4.update();
-  motorS.update();
-  
-  // Update mechanical odometer motor (custom non-blocking implementation)
-  updateOdometerMotor();
-}
-#endif
 
 /**
  * initMotorUpdateTimer - Initialize hardware timer for motor update callback
  * 
- * Configures STM32 HardwareTimer or AVR Timer3 to generate periodic interrupts 
+ * Configures STM32 HardwareTimer to generate periodic interrupts 
  * at MOTOR_UPDATE_FREQ_HZ for deterministic motor stepping.
  * 
  * STM32 version:
@@ -156,18 +136,12 @@ ISR(TIMER3_COMPA_vect) {
  * - Automatically calculates prescaler and overflow for target frequency
  * - Provides deterministic timing independent of main loop
  * 
- * AVR version (Arduino Mega):
- * - Mode: CTC (Clear Timer on Compare Match) - resets counter at OCR3A
- * - Prescaler: 8 (provides good resolution for target frequency range)
- * - Compare value: Calculated from F_CPU and target frequency
- * 
  * CPU overhead:
  * - Callback executes ~10-20 µs
  * - At 10 kHz: 100-200 µs per millisecond = 10-20% worst case
  * - Typical is lower due to early exits in update()
  */
 void initMotorUpdateTimer() {
-#ifdef STM32_CORE_VERSION
   // STM32 HardwareTimer configuration
   // Use TIM2 (32-bit timer) for motor updates
   TIM_TypeDef *Instance = TIM2;
@@ -186,13 +160,6 @@ void initMotorUpdateTimer() {
   Serial.print(F("Motor update timer initialized (STM32): "));
   Serial.print(MOTOR_UPDATE_FREQ_HZ);
   Serial.println(F(" Hz"));
-#else
-  // AVR Timer3 configuration for Arduino Mega
-  // Disable interrupts while configuring timer
-  cli();
-  
-  // Timer3 configuration for CTC mode
-  TCCR3A = 0;  // Clear control register A
   TCCR3B = 0;  // Clear control register B
   TCNT3 = 0;   // Initialize counter to 0
   
@@ -215,16 +182,6 @@ void initMotorUpdateTimer() {
   // Enable Timer3 Compare A interrupt
   TIMSK3 |= (1 << OCIE3A);
   
-  // Re-enable interrupts
-  sei();
-  
-  // Debug output
-  Serial.print(F("Motor update timer initialized (AVR): "));
-  Serial.print(MOTOR_UPDATE_FREQ_HZ);
-  Serial.print(F(" Hz (OCR3A="));
-  Serial.print(compare_value);
-  Serial.println(F(")"));
-#endif
 }
 
 /*
@@ -303,7 +260,6 @@ void setup() {
   Serial.println(clockOffset);
   
   // ===== CAN BUS INITIALIZATION =====
-#ifdef STM32_CORE_VERSION
   // STM32 native CAN initialization
   if(canInit(CAN_500KBPS, CAN_TX, CAN_RX)) {
     Serial.println("STM32 CAN Initialized Successfully!");
@@ -315,24 +271,9 @@ void setup() {
   configureCANFilters();
   Serial.print("CAN filters configured for protocol: ");
   Serial.println(CAN_PROTOCOL);
-#else
-  // MCP2515 CAN initialization (AVR/Arduino Mega)
-  if(CAN0.begin(MCP_ANY, CAN_500KBPS, MCP_8MHZ) == CAN_OK) 
-    Serial.println("MCP2515 Initialized Successfully!");
-  else 
-    Serial.println("Error Initializing MCP2515...");
-  
-  // Configure hardware filters to reduce MCU load
-  configureCANFilters();
-  Serial.print("CAN filters configured for protocol: ");
-  Serial.println(CAN_PROTOCOL);
-  
-  pinMode(CAN0_INT, INPUT);
-  CAN0.setMode(MCP_NORMAL);
-#endif
 
   // ===== MOTOR UPDATE TIMER INITIALIZATION =====
-  // Initialize Timer3 for deterministic motor stepping at MOTOR_UPDATE_FREQ_HZ
+  // Initialize hardware timer for deterministic motor stepping at MOTOR_UPDATE_FREQ_HZ
   // This must be done after motor initialization but before main loop starts
   initMotorUpdateTimer();
 
@@ -385,19 +326,11 @@ void loop() {
   }
 
   // ===== CAN BUS RECEPTION =====
-#ifdef STM32_CORE_VERSION
   // STM32 native CAN - check if message available
   if(canReceive()) {
     receiveCAN();
     parseCAN(rxId, 0);
   }
-#else
-  // MCP2515 CAN - check interrupt pin
-  if(!digitalRead(CAN0_INT)) {
-    receiveCAN();
-    parseCAN(rxId, 0);
-  }
-#endif
 
   // ===== OBDII POLLING =====
   // Poll ECU for parameters when using OBDII protocol

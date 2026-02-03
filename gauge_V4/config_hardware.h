@@ -21,15 +21,9 @@
 #include <Arduino.h>
 
 // ===== CAN BUS HARDWARE =====
-#ifdef STM32_CORE_VERSION
 // STM32F407 has built-in CAN controller - no external chip needed
 constexpr uint8_t CAN_TX = PA12;    // STM32 CAN TX pin
 constexpr uint8_t CAN_RX = PA11;    // STM32 CAN RX pin
-#else
-// Arduino Mega uses external MCP2515 CAN controller
-constexpr uint8_t CAN0_CS = 53;     // MCP2515 CAN controller chip select pin (SPI)
-constexpr uint8_t CAN0_INT = 18;    // MCP2515 interrupt pin - triggers when CAN message received
-#endif
 
 // ===== ENGINE RPM SENSOR =====
 constexpr uint8_t IGNITION_PULSE_PIN = PB9;  // STM32 pin PB9 - ignition coil pulses via optocoupler (same as COIL_NEG)

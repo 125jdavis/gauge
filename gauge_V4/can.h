@@ -6,7 +6,7 @@
  * Handle CAN bus communication with Haltech ECU and other modules
  * CAN bus operates at 500kbps with standard 11-bit identifiers
  * 
- * Supports both STM32 native CAN and MCP2515 SPI CAN controller
+ * Uses STM32duino HardwareCAN library
  */
 
 #ifndef CAN_H
@@ -15,7 +15,6 @@
 #include <Arduino.h>
 
 // ===== STM32 CAN FUNCTION DECLARATIONS =====
-#ifdef STM32_CORE_VERSION
 /**
  * canInit - Initialize STM32 native CAN controller
  */
@@ -35,7 +34,6 @@ bool canSend(uint32_t id, uint8_t length, uint8_t *data);
 #define CAN_500KBPS 500000
 #define CAN_250KBPS 250000
 #define CAN_1000KBPS 1000000
-#endif
 
 /**
  * sendCAN_LE - Send CAN message with Little Endian byte order

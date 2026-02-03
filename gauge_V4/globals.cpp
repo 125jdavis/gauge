@@ -7,9 +7,7 @@
 #include "globals.h"
 
 // ===== HARDWARE OBJECT INSTANCES =====
-#ifndef STM32_CORE_VERSION
-MCP_CAN CAN0(CAN0_CS);  // Only for Arduino Mega with MCP2515
-#endif
+// CAN is initialized in can.cpp
 Adafruit_SSD1306 display1(SCREEN_W, SCREEN_H, &SPI, OLED_DC_1, OLED_RST_1, OLED_CS_1);
 Adafruit_SSD1306 display2(SCREEN_W, SCREEN_H, &SPI, OLED_DC_2, OLED_RST_2, OLED_CS_2);
 Rotary rotary = Rotary(ROTARY_DT, ROTARY_CLK);  // Use STM32 rotary encoder pins
