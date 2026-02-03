@@ -63,14 +63,20 @@ unsigned long readSensor(int inputPin, int oldVal, int filt)
 /**
  * read30PSIAsensor - Read 30 PSI absolute pressure sensor
  * Handles both 10-bit (Arduino Mega, 0-1023) and 12-bit (STM32, 0-4095) ADCs
+ * 
+ * NOTE: STM32 version uses reduced voltage range (0.5-3.0V vs 0.5-4.5V on Arduino)
+ * due to STM32 ADC maximum of 3.3V. This limits the upper measurement range.
+ * Consider using a voltage divider or sensor with 0-3.3V output for full range.
  */
 unsigned long read30PSIAsensor(int inputPin, int oldVal, int filt)
 {
     int raw = analogRead (inputPin);  // Read ADC
 #ifdef STM32_CORE_VERSION
     // STM32 has 12-bit ADC: 0-4095
-    // Scale 0.5-4.5V range: 0.5V = (0.5/3.3)*4095 = 621, 4.5V would exceed 3.3V, use 3.0V = 3723
-    unsigned long newVal = map( raw, 621, 3723, 0, 2068);  // Map 0.5-3.0V to 0-30 PSIA (0-206.8 kPa)
+    // Scale 0.5-3.0V range: 0.5V = (0.5/3.3)*4095 = 621, 3.0V = (3.0/3.3)*4095 = 3723
+    // Upper range limited by 3.3V ADC reference (sensor can output up to 4.5V)
+    // This corresponds to approximately 20 PSI max instead of full 30 PSI
+    unsigned long newVal = map( raw, 621, 3723, 0, 1379);  // Map 0.5-3.0V to 0-20 PSIA (0-137.9 kPa)
 #else
     // Arduino Mega has 10-bit ADC: 0-1023
     unsigned long newVal = map( raw, 102, 921, 0, 2068);  // Map 0.5-4.5V to 0-30 PSIA (0-206.8 kPa)

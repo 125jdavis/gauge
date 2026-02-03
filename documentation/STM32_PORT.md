@@ -88,7 +88,7 @@ This document describes the architectural changes made to port the gauge control
 | MOTOR_RST | D36 | PE10 | Motor driver reset (all) |
 | **Sensors** |
 | HALL_PIN | D20 | PD3 | Hall effect speed sensor |
-| IGNITION_PULSE_PIN | D21 | PE7 | Ignition coil pulse (RPM) |
+| IGNITION_PULSE_PIN | D21 | PD2 | Ignition coil pulse (RPM) |
 | COIL_NEG | - | PB9 | Coil negative control |
 | **Power** |
 | PWR_PIN | D49 | PD4 | Power control |
@@ -302,13 +302,17 @@ After flashing, verify each subsystem:
 
 ### 2. ADC Voltage Range
 - STM32 ADC maximum: 3.3V (vs 5V on Arduino Mega)
-- Sensor voltage dividers may need adjustment
+- **30 PSI pressure sensor limitation**: Original sensor outputs 0.5-4.5V (full 30 PSI range), but STM32 can only read up to 3.3V. Current implementation reads 0.5-3.0V, providing approximately 20 PSI max instead of 30 PSI.
+- **Solutions**:
+  - Use a voltage divider to scale 0-4.5V to 0-3.3V (preserves full range)
+  - Replace sensor with 0-3.3V output version
+  - Accept reduced pressure measurement range (0-20 PSI)
 - Test all analog sensors to ensure proper scaling
 
-### 3. Interrupt Pin Sharing
-- Some pins (e.g., PE7) are used for multiple functions
-- Verify no conflicts in your specific configuration
-- LED tachometer and RPM sensor both use PE7 in pin table (check actual wiring)
+### 3. Interrupt Pin Conflict Resolution
+- **IGNITION_PULSE_PIN moved from PE7 to PD2** to avoid conflict with TACH_DATA_PIN
+- LED tachometer (WS2812) uses PE7
+- Verify pin assignments match your actual hardware wiring
 
 ### 4. EEPROM Wear
 - Flash-based EEPROM has limited write cycles

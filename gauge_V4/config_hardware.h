@@ -26,7 +26,7 @@ constexpr uint8_t CAN_TX = PA12;    // STM32 CAN TX pin
 constexpr uint8_t CAN_RX = PA11;    // STM32 CAN RX pin
 
 // ===== ENGINE RPM SENSOR =====
-constexpr uint8_t IGNITION_PULSE_PIN = PE7;  // STM32 pin PE7 - ignition coil pulses via optocoupler (interrupt-capable)
+constexpr uint8_t IGNITION_PULSE_PIN = PD2;  // STM32 pin PD2 - ignition coil pulses via optocoupler (interrupt-capable)
 
 // ===== POWER CONTROL =====
 constexpr uint8_t PWR_PIN = PD4;     // Power control pin - keeps system alive after ignition is off
@@ -82,7 +82,7 @@ constexpr uint8_t OLED_RST_2 = PD11; // Display 2 Reset pin
 
 // ===== LED TACHOMETER HARDWARE =====
 constexpr uint8_t MAX_LEDS = 64;    // Maximum number of LEDs supported by the array (must be compile-time constant)
-constexpr uint8_t TACH_DATA_PIN = PE7; // WS2812 data pin for LED tachometer strip (Note: shared with IGNITION_PULSE_PIN)
+constexpr uint8_t TACH_DATA_PIN = PE7; // WS2812 data pin for LED tachometer strip
 
 // ===== GPS CONFIGURATION =====
 constexpr bool GPSECHO = false;     // Set to true to echo raw GPS data to serial monitor (debug only)
