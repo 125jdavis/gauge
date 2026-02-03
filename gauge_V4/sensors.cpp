@@ -67,18 +67,22 @@ unsigned long readSensor(int inputPin, int oldVal, int filt)
 /**
  * read30PSIAsensor - Read 30 PSI absolute pressure sensor
  * 
- * Note: MEGA F407 board includes voltage dividers on analog inputs (5V→3.3V scaling).
  * Sensor outputs 0.5-4.5V for 0-30 PSI range.
+ * MEGA F407: Hardware voltage dividers scale 5V inputs to 3.3V (ratio 0.66)
+ * 
  * Arduino Mega: 10-bit ADC (0-1023), 5V reference
- * STM32F407: 12-bit ADC (0-4095), 3.3V reference with hardware voltage dividers
+ *   0.5V → 102, 4.5V → 921
+ * 
+ * STM32F407: 12-bit ADC (0-4095), 3.3V reference with voltage dividers
+ *   0.5V → 0.5V × (3.3/5.0) / 3.3V × 4095 = 0.5/5.0 × 4095 ≈ 410
+ *   4.5V → 4.5V × (3.3/5.0) / 3.3V × 4095 = 4.5/5.0 × 4095 ≈ 3686
  */
 unsigned long read30PSIAsensor(int inputPin, int oldVal, int filt)
 {
     int raw = analogRead (inputPin);  // Read ADC
 #ifdef STM32_CORE_VERSION
     // STM32: 12-bit ADC (0-4095) with hardware voltage dividers
-    // Sensor: 0.5V = 102 (10-bit) × 4 = 408 (12-bit), 4.5V = 921 × 4 = 3684 (12-bit)
-    unsigned long newVal = map( raw, 408, 3684, 0, 2068);  // Map 0.5-4.5V to 0-30 PSIA (0-206.8 kPa)
+    unsigned long newVal = map( raw, 410, 3686, 0, 2068);  // Map 0.5-4.5V to 0-30 PSIA (0-206.8 kPa)
 #else
     // Arduino Mega: 10-bit ADC (0-1023)
     unsigned long newVal = map( raw, 102, 921, 0, 2068);  // Map 0.5-4.5V to 0-30 PSIA (0-206.8 kPa)

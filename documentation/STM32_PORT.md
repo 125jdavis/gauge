@@ -31,8 +31,8 @@ This document describes the architectural changes made to port the gauge control
 ✅ **MEGA F407 FEATURE**: The board includes hardware voltage dividers on all analog input pins.
 - 5V sensor inputs are automatically scaled down to 3.3V at the ADC
 - This allows direct connection of 5V sensors without external level shifters
-- ADC code can use the same scaling as Arduino Mega (0-1023 range)
-- Despite 12-bit ADC capability, the voltage dividers maintain Arduino Mega compatibility
+- Full 12-bit ADC resolution (0-4095) is utilized for better precision
+- Voltage dividers handle voltage scaling while code uses full ADC resolution
 
 ⚠️ **Digital pins**: STM32F407 digital I/O pins are 3.3V logic, NOT 5V tolerant (except specific pins).
 - Ensure digital sensors and modules use 3.3V logic or proper level shifters
