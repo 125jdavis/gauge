@@ -52,7 +52,7 @@
 
 // Communication libraries
 #include <SPI.h>
-#include <HardwareCAN.h>  // STM32duino built-in CAN library
+#include <STM32_CAN.h>  // arduino-STM32-CAN library by nopnop2002
 
 // Input libraries
 #include <Rotary.h>

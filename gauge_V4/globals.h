@@ -13,7 +13,7 @@
 #include <Arduino.h>
 #include <Adafruit_SSD1306.h>
 #include <Adafruit_GPS.h>
-#include <HardwareCAN.h>  // STM32duino built-in CAN library
+#include <STM32_CAN.h>  // arduino-STM32-CAN library by nopnop2002
 #include <SwitecX12.h>
 #define HALF_STEP
 #include <Rotary.h>

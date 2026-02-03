@@ -3,7 +3,7 @@
  * CAN BUS FUNCTIONS IMPLEMENTATION
  * ========================================
  * 
- * Uses STM32duino HardwareCAN library for STM32F407
+ * Uses arduino-STM32-CAN library (nopnop2002) for STM32F407
  */
 
 #include "can.h"
@@ -15,12 +15,12 @@
 #define OBDII_LAMBDA_SCALE_FACTOR 0.0000305  // OBDII lambda scaling factor
 
 // ===== STM32 CAN SUPPORT =====
-// HardwareCAN instance for CAN1 peripheral
-HardwareCAN canBus(CAN1);
+// arduino-STM32-CAN instance for CAN1 peripheral
+STM32_CAN canBus(CAN1, DEF);  // CAN1 peripheral, default pins (PA11=RX, PA12=TX)
 
 // Message buffers
-static CanMsg rxMsg;  // Received message buffer
-static CanMsg txMsg;  // Transmit message buffer
+static CAN_message_t rxMsg;  // Received message buffer
+static CAN_message_t txMsg;  // Transmit message buffer
 
 /**
  * canInit - Initialize STM32 native CAN controller
@@ -41,10 +41,12 @@ bool canInit(uint32_t baudrate, uint8_t txPin, uint8_t rxPin) {
   }
   
   // Initialize CAN peripheral
-  canBus.begin();
-  canBus.setBaudRate(actualBaud);
+  bool result = canBus.begin();
+  if (result) {
+    canBus.setBaudRate(actualBaud);
+  }
   
-  return true;
+  return result;
 }
 
 /**
@@ -53,9 +55,7 @@ bool canInit(uint32_t baudrate, uint8_t txPin, uint8_t rxPin) {
  * @return true if message was received, false otherwise
  */
 bool canReceive() {
-  if (canBus.available()) {
-    canBus.read(rxMsg);
-    
+  if (canBus.read(rxMsg)) {
     // Copy message data to global variables for compatibility
     rxId = rxMsg.id;
     len = rxMsg.len;
@@ -82,7 +82,7 @@ bool canSend(uint32_t id, uint8_t length, uint8_t *data) {
   for (uint8_t i = 0; i < length && i < 8; i++) {
     txMsg.data[i] = data[i];
   }
-  return canBus.write(txMsg) == 1;
+  return canBus.write(txMsg);
 }
 
 /**
@@ -478,18 +478,18 @@ void pollOBDII()
 /**
  * configureCANFilters - Configure CAN hardware filters based on protocol
  * 
- * For STM32 HardwareCAN, filters can be configured to reduce CPU load.
+ * For arduino-STM32-CAN, filters can be configured to reduce CPU load.
  * For now, we accept all messages and rely on software filtering.
  * 
  * Strategy: Accept all messages in hardware, filter in software by protocol
  */
 void configureCANFilters()
 {
-  // STM32 HardwareCAN - accept all messages for now
+  // arduino-STM32-CAN - accept all messages for now
   // Software filtering is done in parseCAN functions
-  // TODO: Implement protocol-specific hardware filters using HardwareCAN filter API
+  // TODO: Implement protocol-specific hardware filters using STM32_CAN filter API
   
   // The default filter accepts all messages, which is fine for now
-  // HardwareCAN library handles basic filtering internally
+  // arduino-STM32-CAN library handles basic filtering internally
 }
 

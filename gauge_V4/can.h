@@ -6,7 +6,7 @@
  * Handle CAN bus communication with Haltech ECU and other modules
  * CAN bus operates at 500kbps with standard 11-bit identifiers
  * 
- * Uses STM32duino HardwareCAN library
+ * Uses arduino-STM32-CAN library (nopnop2002)
  */
 
 #ifndef CAN_H
