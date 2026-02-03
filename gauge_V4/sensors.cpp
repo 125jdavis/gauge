@@ -53,8 +53,8 @@ unsigned long readSensor(int inputPin, int oldVal, int filt)
 {
     int raw = analogRead (inputPin);  // Read ADC
 #ifdef STM32_CORE_VERSION
-    // STM32: 12-bit ADC (0-4095) with hardware voltage dividers
-    // Voltage dividers scale 5V→3.3V, so we can map full 12-bit range to 0-5V
+    // STM32: 12-bit ADC (0-4095) reads scaled voltage (0-3.3V)
+    // Hardware dividers scale 5V→3.3V, so full ADC range represents 0-5V sensor output
     unsigned long newVal = map( raw, 0, 4095, 0, 500);  // Map to 0-500 (0.00-5.00V in 0.01V steps)
 #else
     // Arduino Mega: 10-bit ADC (0-1023), 5V reference
@@ -102,8 +102,8 @@ float readThermSensor(int inputPin, float oldVal, int filt)
 {
     int raw = analogRead (inputPin);  // Read ADC
 #ifdef STM32_CORE_VERSION
-    // STM32: 12-bit ADC (0-4095) with hardware voltage dividers
-    // Map full 12-bit range to 0-5V
+    // STM32: 12-bit ADC (0-4095) reads scaled voltage (0-3.3V)
+    // Hardware dividers scale 5V→3.3V, so full ADC range represents 0-5V sensor output
     float newVal = map( raw, 0, 4095, 0, 500)*0.01;  // Map to 0-5V as float
 #else
     // Arduino Mega: 10-bit ADC (0-1023)
