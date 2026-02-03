@@ -16,21 +16,26 @@ This document describes the architectural changes made to port the gauge control
 
 ### Microcontroller Capabilities
 
-| Feature | Arduino Mega 2560 | STM32F407 |
+| Feature | Arduino Mega 2560 | STM32F407 (MEGA F407) |
 |---------|------------------|-----------|
 | CPU Speed | 16 MHz | 168 MHz |
 | Flash | 256 KB | 512 KB |
 | RAM | 8 KB | 128 KB |
 | ADC Resolution | 10-bit (0-1023) | 12-bit (0-4095) |
-| ADC Voltage | 0-5V | 0-3.3V |
+| ADC Voltage | 0-5V | 0-3.3V (with hardware voltage dividers on inputs) |
 | CAN Controller | External (MCP2515) | Built-in (bxCAN) |
 | Timers | 6 (8/16-bit) | 14 (16/32-bit) |
 
-### Pin Voltage Levels
+### Pin Voltage Levels and Analog Inputs
 
-⚠️ **CRITICAL**: STM32F407 pins are 3.3V logic, NOT 5V tolerant (except specific pins).
-- Ensure all external sensors and modules use 3.3V logic or proper level shifters
-- Analog inputs must not exceed 3.3V
+✅ **MEGA F407 FEATURE**: The board includes hardware voltage dividers on all analog input pins.
+- 5V sensor inputs are automatically scaled down to 3.3V at the ADC
+- This allows direct connection of 5V sensors without external level shifters
+- ADC code can use the same scaling as Arduino Mega (0-1023 range)
+- Despite 12-bit ADC capability, the voltage dividers maintain Arduino Mega compatibility
+
+⚠️ **Digital pins**: STM32F407 digital I/O pins are 3.3V logic, NOT 5V tolerant (except specific pins).
+- Ensure digital sensors and modules use 3.3V logic or proper level shifters
 
 ## Pin Mapping Changes
 
@@ -88,7 +93,7 @@ This document describes the architectural changes made to port the gauge control
 | MOTOR_RST | D36 | PE10 | Motor driver reset (all) |
 | **Sensors** |
 | HALL_PIN | D20 | PD3 | Hall effect speed sensor |
-| IGNITION_PULSE_PIN | D21 | PD2 | Ignition coil pulse (RPM) |
+| IGNITION_PULSE_PIN | D21 | PB9 | Ignition coil pulse (RPM, same as COIL_NEG) |
 | COIL_NEG | - | PB9 | Coil negative control |
 | **Power** |
 | PWR_PIN | D49 | PD4 | Power control |
@@ -148,23 +153,31 @@ gpsTimer->attachInterrupt(gpsTimerCallback);
 - Reference voltage: 5V
 - Direct mapping: `map(raw, 0, 1023, 0, 500)` for 0-5V
 
-**After (STM32F407):**
-- 12-bit ADC: 0-4095 range
-- Reference voltage: 3.3V (lower maximum!)
-- Adjusted mapping: `map(raw, 0, 4095, 0, 500)` for scaling
+**After (STM32F407 - MEGA F407 Board):**
+- 12-bit ADC: 0-4095 range  
+- Reference voltage: 3.3V
+- **Hardware voltage dividers**: 5V sensor inputs are scaled to 3.3V on the board
+- Code uses SAME mapping as Arduino Mega: `map(raw, 0, 1023, 0, 500)`
 
-**Critical Voltage Consideration:**
+**Key Advantage:**
+The MEGA F407 board includes hardware voltage dividers on all analog input pins. This means:
+- 5V sensors can be connected directly (no external level shifters needed)
+- The voltage dividers scale 5V inputs down to fit the 3.3V ADC range
+- Software can use identical ADC scaling code as Arduino Mega
+- Full sensor voltage range (0-5V) is preserved
+
+**Implementation:**
 ```cpp
-#ifdef STM32_CORE_VERSION
-    // STM32: 0-4095 for 0-3.3V
-    unsigned long newVal = map(raw, 0, 4095, 0, 500);
-#else
-    // Arduino Mega: 0-1023 for 0-5V
-    unsigned long newVal = map(raw, 0, 1023, 0, 500);
-#endif
+unsigned long readSensor(int inputPin, int oldVal, int filt) {
+    int raw = analogRead(inputPin);  // 0-1023 (Mega) or 0-4095 (STM32)
+    // MEGA F407 voltage dividers handle 5V→3.3V conversion
+    // Use same scaling as Arduino Mega
+    unsigned long newVal = map(raw, 0, 1023, 0, 500);  
+    // ... filtering code
+}
 ```
 
-⚠️ Sensor voltage dividers may need adjustment if originally designed for 5V ADC reference!
+✅ No conditional compilation needed for ADC scaling - both platforms use the same code!
 
 ### 4. GPIO Pin References
 
@@ -300,26 +313,18 @@ After flashing, verify each subsystem:
 - Hardware filtering not yet optimized for specific protocols
 - Software filtering still applied (no functional impact, slight CPU overhead)
 
-### 2. ADC Voltage Range
-- STM32 ADC maximum: 3.3V (vs 5V on Arduino Mega)
-- **30 PSI pressure sensor limitation**: Original sensor outputs 0.5-4.5V (full 30 PSI range), but STM32 can only read up to 3.3V. Current implementation reads 0.5-3.0V, providing approximately 20 PSI max instead of 30 PSI.
-- **Solutions**:
-  - Use a voltage divider to scale 0-4.5V to 0-3.3V (preserves full range)
-  - Replace sensor with 0-3.3V output version
-  - Accept reduced pressure measurement range (0-20 PSI)
-- Test all analog sensors to ensure proper scaling
-
-### 3. Interrupt Pin Conflict Resolution
-- **IGNITION_PULSE_PIN moved from PE7 to PD2** to avoid conflict with TACH_DATA_PIN
-- LED tachometer (WS2812) uses PE7
+### 2. Shared Pin Assignment
+- **IGNITION_PULSE_PIN and COIL_NEG both use PB9**
+- These functions share the same pin as they represent the same signal (ignition coil negative)
+- LED tachometer (WS2812) uses PE7 (TACH_DATA_PIN)
 - Verify pin assignments match your actual hardware wiring
 
-### 4. EEPROM Wear
+### 3. EEPROM Wear
 - Flash-based EEPROM has limited write cycles
 - Monitor odometer updates for long-term reliability
 - Consider external EEPROM for high-write-frequency data
 
-### 5. Library Dependencies
+### 4. Library Dependencies
 - Ensure STM32duino CAN library is installed
 - Some 3rd-party libraries may have AVR-specific code
 - Test all features thoroughly

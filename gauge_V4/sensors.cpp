@@ -44,61 +44,49 @@ static unsigned long lastSyntheticOdometerUpdateTime = 0;
 
 /**
  * readSensor - Generic analog sensor reader with filtering
- * Handles both 10-bit (Arduino Mega, 0-1023) and 12-bit (STM32, 0-4095) ADCs
+ * 
+ * Note: MEGA F407 board includes voltage dividers on analog inputs,
+ * so 5V inputs are scaled to 3.3V. Despite 12-bit ADC resolution (0-4095),
+ * we can use the same scaling as Arduino Mega (0-1023 mapped to 0-500).
  */
 unsigned long readSensor(int inputPin, int oldVal, int filt)  
 {
-    int raw = analogRead (inputPin);  // Read ADC
-#ifdef STM32_CORE_VERSION
-    // STM32 has 12-bit ADC: 0-4095 for 0-3.3V input
-    unsigned long newVal = map( raw, 0, 4095, 0, 500);  // Map to 0-500 (0.00-5.00V in 0.01V steps)
-#else
-    // Arduino Mega has 10-bit ADC: 0-1023 for 0-5V input
-    unsigned long newVal = map( raw, 0, 1023, 0, 500);  // Map to 0-500 (0.00-5.00V in 0.01V steps)
-#endif
+    int raw = analogRead (inputPin);  // Read ADC: 0-1023 (Arduino) or 0-4095 (STM32)
+    // MEGA F407 has voltage dividers: 5V input → 3.3V at ADC
+    // Map to 0-500 (0.00-5.00V in 0.01V steps) using same scaling as Arduino Mega
+    unsigned long newVal = map( raw, 0, 1023, 0, 500);  
     unsigned long filtVal = ((newVal*filt) + (oldVal*(64-filt)))>>6;  // Exponential filter (>>6 is divide by 64)
     return filtVal; 
 }
 
 /**
  * read30PSIAsensor - Read 30 PSI absolute pressure sensor
- * Handles both 10-bit (Arduino Mega, 0-1023) and 12-bit (STM32, 0-4095) ADCs
  * 
- * NOTE: STM32 version uses reduced voltage range (0.5-3.0V vs 0.5-4.5V on Arduino)
- * due to STM32 ADC maximum of 3.3V. This limits the upper measurement range.
- * Consider using a voltage divider or sensor with 0-3.3V output for full range.
+ * Note: MEGA F407 board includes voltage dividers on analog inputs,
+ * so 5V inputs are scaled to 3.3V. We can use the same scaling as Arduino Mega.
  */
 unsigned long read30PSIAsensor(int inputPin, int oldVal, int filt)
 {
-    int raw = analogRead (inputPin);  // Read ADC
-#ifdef STM32_CORE_VERSION
-    // STM32 has 12-bit ADC: 0-4095
-    // Scale 0.5-3.0V range: 0.5V = (0.5/3.3)*4095 = 621, 3.0V = (3.0/3.3)*4095 = 3723
-    // Upper range limited by 3.3V ADC reference (sensor can output up to 4.5V)
-    // This corresponds to approximately 20 PSI max instead of full 30 PSI
-    unsigned long newVal = map( raw, 621, 3723, 0, 1379);  // Map 0.5-3.0V to 0-20 PSIA (0-137.9 kPa)
-#else
-    // Arduino Mega has 10-bit ADC: 0-1023
-    unsigned long newVal = map( raw, 102, 921, 0, 2068);  // Map 0.5-4.5V to 0-30 PSIA (0-206.8 kPa)
-#endif
+    int raw = analogRead (inputPin);  // Read ADC: 0-1023 (Arduino) or 0-4095 (STM32)
+    // MEGA F407 has voltage dividers: sensor's 0.5-4.5V → scaled to fit 3.3V ADC
+    // Map 0.5-4.5V to 0-30 PSIA (0-206.8 kPa) using same scaling as Arduino Mega
+    unsigned long newVal = map( raw, 102, 921, 0, 2068);  
     unsigned long filtVal = ((newVal*filt) + (oldVal*(16-filt)))>>4;  // Filter (>>4 is divide by 16)
     return filtVal; 
 }
 
 /**
  * readThermSensor - Read GM-style thermistor temperature sensor
- * Handles both 10-bit (Arduino Mega, 0-1023) and 12-bit (STM32, 0-4095) ADCs
+ * 
+ * Note: MEGA F407 board includes voltage dividers on analog inputs,
+ * so 5V inputs are scaled to 3.3V. We can use the same scaling as Arduino Mega.
  */
 float readThermSensor(int inputPin, float oldVal, int filt)
 {
-    int raw = analogRead (inputPin);  // Read ADC
-#ifdef STM32_CORE_VERSION
-    // STM32 has 12-bit ADC: 0-4095 for 0-3.3V
-    float newVal = map( raw, 0, 4095, 0, 500)*0.01;  // Map to 0-5V as float
-#else
-    // Arduino Mega has 10-bit ADC: 0-1023 for 0-5V
-    float newVal = map( raw, 0, 1023, 0, 500)*0.01;  // Map to 0-5V as float
-#endif
+    int raw = analogRead (inputPin);  // Read ADC: 0-1023 (Arduino) or 0-4095 (STM32)
+    // MEGA F407 has voltage dividers: sensor voltage → scaled to fit 3.3V ADC
+    // Map to 0-5V as float using same scaling as Arduino Mega
+    float newVal = map( raw, 0, 1023, 0, 500)*0.01;  
     float filtVal = ((newVal*filt) + (oldVal*(100-filt)))*0.01;  // Filter (*0.01 for percentage)
     return filtVal; 
 }

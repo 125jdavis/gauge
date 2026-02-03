@@ -26,7 +26,7 @@ constexpr uint8_t CAN_TX = PA12;    // STM32 CAN TX pin
 constexpr uint8_t CAN_RX = PA11;    // STM32 CAN RX pin
 
 // ===== ENGINE RPM SENSOR =====
-constexpr uint8_t IGNITION_PULSE_PIN = PD2;  // STM32 pin PD2 - ignition coil pulses via optocoupler (interrupt-capable)
+constexpr uint8_t IGNITION_PULSE_PIN = PB9;  // STM32 pin PB9 - ignition coil pulses via optocoupler (same as COIL_NEG)
 
 // ===== POWER CONTROL =====
 constexpr uint8_t PWR_PIN = PD4;     // Power control pin - keeps system alive after ignition is off

@@ -174,10 +174,11 @@ Use the checklist in `documentation/STM32_PORT.md` to verify all subsystems:
 
 ### Analog Readings Wrong
 
-- **CRITICAL**: Verify all analog inputs ≤ 3.3V (not 5V!)
-- **Check**: Voltage dividers if sensors output > 3.3V
-- **Test**: Use multimeter to measure actual pin voltages
-- **Check**: ADC reference is 3.3V (internal on STM32)
+- **Note**: MEGA F407 board has built-in voltage dividers on analog pins
+- 5V sensor inputs are automatically scaled to 3.3V (hardware feature)
+- **Test**: Use multimeter to measure sensor output voltages
+- **Check**: Verify sensor connections and ground reference
+- If readings still incorrect, check ADC reference voltage (3.3V internal on STM32)
 
 ### Display Not Working
 
