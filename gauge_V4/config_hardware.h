@@ -84,7 +84,7 @@ constexpr uint8_t OLED_RST_2 = PD11; // STM32 pin PD11 - Display 2 Reset (was D4
 
 // ===== LED TACHOMETER HARDWARE =====
 constexpr uint8_t MAX_LEDS = 64;         // Maximum number of LEDs supported by the array
-constexpr uint8_t TACH_DATA_PIN = PE7;   // STM32 pin PE7 - WS2812 data (was D50 on Mega)
+constexpr uint8_t TACH_DATA_PIN = PC7;   // STM32 pin PC7 - WS2812 data (was D50 on Mega, swapped with LS_OUTPUT)
 
 // ===== GPS CONFIGURATION =====
 constexpr bool GPSECHO = false;          // Set to true to echo raw GPS data to serial monitor
@@ -131,7 +131,7 @@ constexpr uint8_t ODO_PIN3 = PD15;   // STM32 pin PD15 - Odometer motor coil 3 (
 constexpr uint8_t ODO_PIN4 = PC6;    // STM32 pin PC6 - Odometer motor coil 4 (was D28 on Mega)
 
 // ===== ADDITIONAL OUTPUT =====
-constexpr uint8_t LS_OUTPUT = PC7;   // STM32 pin PC7 - LS output (was D26 on Mega)
+constexpr uint8_t LS_OUTPUT = PE7;   // STM32 pin PE7 - LS output (was D26 on Mega, swapped with TACH_DATA_PIN)
 
 // ===== STM32 ADC CONFIGURATION =====
 // STM32F407 ADC specifications

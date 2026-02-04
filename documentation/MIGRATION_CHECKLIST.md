@@ -74,9 +74,9 @@ Use this checklist when migrating from Arduino Mega to STM32F407 hardware.
 
 ### Other
 
-- [ ] LED tachometer data to PE7
+- [ ] LED tachometer data to PC7 (swapped with LS_OUTPUT for FastLED compatibility)
 - [ ] Power control to PD4
-- [ ] LS output to PC7
+- [ ] LS output to PE7 (swapped with TACH_DATA_PIN)
 
 ## Software Setup
 
