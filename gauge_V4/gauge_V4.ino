@@ -306,10 +306,9 @@ void loop() {
   }
 
   // ===== CAN BUS RECEPTION =====
-  // STM32 version: Check if CAN message is available
-  if (Can.available()) {
-    CAN_message_t rxMsg;
-    Can.read(rxMsg);
+  // STM32 version: read() returns true if message available, false if not
+  CAN_message_t rxMsg;
+  if (Can.read(rxMsg)) {
     rxId = rxMsg.id;
     len = rxMsg.len;
     for (int i = 0; i < len && i < 8; i++) {

@@ -201,6 +201,22 @@ for (int i = 0; i < 8; i++) msg.buf[i] = i + 1;
 Can.write(msg);
 ```
 
+### CAN Message Receive
+
+```cpp
+// Arduino Mega (MCP2515)
+if (!digitalRead(CAN0_INT)) {
+  CAN0.readMsgBuf(&rxId, &len, rxBuf);
+  // Process message
+}
+
+// STM32F407 (Native CAN)
+CAN_message_t rxMsg;
+if (Can.read(rxMsg)) {  // read() returns true if message available
+  // Process message: rxMsg.id, rxMsg.len, rxMsg.buf[]
+}
+```
+
 ### GPS Reading
 
 ```cpp
