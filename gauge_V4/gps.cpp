@@ -68,12 +68,3 @@ void fetchGPSdata(){
       //}
   }
 }
-    OCR0A = 0xAF;  // Set compare value (when timer reaches this, interrupt fires)
-    TIMSK0 |= _BV(OCIE0A);  // Enable Timer0 Compare A interrupt
-    usingInterrupt = true;
-  } else {
-    // Disable GPS interrupt
-    TIMSK0 &= ~_BV(OCIE0A);  // Disable Timer0 Compare A interrupt
-    usingInterrupt = false;
-  }
-}
