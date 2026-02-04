@@ -52,8 +52,8 @@
 // Storage library - STM32 EEPROM emulation
 #include <EEPROM.h>
 
-// LED library
-#include <FastLED.h>
+// LED library - Adafruit_NeoPixel supports all STM32 pins including PE7
+#include <Adafruit_NeoPixel.h>
 
 // GPS library
 #include <Adafruit_GPS.h>
@@ -221,7 +221,9 @@ void setup() {
   if (WARN_LEDS + SHIFT_LEDS >= NUM_LEDS / 2) {
     Serial.println("Warning: WARN_LEDS + SHIFT_LEDS too large for NUM_LEDS, LED zones may overlap");
   }
-  FastLED.addLeds<WS2812, TACH_DATA_PIN, GRB>(leds, NUM_LEDS);
+  // Initialize NeoPixel strip (NEO_GRB for WS2812, NEO_KHZ800 for 800 KHz bitstream)
+  ledStrip.begin();
+  ledStrip.show(); // Initialize all pixels to 'off'
 
   // ===== ROTARY ENCODER SETUP =====
   pinMode(SWITCH, INPUT_PULLUP);

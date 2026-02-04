@@ -13,7 +13,9 @@ STM32_CAN Can(CAN1, DEF);  // STM32 native CAN controller on CAN1 peripheral, de
 Adafruit_SSD1306 display1(SCREEN_W, SCREEN_H, &SPI, OLED_DC_1, OLED_RST_1, OLED_CS_1);
 Adafruit_SSD1306 display2(SCREEN_W, SCREEN_H, &SPI, OLED_DC_2, OLED_RST_2, OLED_CS_2);
 Rotary rotary = Rotary(ROTARY_DT, ROTARY_CLK);  // Updated pin mapping for STM32
-CRGB leds[MAX_LEDS];
+// NeoPixel strip for LED tachometer (supports PE7 pin)
+// Parameters: NUM_LEDS, pin, pixel type + flags
+Adafruit_NeoPixel ledStrip(MAX_LEDS, TACH_DATA_PIN, NEO_GRB + NEO_KHZ800);
 SwitecX12 motor1(M1_SWEEP, M1_STEP, M1_DIR);
 SwitecX12 motor2(M2_SWEEP, M2_STEP, M2_DIR);
 SwitecX12 motor3(M3_SWEEP, M3_STEP, M3_DIR);

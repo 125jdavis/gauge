@@ -19,7 +19,7 @@
 #include <SwitecX12.h>
 #define HALF_STEP
 #include <Rotary.h>
-#include <FastLED.h>
+#include <Adafruit_NeoPixel.h>  // NeoPixel library supports all STM32 pins including PE7
 #include "config_hardware.h"
 #include "config_calibration.h"
 
@@ -28,7 +28,7 @@ extern STM32_CAN Can;              // STM32 native CAN controller (replaces MCP_
 extern Adafruit_SSD1306 display1;
 extern Adafruit_SSD1306 display2;
 extern Rotary rotary;
-extern CRGB leds[MAX_LEDS];
+extern Adafruit_NeoPixel ledStrip; // NeoPixel LED strip for tachometer
 extern SwitecX12 motor1;
 extern SwitecX12 motor2;
 extern SwitecX12 motor3;
