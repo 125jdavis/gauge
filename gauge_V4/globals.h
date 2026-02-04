@@ -5,6 +5,8 @@
  * 
  * Global variables used throughout the gauge system
  * Following STYLE.MD: variables use lowerCamelCase
+ * 
+ * TARGET HARDWARE: STM32F407 (pazi88 MEGA F407 board)
  */
 
 #ifndef GLOBALS_H
@@ -13,7 +15,7 @@
 #include <Arduino.h>
 #include <Adafruit_SSD1306.h>
 #include <Adafruit_GPS.h>
-#include <mcp_can.h>
+#include <STM32_CAN.h>       // STM32 native CAN library (not mcp_can)
 #include <SwitecX12.h>
 #define HALF_STEP
 #include <Rotary.h>
@@ -22,7 +24,7 @@
 #include "config_calibration.h"
 
 // ===== HARDWARE OBJECT INSTANCES =====
-extern MCP_CAN CAN0;
+extern STM32_CAN Can;              // STM32 native CAN controller (replaces MCP_CAN)
 extern Adafruit_SSD1306 display1;
 extern Adafruit_SSD1306 display2;
 extern Rotary rotary;
@@ -34,7 +36,7 @@ extern SwitecX12 motor4;
 extern SwitecX12 motorS;
 // Note: odoMotor no longer uses Arduino Stepper library
 // Direct pin control is used in outputs.cpp for non-blocking operation
-extern Adafruit_GPS GPS;
+extern HardwareSerial Serial3;    // GPS serial port (UART3)
 
 // ===== ANALOG SENSOR READINGS =====
 extern float vBatt;                 // Current battery voltage in volts (filtered)

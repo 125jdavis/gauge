@@ -2,15 +2,17 @@
  * ========================================
  * GLOBAL VARIABLE DEFINITIONS
  * ========================================
+ * 
+ * TARGET HARDWARE: STM32F407 (pazi88 MEGA F407 board)
  */
 
 #include "globals.h"
 
 // ===== HARDWARE OBJECT INSTANCES =====
-MCP_CAN CAN0(CAN0_CS);
+STM32_CAN Can(CAN1, DEF);  // STM32 native CAN controller on CAN1 peripheral, default pins
 Adafruit_SSD1306 display1(SCREEN_W, SCREEN_H, &SPI, OLED_DC_1, OLED_RST_1, OLED_CS_1);
 Adafruit_SSD1306 display2(SCREEN_W, SCREEN_H, &SPI, OLED_DC_2, OLED_RST_2, OLED_CS_2);
-Rotary rotary = Rotary(2, 3);
+Rotary rotary = Rotary(ROTARY_DT, ROTARY_CLK);  // Updated pin mapping for STM32
 CRGB leds[MAX_LEDS];
 SwitecX12 motor1(M1_SWEEP, M1_STEP, M1_DIR);
 SwitecX12 motor2(M2_SWEEP, M2_STEP, M2_DIR);
@@ -19,7 +21,7 @@ SwitecX12 motor4(M4_SWEEP, M4_STEP, M4_DIR);
 SwitecX12 motorS(MS_SWEEP, MS_STEP, MS_DIR);
 // Note: odoMotor no longer uses Arduino Stepper library
 // Direct pin control is used in outputs.cpp for non-blocking operation
-Adafruit_GPS GPS(&Serial2);
+HardwareSerial Serial3(GPS_RX, GPS_TX);  // GPS serial port on UART3
 
 // ===== ANALOG SENSOR READINGS =====
 float vBatt = 12;              // Current battery voltage in volts (filtered)

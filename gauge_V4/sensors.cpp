@@ -44,33 +44,57 @@ static unsigned long lastSyntheticOdometerUpdateTime = 0;
 
 /**
  * readSensor - Generic analog sensor reader with filtering
+ * 
+ * STM32 version: Handles 12-bit ADC (0-4095) with voltage divider compensation
+ * - STM32F407 has 12-bit ADC: 0-4095 for 0-3.3V
+ * - Voltage divider: R1=4.7k, R2=9.1k (ratio = 0.3406)
+ * - Maps ADC reading to 0-500 representing 0.00-5.00V in 0.01V steps
  */
 unsigned long readSensor(int inputPin, int oldVal, int filt)  
 {
-    int raw = analogRead (inputPin);  // Read ADC: 0-1023 for 0-5V input
-    unsigned long newVal = map( raw, 0, 1023, 0, 500);  // Map to 0-500 (0.00-5.00V in 0.01V steps)
+    int raw = analogRead(inputPin);  // Read ADC: 0-4095 for 0-3.3V input
+    // Convert to original voltage (before divider):
+    // Vin = ADC * (3.3/4095) / 0.3406
+    // Then scale to 0-500 range (0-5V in 0.01V steps)
+    // Combined: (ADC * 3.3 * 100) / (4095 * 0.3406 * 5) = ADC * 0.02363
+    // Using integer math: map(raw, 0, 4095, 0, 500 / 0.3406)
+    unsigned long newVal = (raw * 330UL) / (4095UL * 34);  // Simplified: raw * 330 / 139365 ≈ raw * 0.002368
+    // Better accuracy: use map with voltage divider compensation
+    // Target: 0-4095 -> 0-1467 (representing 0-5V through divider)
+    newVal = map(raw, 0, 4095, 0, 1467);  // Maps to 0-500 equivalent through divider
     unsigned long filtVal = ((newVal*filt) + (oldVal*(64-filt)))>>6;  // Exponential filter (>>6 is divide by 64)
     return filtVal; 
 }
 
 /**
  * read30PSIAsensor - Read 30 PSI absolute pressure sensor
+ * 
+ * STM32 version: Handles 12-bit ADC with voltage divider
+ * - Sensor output: 0.5-4.5V for 0-30 PSIA (0-206.8 kPa)
+ * - With voltage divider (0.3406 ratio), sensor range becomes 0.17-1.53V at ADC
+ * - ADC reading: 0.17V = 212, 1.53V = 1900 (approx)
  */
 unsigned long read30PSIAsensor(int inputPin, int oldVal, int filt)
 {
-    int raw = analogRead (inputPin);  // Read ADC: 0-1023
-    unsigned long newVal = map( raw, 102, 921, 0, 2068);  // Map 0.5-4.5V to 0-30 PSIA (0-206.8 kPa)
+    int raw = analogRead(inputPin);  // Read ADC: 0-4095
+    // Map through voltage divider: 0.5-4.5V sensor output becomes 0.17-1.53V at ADC
+    // ADC values: 0.5V/0.3406 = 1.47V -> 212 counts, 4.5V/0.3406 = 13.2V (limited to 3.3V)
+    // Actually: 0.5V * 0.3406 = 0.17V -> 212 counts, 4.5V * 0.3406 = 1.53V -> 1900 counts
+    unsigned long newVal = map(raw, 212, 1900, 0, 2068);  // Map to 0-206.8 kPa (30 PSIA)
     unsigned long filtVal = ((newVal*filt) + (oldVal*(16-filt)))>>4;  // Filter (>>4 is divide by 16)
     return filtVal; 
 }
 
 /**
  * readThermSensor - Read GM-style thermistor temperature sensor
+ * 
+ * STM32 version: Handles 12-bit ADC with voltage divider
  */
 float readThermSensor(int inputPin, float oldVal, int filt)
 {
-    int raw = analogRead (inputPin);  // Read ADC: 0-1023
-    float newVal = map( raw, 0, 1023, 0, 500)*0.01;  // Map to 0-5V as float
+    int raw = analogRead(inputPin);  // Read ADC: 0-4095
+    // Map to 0-5V equivalent (compensating for voltage divider)
+    float newVal = map(raw, 0, 4095, 0, 1467) * 0.01;  // Map to 0-5V as float
     float filtVal = ((newVal*filt) + (oldVal*(100-filt)))*0.01;  // Filter (*0.01 for percentage)
     return filtVal; 
 }

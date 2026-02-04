@@ -2,6 +2,8 @@
  * ========================================
  * GPS FUNCTIONS IMPLEMENTATION
  * ========================================
+ * 
+ * STM32 VERSION: Simplified GPS reading without AVR Timer0 interrupt
  */
 
 #include "gps.h"
@@ -9,10 +11,19 @@
 #include "sensors.h"
 #include "outputs.h"
 
+// Create GPS object with Serial3
+Adafruit_GPS GPS(&Serial3);
+
 /**
  * fetchGPSdata - Process new GPS data when available
+ * 
+ * STM32 version: Reads data directly from Serial3 in main loop
+ * No interrupt-based reading required
  */
 void fetchGPSdata(){
+  // Read GPS data from serial port
+  char c = GPS.read();
+  
   if (GPS.newNMEAreceived()) {
     if (!GPS.parse(GPS.lastNMEA()))   // Parse NMEA sentence; also clears newNMEAreceived flag
     return;  // If parse fails (corrupt data), wait for next sentence
@@ -57,47 +68,6 @@ void fetchGPSdata(){
       //}
   }
 }
-
-/**
- * TIMER0_COMPA_vect - Timer0 compare interrupt for GPS data reading
- * 
- * ISR Design: Minimal - single byte read from GPS UART
- * - Called automatically ~1 kHz by Timer0 (shared with millis())
- * - Reads one byte from GPS module via Adafruit_GPS library
- * - No parsing, no processing - just captures data
- * - Heavy parsing deferred to fetchGPSdata() in main loop
- * 
- * Performance: ~3-5 µs execution time (just UART read)
- * 
- * This interrupt service routine (ISR) is called automatically once per millisecond
- * by the Arduino Timer0 hardware timer. It reads one byte from the GPS module
- * without blocking the main loop.
- * 
- * The GPS module sends NMEA sentences at 9600 baud (960 characters/second).
- * This ISR ensures no characters are missed even when main loop is busy.
- * 
- * Interrupt context: Keep fast and simple - just read one character
- * 
- * Note: Original comment preserved - this is boilerplate code from Adafruit GPS library
- */
-SIGNAL(TIMER0_COMPA_vect) {
-  char c = GPS.read();  // Read one byte from GPS module
-  // Debug option: echo GPS data to serial (very slow - only for debugging)
-#ifdef UDR0  // Check if UART data register is defined (AVR specific)
-  if (GPSECHO)
-    if (c) UDR0 = c;  // Write directly to UART register (faster than Serial.print)
-    // Writing direct to UDR0 is much faster than Serial.print 
-    // but only one character can be written at a time
-#endif
-}
-
-/**
- * useInterrupt - Enable or disable GPS interrupt-based reading
- */
-void useInterrupt(boolean v) {
-  if (v) {
-    // Enable GPS reading via Timer0 interrupt
-    // Timer0 is already used for millis() - we add our interrupt to it
     OCR0A = 0xAF;  // Set compare value (when timer reaches this, interrupt fires)
     TIMSK0 |= _BV(OCIE0A);  // Enable Timer0 Compare A interrupt
     usingInterrupt = true;
