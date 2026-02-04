@@ -28,8 +28,8 @@ This document provides a quick reference for all pin mappings from Arduino Mega 
 | D17 | GPS_RX (board TX) | PB11 | 3.3V UART3 RX | GPS receive |
 | D18 | PWR_PIN | PD4 | 3.3V GPIO Out | Power control |
 | D19 | HALL_PIN | PD3 | 3.3V GPIO Input | Hall speed sensor |
-| D26 | LS_OUTPUT | PE7 | 5V Buffered Out | Light switch output |
-| D28 | ODO_PIN4 | PC7 | 5V Buffered Out | Odometer motor (swapped with TACH) |
+| D26 | LS_OUTPUT | PC7 | 5V Buffered Out | Low-side output |
+| D28 | ODO_PIN4 | PC6 | 5V Buffered Out | Odometer motor (swapped with TACH) |
 | D30 | ODO_PIN2 | PD14 | 5V Buffered Out | Odometer motor |
 | D31 | ODO_PIN3 | PD15 | 5V Buffered Out | Odometer motor |
 | D32 | M1_STEP | PD12 | 5V Buffered Out | Motor 1 step |
@@ -46,7 +46,7 @@ This document provides a quick reference for all pin mappings from Arduino Mega 
 | D45 | M2_STEP | PE11 | 5V Buffered Out | Motor 2 step |
 | D47 | M3_DIR | PE9 | 5V Buffered Out | Motor 3 direction |
 | D49 | M3_STEP | PE8 | 5V Buffered Out | Motor 3 step |
-| D50 | TACH_DATA_PIN | PC6 | 5V Buffered Out | WS2812 LED data (swapped with ODO_PIN4) |
+| D50 | TACH_DATA_PIN | PE7 | 5V Buffered Out | WS2812 LED data (swapped with ODO_PIN4) |
 | D53 | IGNITION_PULSE_PIN | PB9 | 3.3V GPIO Input | Engine RPM sensor |
 | - | CAN_TX | PA12 | CAN1 Peripheral | Native CAN TX |
 | - | CAN_RX | PA11 | CAN1 Peripheral | Native CAN RX |
