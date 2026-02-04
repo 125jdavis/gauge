@@ -110,9 +110,16 @@ Original Voltage = ADC_reading * (3.3/4095) / 0.3406
 | STM32_CAN | ✓ Required | Replaces mcp_can |
 | Adafruit_GPS | ✓ Compatible | Works with any HardwareSerial |
 | SwitecX12 | ✓ Compatible | Platform-independent |
-| FastLED | ✓ Compatible | STM32 support included |
+| **Adafruit_NeoPixel** | ✓ **Used** | **LED tachometer, supports all GPIO pins** |
+| ~~FastLED~~ | ❌ **Not Used** | **Doesn't support Generic F407VETx board** |
 | Rotary | ✓ Compatible | GPIO-based, platform-independent |
 | EEPROM | ✓ Compatible | STM32duino provides EEPROM emulation |
+
+**Note on LED Library:**
+- **FastLED** requires board-specific pin mappings and doesn't support `ARDUINO_GENERIC_F407VETX`
+- **Adafruit_NeoPixel** works with any GPIO pin on any STM32 board
+- Performance difference: NeoPixel is ~8% slower (2.18ms vs 2.02ms for 64 LEDs)
+- Practical impact: Negligible for tachometer application (~1% of frame time at 60 Hz)
 
 ## Arduino IDE Setup
 
@@ -144,7 +151,7 @@ Install the following libraries via Library Manager or manually:
 Adafruit_SSD1306
 Adafruit_GFX
 Adafruit_GPS
-FastLED
+Adafruit_NeoPixel
 STM32_CAN (https://github.com/pazi88/STM32_CAN)
 SwitecX12
 Rotary

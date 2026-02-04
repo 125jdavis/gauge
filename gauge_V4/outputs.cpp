@@ -47,8 +47,9 @@ void ledShiftLight(int ledRPM){
   if (ledRPM < TACH_MIN) {
       // black out unused range  
     for (int i = 0; i < NUM_LEDS; i++){
-      leds[i] = CRGB::Black;
+      ledStrip.setPixelColor(i, 0, 0, 0);  // Black
     }
+    ledStrip.show();
     return;
   }
   int midPoint = NUM_LEDS/2;
@@ -56,32 +57,32 @@ void ledShiftLight(int ledRPM){
  
   //tach normal range 
     for (int i = 0;i <= midPoint - WARN_LEDS; i++){
-      leds[i] = CRGB(30, 15 , 0);
+      ledStrip.setPixelColor(i, 30, 15, 0);  // Orange
     }
     for (int i = midPoint + WARN_LEDS + 1; i < NUM_LEDS; i++){
-      leds[i] = CRGB(30, 15 , 0);
+      ledStrip.setPixelColor(i, 30, 15, 0);  // Orange
     }
 
 
   // tach warning range
     for (int i = midPoint - WARN_LEDS - 1;i <= midPoint - SHIFT_LEDS; i++){
-      leds[i] = CRGB(80, 10 , 0);
+      ledStrip.setPixelColor(i, 80, 10, 0);  // Red-Orange
     }
     for (int i = midPoint + SHIFT_LEDS + 1; i <= midPoint + WARN_LEDS; i++){
-      leds[i] = CRGB(80, 10 , 0);
+      ledStrip.setPixelColor(i, 80, 10, 0);  // Red-Orange
     }
 
   // tach shift light range
     for (int i = midPoint - SHIFT_LEDS - 1;i <= midPoint; i++){
-      leds[i] = CRGB(80, 0 , 0);
+      ledStrip.setPixelColor(i, 80, 0, 0);  // Red
     }
     for (int i = midPoint; i <= midPoint + SHIFT_LEDS; i++){
-      leds[i] = CRGB(80, 0 , 0);
+      ledStrip.setPixelColor(i, 80, 0, 0);  // Red
     }
     
   // black out unused range  
     for (int i = midPoint - blackout_val; i <= midPoint + blackout_val-1; i++){
-      leds[i] = CRGB::Black;
+      ledStrip.setPixelColor(i, 0, 0, 0);  // Black
     }
 
     // Flash LEDs when shift point is exceeded
@@ -91,7 +92,7 @@ void ledShiftLight(int ledRPM){
         //Black out the shift LEDs if they are on
         if(tachFlashState == 0){
           for (int i = midPoint - SHIFT_LEDS - 1; i <= midPoint + SHIFT_LEDS; i++){
-            leds[i] = CRGB::Black;
+            ledStrip.setPixelColor(i, 0, 0, 0);  // Black
           }
         }
         
@@ -99,7 +100,7 @@ void ledShiftLight(int ledRPM){
         tachFlashState = 1 - tachFlashState;    //change the state
       }
     }
-  FastLED.show();
+  ledStrip.show();
 }
 int speedometerAngle(int sweep) {
   unsigned long t_curr =  millis()-lagGPS;  // Current time minus GPS lag

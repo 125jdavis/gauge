@@ -28,8 +28,8 @@ This document provides a quick reference for all pin mappings from Arduino Mega 
 | D17 | GPS_RX (board TX) | PB11 | 3.3V UART3 RX | GPS receive |
 | D18 | PWR_PIN | PD4 | 3.3V GPIO Out | Power control |
 | D19 | HALL_PIN | PD3 | 3.3V GPIO Input | Hall speed sensor |
-| D26 | LS_OUTPUT | PE7 | 5V Buffered Out | Light switch output (swapped with TACH) |
-| D28 | ODO_PIN4 | PC6 | 5V Buffered Out | Odometer motor |
+| D26 | LS_OUTPUT | PE7 | 5V Buffered Out | Light switch output |
+| D28 | ODO_PIN4 | PC7 | 5V Buffered Out | Odometer motor (swapped with TACH) |
 | D30 | ODO_PIN2 | PD14 | 5V Buffered Out | Odometer motor |
 | D31 | ODO_PIN3 | PD15 | 5V Buffered Out | Odometer motor |
 | D32 | M1_STEP | PD12 | 5V Buffered Out | Motor 1 step |
@@ -46,7 +46,7 @@ This document provides a quick reference for all pin mappings from Arduino Mega 
 | D45 | M2_STEP | PE11 | 5V Buffered Out | Motor 2 step |
 | D47 | M3_DIR | PE9 | 5V Buffered Out | Motor 3 direction |
 | D49 | M3_STEP | PE8 | 5V Buffered Out | Motor 3 step |
-| D50 | TACH_DATA_PIN | PC7 | 5V Buffered Out | WS2812 LED data (swapped with LS_OUTPUT) |
+| D50 | TACH_DATA_PIN | PC6 | 5V Buffered Out | WS2812 LED data (swapped with ODO_PIN4) |
 | D53 | IGNITION_PULSE_PIN | PB9 | 3.3V GPIO Input | Engine RPM sensor |
 | - | CAN_TX | PA12 | CAN1 Peripheral | Native CAN TX |
 | - | CAN_RX | PA11 | CAN1 Peripheral | Native CAN RX |
@@ -129,7 +129,7 @@ Input Voltage = ADC_reading * (3.3V / 4095) / 0.3406
 | 1 | PD13 | Phase A |
 | 2 | PD14 | Phase B |
 | 3 | PD15 | Phase C |
-| 4 | PC6 | Phase D |
+| 4 | PC7 | Phase D |
 
 ## Display Pins
 
@@ -258,3 +258,39 @@ if (GPS.newNMEAreceived()) {
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | 2024-02-04 | Initial pin mapping document |
+
+## LED Tachometer Library Notes
+
+### Adafruit_NeoPixel vs FastLED
+
+The project uses **Adafruit_NeoPixel** instead of FastLED for the LED tachometer.
+
+**Reason:** FastLED doesn't support the Generic F407VETx board variant. FastLED requires board-specific pin mappings defined in its source code, and `ARDUINO_GENERIC_F407VETX` is not in the supported board list.
+
+**Performance Impact:**
+- FastLED: ~2.02 ms per 64-LED update (direct register access)
+- NeoPixel: ~2.18 ms per 64-LED update (digitalWrite overhead)
+- **Difference: +0.16 ms (+8% slower)**
+
+**Practical Impact: NEGLIGIBLE**
+- At 60 Hz tach updates: 0.16 ms = 1% of 16.7 ms frame time
+- At 10 Hz tach updates: 0.16 ms = 0.16% of 100 ms frame time
+- No visible difference in tachometer responsiveness
+
+The 0.16 ms overhead is insignificant compared to other system timing factors (CAN latency 1-5 ms, sensor sampling 10-100 ms, display refresh multiple ms).
+
+### Code Example
+
+```cpp
+// Initialize (in setup)
+ledStrip.begin();
+ledStrip.setBrightness(255);
+ledStrip.show();
+
+// Set LED colors (in loop)
+ledStrip.setPixelColor(0, 255, 0, 0);  // Red (R, G, B)
+ledStrip.setPixelColor(1, 0, 255, 0);  // Green
+ledStrip.setPixelColor(2, 0, 0, 255);  // Blue
+ledStrip.show();  // Update LEDs
+```
+
