@@ -82,7 +82,7 @@ extern unsigned int coolantTemp_g;  // Coolant temperature for gauge calculation
 extern bool button;                 // Button press event flag (set when press completes)
 
 // ===== TIMING VARIABLES =====
-extern unsigned long timer0, timerDispUpdate, timerCANsend;
+extern unsigned long timer0, timerDispUpdate1, timerDispUpdate2, timerCANsend;
 extern unsigned long timerSensorRead, timerTachUpdate, timerTachFlash;
 extern unsigned long timerCheckGPS, timerGPSupdate, timerAngleUpdate;
 extern unsigned long timerHallUpdate;

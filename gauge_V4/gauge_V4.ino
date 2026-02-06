@@ -270,6 +270,12 @@ void setup() {
   // This must be done after motor initialization but before main loop starts
   initMotorUpdateTimer();
 
+  // ===== DISPLAY TIMER INITIALIZATION =====
+  // Initialize display timers with staggered offset to prevent simultaneous updates
+  // This reduces blocking interference with motor angle updates from ~80ms to ~40ms max
+  timerDispUpdate1 = 0;    // Display 1 (dispMenu) updates immediately
+  timerDispUpdate2 = 50;   // Display 2 (disp2) updates 50ms later
+
   // ===== SPLASH SCREEN DELAY =====
   while (millis() < SPLASH_TIME){
     // Wait for splash screen timer to expire
@@ -284,8 +290,12 @@ void setup() {
  */
 void loop() {
 
+  // Store current time once per loop iteration to ensure consistent timing comparisons
+  // and avoid multiple millis() calls
+  unsigned long currentMillis = millis();
+
   // ===== ANALOG SENSOR READING =====
-  if (millis() - timerSensorRead > SENSOR_READ_RATE) {
+  if (currentMillis - timerSensorRead > SENSOR_READ_RATE) {
     vBattRaw = readSensor(VBATT_PIN, vBattRaw, FILTER_VBATT);
     vBatt = (float)vBattRaw * VBATT_SCALER;
     
@@ -303,19 +313,19 @@ void loop() {
 
     swRead();
     
-    timerSensorRead = millis();
+    timerSensorRead = currentMillis;
   }
 
   // ===== HALL SENSOR READING ======
-  if (millis() - timerHallUpdate > HALL_UPDATE_RATE) {
+  if (currentMillis - timerHallUpdate > HALL_UPDATE_RATE) {
     hallSpeedUpdate();
-    timerHallUpdate = millis();
+    timerHallUpdate = currentMillis;
   }
 
   // ===== ENGINE RPM SENSOR READING =====
-  if (millis() - timerEngineRPMUpdate > ENGINE_RPM_UPDATE_RATE) {
+  if (currentMillis - timerEngineRPMUpdate > ENGINE_RPM_UPDATE_RATE) {
     engineRPMUpdate();
-    timerEngineRPMUpdate = millis();
+    timerEngineRPMUpdate = currentMillis;
   }
 
   // ===== CAN BUS RECEPTION =====
@@ -331,17 +341,17 @@ void loop() {
   }
 
   // ===== GPS DATA PROCESSING =====
-  if (millis() - timerCheckGPS > CHECK_GPS_RATE) {
+  if (currentMillis - timerCheckGPS > CHECK_GPS_RATE) {
     fetchGPSdata();
-    timerCheckGPS = millis();
+    timerCheckGPS = currentMillis;
   }
 
   // ===== SIGNAL SELECTION UPDATE =====
   // Process sensor readings and synthetic signal generators
   // Runs at 100Hz for responsive synthetic signals
-  if (millis() - timerSigSelectUpdate > SIG_SELECT_UPDATE_RATE) {
+  if (currentMillis - timerSigSelectUpdate > SIG_SELECT_UPDATE_RATE) {
     sigSelect();
-    timerSigSelectUpdate = millis();
+    timerSigSelectUpdate = currentMillis;
   }
 
   // ===== MOTOR ANGLE UPDATE =====
@@ -351,13 +361,13 @@ void loop() {
   // CRITICAL: This block is positioned BEFORE display updates to ensure consistent timing.
   // Display updates are blocking operations (~10-20ms) that would otherwise delay
   // angle updates, causing visible jitter/ticks in motor motion.
-  if (millis() - timerAngleUpdate > ANGLE_UPDATE_RATE) {
+  if (currentMillis - timerAngleUpdate > ANGLE_UPDATE_RATE) {
     motor1.setPosition(fuelLvlAngle(M1_SWEEP));
     motor2.setPosition(coolantTempAngle(M2_SWEEP));
     motor3.setPosition(fuelLvlAngle(M3_SWEEP));  // Motor 3 now same config as motor1
     motor4.setPosition(fuelLvlAngle(M4_SWEEP));
     motorS.setPosition(speedometerAngleS(MS_SWEEP));  // Motor S is speedometer
-    timerAngleUpdate = millis();
+    timerAngleUpdate = currentMillis;
   }
 
   // ===== MOTOR STEP EXECUTION =====
@@ -372,31 +382,40 @@ void loop() {
   // Note: Do not call update() here - would conflict with ISR and cause race conditions
 
   // ===== LED TACHOMETER UPDATE =====
-  if (millis() - timerTachUpdate > TACH_UPDATE_RATE) {
+  if (currentMillis - timerTachUpdate > TACH_UPDATE_RATE) {
     ledShiftLight(RPM);
-    timerTachUpdate = millis();
+    timerTachUpdate = currentMillis;
   }
 
-  // ===== DISPLAY UPDATE =====
+  // ===== DISPLAY 1 UPDATE (dispMenu) =====
   // Positioned AFTER motor angle updates to prevent blocking OLED operations
-  // from delaying time-critical motor position updates
-  if (millis() - timerDispUpdate > DISP_UPDATE_RATE) {
+  // from delaying time-critical motor position updates.
+  // Staggered timing: Display 1 and Display 2 update at different times to reduce
+  // blocking interference from ~80ms (both together) to ~40ms max (one at a time).
+  if (currentMillis - timerDispUpdate1 > DISP_UPDATE_RATE) {
     dispMenu();
+    timerDispUpdate1 = currentMillis;
+  }
+
+  // ===== DISPLAY 2 UPDATE (disp2) =====
+  // Staggered 50ms after Display 1 (initialized in setup) to prevent simultaneous updates
+  // This maintains the same ~10Hz update rate but spreads the blocking time across the loop
+  if (currentMillis - timerDispUpdate2 > DISP_UPDATE_RATE) {
     disp2();
-    timerDispUpdate = millis();
+    timerDispUpdate2 = currentMillis;
   }
 
   // ===== CAN BUS TRANSMISSION =====
-  if (millis() - timerCANsend > CAN_SEND_RATE) {  
+  if (currentMillis - timerCANsend > CAN_SEND_RATE) {  
     //sendCAN_BE(0x200, 0, spdCAN, 0, 0);
-    timerCANsend = millis();
+    timerCANsend = currentMillis;
   }
 
 
   // ===== SHUTDOWN DETECTION =====
   // Check if ignition voltage has dropped (key turned off)
   // Shutdown when battery voltage < 1V AND system has been running for at least 3 seconds
-  if (vBatt < 1 && millis() > SPLASH_TIME + 3000) {
+  if (vBatt < 1 && currentMillis > SPLASH_TIME + 3000) {
     shutdown();  // Save settings, zero gauges, display shutdown screen, cut power
   }
 

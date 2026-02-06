@@ -74,7 +74,7 @@ bool button = 0;                       // Button press event flag (set when pres
 
 // ===== TIMING VARIABLES =====
 // Manage update rates for different subsystems
-unsigned long timer0, timerDispUpdate, timerCANsend;
+unsigned long timer0, timerDispUpdate1, timerDispUpdate2, timerCANsend;
 unsigned long timerSensorRead, timerTachUpdate, timerTachFlash;
 unsigned long timerCheckGPS, timerGPSupdate, timerAngleUpdate;
 unsigned long timerHallUpdate;
