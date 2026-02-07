@@ -389,10 +389,20 @@ void loop() {
   // ===== DISPLAY UPDATE =====
   // Positioned AFTER motor angle updates to prevent blocking OLED operations
   // from delaying time-critical motor position updates
-  if (millis() - timerDispUpdate > DISP_UPDATE_RATE) {
+  // Each display uses independent timing with variable refresh rates based on content
+  
+  // Display 1 update - Variable refresh rate based on content type
+  unsigned int disp1Interval = getDisplayUpdateInterval(dispArray1[0]);
+  if (millis() - timerDisp1Update > disp1Interval) {
     dispMenu();
+    timerDisp1Update = millis();
+  }
+  
+  // Display 2 update - Variable refresh rate based on content type
+  unsigned int disp2Interval = getDisplayUpdateInterval(dispArray2[0]);
+  if (millis() - timerDisp2Update > disp2Interval) {
     disp2();
-    timerDispUpdate = millis();
+    timerDisp2Update = millis();
   }
 
   // ===== CAN BUS TRANSMISSION =====
