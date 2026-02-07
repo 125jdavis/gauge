@@ -1466,50 +1466,66 @@ bool needsUpdate_ModeChange(byte* current, byte* previous, int size) {
  * - 500ms (2Hz): Temps, battery, fuel level, clock, odometer - slow changing values
  * - 1000ms (1Hz): Static logos - minimal updates (check for mode change only)
  * 
- * Note: Display1 and Display2 have overlapping case numbers. This function
- * returns the fastest refresh rate when cases overlap to ensure responsiveness.
- * 
  * @param displayMode - The display mode/case number
+ * @param displayNum - Which display: 1 or 2
  * @return Update interval in milliseconds
  */
-unsigned int getDisplayUpdateInterval(byte displayMode) {
-  switch (displayMode) {
-    // Fast update displays (12Hz / 83ms) - RPM
-    case 4:   // RPM on display2, Fuel Level on display1 (use slower default below)
-    case 9:   // RPM on display1, Falcon Script logo on display2
-      // Case 4: Could be RPM (83ms) or Fuel Level (500ms) depending on display
-      // Case 9: Could be RPM (83ms) or logo (1000ms) depending on display
-      // Use fast refresh for RPM responsiveness
-      return 83;
-    
-    // Medium update displays (7Hz / 143ms) - Pressures, Speed, AFR, Ignition, Injector
-    case 5:   // Speed on display2, Battery Voltage on display1
-    case 8:   // Speed on display1, 302V logo on display2
-    case 10:  // Ignition angle on display1
-    case 11:  // AFR on display1
-    case 12:  // Fuel pressure on display1
-    case 13:  // Fuel composition on display1
-    case 14:  // Injector duty on display1
-      // Cases 5 & 8: Overlap between dynamic displays and logos
-      // Use medium refresh to balance speed and logo efficiency
-      return 143;
-    
-    // Slow update displays (2Hz / 500ms) - Temps, Battery, Fuel Level, Clock, Odometer
-    case 0:   // Settings on display1, Oil pressure on display2
-    case 1:   // Oil Pressure on display1, Coolant temp on display2
-    case 2:   // Coolant Temp on display1, Battery voltage on display2
-    case 3:   // Oil Temp on display1, Fuel level on display2
-    case 6:   // Clock on both displays
-    case 7:   // Trip odometer on display1, 302CID logo on display2
-      return 500;
+unsigned int getDisplayUpdateInterval(byte displayMode, byte displayNum) {
+  // Display 1 refresh rates
+  if (displayNum == 1) {
+    switch (displayMode) {
+      case 9:   // RPM
+        return 83;
       
-    // Static content (1Hz / 1000ms) - Logos (only check for mode change)
-    case 15:  // Falcon Script logo on display1
-    case 16:  // Reserved for future content
-      return 1000;
-    
-    // Default: medium refresh rate for unknown modes
-    default:
-      return 143;
+      case 8:   // Speed
+      case 10:  // Ignition angle
+      case 11:  // AFR
+      case 12:  // Fuel pressure
+      case 14:  // Injector duty
+        return 143;
+      
+      case 0:   // Settings menu
+      case 1:   // Oil Pressure
+      case 2:   // Coolant Temp
+      case 3:   // Oil Temp
+      case 4:   // Fuel Level
+      case 5:   // Battery Voltage
+      case 6:   // Clock
+      case 7:   // Trip Odometer
+      case 13:  // Fuel composition
+        return 500;
+      
+      case 15:  // Falcon Script logo
+      case 16:  // Reserved
+        return 1000;
+      
+      default:
+        return 143;
+    }
+  }
+  // Display 2 refresh rates
+  else {
+    switch (displayMode) {
+      case 4:   // RPM
+        return 83;
+      
+      case 5:   // Speed
+        return 143;
+      
+      case 0:   // Oil Pressure
+      case 1:   // Coolant Temp
+      case 2:   // Battery Voltage
+      case 3:   // Fuel Level
+      case 6:   // Clock
+        return 500;
+      
+      case 7:   // 302CID logo
+      case 8:   // 302V logo
+      case 9:   // Falcon Script logo
+        return 1000;
+      
+      default:
+        return 143;
+    }
   }
 }

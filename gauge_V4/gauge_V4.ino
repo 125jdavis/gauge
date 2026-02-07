@@ -392,14 +392,14 @@ void loop() {
   // Each display uses independent timing with variable refresh rates based on content
   
   // Display 1 update - Variable refresh rate based on content type
-  unsigned int disp1Interval = getDisplayUpdateInterval(dispArray1[0]);
+  unsigned int disp1Interval = getDisplayUpdateInterval(dispArray1[0], 1);
   if (millis() - timerDisp1Update > disp1Interval) {
     dispMenu();
     timerDisp1Update = millis();
   }
   
   // Display 2 update - Variable refresh rate based on content type
-  unsigned int disp2Interval = getDisplayUpdateInterval(dispArray2[0]);
+  unsigned int disp2Interval = getDisplayUpdateInterval(dispArray2[0], 2);
   if (millis() - timerDisp2Update > disp2Interval) {
     disp2();
     timerDisp2Update = millis();

@@ -61,6 +61,6 @@ bool needsUpdate_Speed(int current, int previous);   // Check if speed changed >
 bool needsUpdate_RPM(int current, int previous);     // Check if RPM changed > 20
 bool needsUpdate_Time(byte hour_curr, byte minute_curr, byte hour_prev, byte minute_prev);  // Check if time changed
 bool needsUpdate_ModeChange(byte* current, byte* previous, int size);  // Check if display mode changed
-unsigned int getDisplayUpdateInterval(byte displayMode);  // Get refresh rate for display mode
+unsigned int getDisplayUpdateInterval(byte displayMode, byte displayNum);  // Get refresh rate for display mode (displayNum: 1 or 2)
 
 #endif // DISPLAY_H
