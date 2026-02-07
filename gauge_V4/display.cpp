@@ -724,15 +724,29 @@ void dispFuelComp (Adafruit_SSD1306 *display) {
  * @param display - Pointer to display object
  */
 void dispAFR (Adafruit_SSD1306 *display) {
-    display->setTextColor(WHITE); 
-    display->clearDisplay();
-    display->setCursor(8,6);
-    display->setTextSize(3); 
-    display->print(afr, 1);  // Print AFR with 1 decimal place (e.g., 14.7)
-    display->setCursor(88,10);
-    display->setTextSize(2);
-    display->println("AFR");         
-    display->display();
+    // Check if mode changed or AFR changed enough to warrant update
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
+    }
+    
+    // AFR uses same threshold as temperature (>1.0 change)
+    if (modeChanged || abs(afr - afr_prev) > 0.1) {  // 0.1 AFR change threshold
+      display->setTextColor(WHITE); 
+      display->clearDisplay();
+      display->setCursor(8,6);
+      display->setTextSize(3); 
+      display->print(afr, 1);  // Print AFR with 1 decimal place (e.g., 14.7)
+      display->setCursor(88,10);
+      display->setTextSize(2);
+      display->println("AFR");         
+      display->display();
+      
+      // Update previous value
+      afr_prev = afr;
+    }
 }
 
 /**
@@ -999,93 +1013,138 @@ void dispCoolantTempGfx (Adafruit_SSD1306 *display) {
 }
 
 void dispBattVoltGfx (Adafruit_SSD1306 *display) {
-    display->setTextColor(WHITE); 
-    display->clearDisplay();             //clear buffer
-    display->drawBitmap(0, 0, IMG_BATT_VOLT, 35, 32, 1);
-    display->setTextSize(3); 
-    display->setCursor(42,6);
-    display->println(vBatt, 1);
-    display->setTextSize(2);
-    display->setCursor(116,12); 
-    display->println("V");         
-    display->display();
+    // Check if mode changed or battery voltage changed enough to warrant update
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
+    }
+    
+    // Threshold: 0.1V change
+    if (modeChanged || abs(vBatt - vBatt_prev) > 0.1) {
+      display->setTextColor(WHITE); 
+      display->clearDisplay();             //clear buffer
+      display->drawBitmap(0, 0, IMG_BATT_VOLT, 35, 32, 1);
+      display->setTextSize(3); 
+      display->setCursor(42,6);
+      display->println(vBatt, 1);
+      display->setTextSize(2);
+      display->setCursor(116,12); 
+      display->println("V");         
+      display->display();
+      
+      // Update previous value
+      vBatt_prev = vBatt;
+    }
 }
 
 void dispFuelLvlGfx (Adafruit_SSD1306 *display) {
-    float fuelLvlDisp;
-    display->setTextColor(WHITE); 
-    display->clearDisplay();             //clear buffer
-    display->drawBitmap(0, 0, IMG_FUEL_LVL, 32, 32, 1);
-    byte center = 71;
+    // Check if mode changed or fuel level changed enough to warrant update
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
+    }
     
-    if (units == 0){    // Metric Units
-      fuelLvlDisp = fuelLvl*3.785; // convert to liters
-      byte nDig = digits(fuelLvlDisp);
-      display->setTextSize(3); 
-      display->setCursor(center-((nDig*18)/2),6);
-      display->print(fuelLvlDisp, 0);
-      display->setCursor(center+((nDig*18)/2)+4,6);
-      display->println("l");
-    }
+    // Threshold: 0.5 gallons/liters change
+    if (modeChanged || abs(fuelLvl - fuelLvl_prev) > 0.5) {
+      float fuelLvlDisp;
+      display->setTextColor(WHITE); 
+      display->clearDisplay();             //clear buffer
+      display->drawBitmap(0, 0, IMG_FUEL_LVL, 32, 32, 1);
+      byte center = 71;
+      
+      if (units == 0){    // Metric Units
+        fuelLvlDisp = fuelLvl*3.785; // convert to liters
+        byte nDig = digits(fuelLvlDisp);
+        display->setTextSize(3); 
+        display->setCursor(center-((nDig*18)/2),6);
+        display->print(fuelLvlDisp, 0);
+        display->setCursor(center+((nDig*18)/2)+4,6);
+        display->println("l");
+      }
 
-    else {              // 'Merican Units
-      fuelLvlDisp = fuelLvl; // read in gallons
-      byte nDig = digits(fuelLvlDisp) +2 ;
-      display->setTextSize(3); 
-      display->setCursor(center-((nDig*18)/2),6);
-      display->print(fuelLvlDisp, 1);
-      display->setCursor(center+((nDig*18)/2)+2,18);
-      display->setTextSize(1); 
-      display->println("gal");
-    }
+      else {              // 'Merican Units
+        fuelLvlDisp = fuelLvl; // read in gallons
+        byte nDig = digits(fuelLvlDisp) +2 ;
+        display->setTextSize(3); 
+        display->setCursor(center-((nDig*18)/2),6);
+        display->print(fuelLvlDisp, 1);
+        display->setCursor(center+((nDig*18)/2)+2,18);
+        display->setTextSize(1); 
+        display->println("gal");
+      }
 
-    display->display();
+      display->display();
+      
+      // Update previous value
+      fuelLvl_prev = fuelLvl;
+    }
 }
 
 void dispTripOdo (Adafruit_SSD1306 *display) {
-    float odoDisp;
-    display->setTextColor(WHITE); 
-    display->clearDisplay();             //clear buffer
-        
-    if (units == 0){    // Metric Units
-      odoDisp = odoTrip; 
-      display->setCursor(100,6);
-      display->setTextSize(2);
-      display->println("km");         
-    } 
-    else {              // 'Merican units
-      odoDisp = odoTrip * 0.6213712; //convert km to miles  
-      display->setCursor(100,6);
-      display->setTextSize(2);
-      display->println("mi");          
+    // Check if mode changed or odometer changed enough to warrant update
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
     }
+    
+    // Threshold: 0.1 km/miles change
+    if (modeChanged || abs(odoTrip - odoTrip_prev) > 0.1) {
+      float odoDisp;
+      display->setTextColor(WHITE); 
+      display->clearDisplay();             //clear buffer
+          
+      if (units == 0){    // Metric Units
+        odoDisp = odoTrip; 
+        display->setCursor(100,6);
+        display->setTextSize(2);
+        display->println("km");         
+      } 
+      else {              // 'Merican units
+        odoDisp = odoTrip * 0.6213712; //convert km to miles  
+        display->setCursor(100,6);
+        display->setTextSize(2);
+        display->println("mi");          
+      }
 
-    display->setCursor(35,6);
-    display->setTextSize(2); 
-    // right justify
-    if (odoDisp < 10) {
-      display->setTextColor(BLACK); 
-      display->print("00");
+      display->setCursor(35,6);
+      display->setTextSize(2); 
+      // right justify
+      if (odoDisp < 10) {
+        display->setTextColor(BLACK); 
+        display->print("00");
+      }
+      else if (odoDisp < 100){
+        display->setTextColor(BLACK); 
+        display->print("0");
+      }
+      
+      display->setTextColor(WHITE);
+      // remove tenths once 1000 is reached
+      if (odoDisp < 1000) { 
+        display->println(odoDisp, 1);
+      }
+      else {
+        display->println(odoDisp, 0);
+      }
+      
+      display->setTextSize(1);
+      display->setCursor(1,3);
+      display->println("Trip");
+      display->setCursor(1,13);
+      display->println("Odo:"); 
+      display->display();
+      
+      // Update previous value
+      odoTrip_prev = odoTrip;
     }
-    else if (odoDisp < 100){
-      display->setTextColor(BLACK); 
-      display->print("0");
-    }
-    
-    display->setTextColor(WHITE);
-    // remove tenths once 1000 is reached
-    if (odoDisp < 1000) { 
-      display->println(odoDisp, 1);
-    }
-    else {
-      display->println(odoDisp, 0);
-    }
-    
-    display->setTextSize(1);
-    display->setCursor(1,3);
-    display->println("Trip");
-    display->setCursor(1,13);
-    display->println("Odo:"); 
+}
+
     display->display();  
 }
 
@@ -1122,34 +1181,62 @@ void dispOdoResetNo(Adafruit_SSD1306 *display) {
 }
 
 void dispIgnAng (Adafruit_SSD1306 *display) {
-    display->setTextColor(WHITE); 
-    display->clearDisplay();             //clear buffer
-    display->setTextSize(2);             // text size
-    display->setCursor(6,0);
-    display->println("IGN");
-    display->setCursor(2,15);
-    display->println("BTDC");            
-    display->setTextSize(3); 
-    display->setCursor(66,6);
-    display->print(ignAngCAN/10); 
-    display->write(0xF7);  
-    display->println();      
-    display->display();
+    // Check if mode changed or ignition angle changed enough to warrant update
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
+    }
+    
+    // Threshold: 10 units (1 degree, since stored as degrees * 10)
+    if (modeChanged || abs(ignAngCAN - ignAngCAN_prev) > 10) {
+      display->setTextColor(WHITE); 
+      display->clearDisplay();             //clear buffer
+      display->setTextSize(2);             // text size
+      display->setCursor(6,0);
+      display->println("IGN");
+      display->setCursor(2,15);
+      display->println("BTDC");            
+      display->setTextSize(3); 
+      display->setCursor(66,6);
+      display->print(ignAngCAN/10); 
+      display->write(0xF7);  
+      display->println();      
+      display->display();
+      
+      // Update previous value
+      ignAngCAN_prev = ignAngCAN;
+    }
 }
 
 void dispInjDuty (Adafruit_SSD1306 *display) {
-    display->setTextColor(WHITE); 
-    display->clearDisplay();             //clear buffer
-    display->setTextSize(2);             // text size
-    display->setCursor(6,0);
-    display->println("INJ");
-    display->setCursor(2,15);
-    display->println("DUTY");            
-    display->setTextSize(3); 
-    display->setCursor(66,6);
-    display->print(injDutyCAN/10);  
-    display->println("%");      
-    display->display();
+    // Check if mode changed or injector duty changed enough to warrant update
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
+    }
+    
+    // Threshold: 10 units (1%, since stored as % * 10)
+    if (modeChanged || abs(injDutyCAN - injDutyCAN_prev) > 10) {
+      display->setTextColor(WHITE); 
+      display->clearDisplay();             //clear buffer
+      display->setTextSize(2);             // text size
+      display->setCursor(6,0);
+      display->println("INJ");
+      display->setCursor(2,15);
+      display->println("DUTY");            
+      display->setTextSize(3); 
+      display->setCursor(66,6);
+      display->print(injDutyCAN/10);  
+      display->println("%");      
+      display->display();
+      
+      // Update previous value
+      injDutyCAN_prev = injDutyCAN;
+    }
 }
 
 /**
@@ -1167,28 +1254,43 @@ void dispInjDuty (Adafruit_SSD1306 *display) {
  * - Minutes are zero-padded (e.g., "3:05" not "3:5")
  */
 void dispClock (Adafruit_SSD1306 *display){
-    byte hourAdj;
-    display->clearDisplay();
+    // Check if mode changed or time changed
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
+    }
     
-    // Calculate local hour from UTC + offset with wraparound
-    if (clockOffset + hour > 23) {        
-      hourAdj = clockOffset + hour - 24;  // Wrap to next day
-    }
-    else {
-      hourAdj = clockOffset + hour;
-    }
+    // Only update if mode changed or time changed
+    if (modeChanged || needsUpdate_Time(hour, minute, hour_prev, minute_prev)) {
+      byte hourAdj;
+      display->clearDisplay();
+      
+      // Calculate local hour from UTC + offset with wraparound
+      if (clockOffset + hour > 23) {        
+        hourAdj = clockOffset + hour - 24;  // Wrap to next day
+      }
+      else {
+        hourAdj = clockOffset + hour;
+      }
 
-    byte nDig = digits(hourAdj)+3;  // +3 for colon and 2-digit minutes
-    byte center = 63;
-    
-    display->setTextColor(WHITE);
-    display->setTextSize(3);
-    display->setCursor(center-((nDig*18)/2),6);
-    display->print(hourAdj); 
-    display->print(':');
-    if (minute < 10) { display->print('0'); }  // Zero-pad minutes (e.g., "03" not "3")
-    display->println(minute);
-    display->display();
+      byte nDig = digits(hourAdj)+3;  // +3 for colon and 2-digit minutes
+      byte center = 63;
+      
+      display->setTextColor(WHITE);
+      display->setTextSize(3);
+      display->setCursor(center-((nDig*18)/2),6);
+      display->print(hourAdj); 
+      display->print(':');
+      if (minute < 10) { display->print('0'); }  // Zero-pad minutes (e.g., "03" not "3")
+      display->println(minute);
+      display->display();
+      
+      // Update previous values
+      hour_prev = hour;
+      minute_prev = minute;
+    }
 }
 
 /**
