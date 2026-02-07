@@ -927,11 +927,9 @@ void dispOilPrsGfx (Adafruit_SSD1306 *display) {
       display->setTextColor(WHITE); 
       display->clearDisplay();
       display->drawBitmap(0, 0, IMG_OIL_PRS, 40, 32, 1);  // Draw oil can icon
-      if (oilPrs < 0) {oilPrs = 0;}  // Clamp negative values
       
       if (units == 0){    // Metric Units (bar)
-        oilPrsDisp = oilPrs/100;  // Convert kPa to bar
-        if (oilPrsDisp < 0) {oilPrsDisp = 0;}
+        oilPrsDisp = (oilPrs < 0) ? 0 : oilPrs/100;  // Convert kPa to bar, clamp negative
         byte nDig = 3;  // Always 3 digits for bar
         byte center = 79;
         display->setTextSize(3);
@@ -943,8 +941,7 @@ void dispOilPrsGfx (Adafruit_SSD1306 *display) {
                  
       } 
       else {              // Imperial Units (PSI)
-        oilPrsDisp = oilPrs * 0.1450377;  // Convert kPa to PSI
-        if (oilPrsDisp < 0) {oilPrsDisp = 0;}
+        oilPrsDisp = (oilPrs < 0) ? 0 : oilPrs * 0.1450377;  // Convert kPa to PSI, clamp negative
         byte nDig = digits (oilPrsDisp);
         byte center = 71;
         display->setTextSize(3); // char width = 18
@@ -1469,23 +1466,32 @@ bool needsUpdate_ModeChange(byte* current, byte* previous, int size) {
  * - 500ms (2Hz): Temps, battery, fuel level, clock, odometer - slow changing values
  * - 1000ms (1Hz): Static logos - minimal updates (check for mode change only)
  * 
+ * Note: Display1 and Display2 have overlapping case numbers. This function
+ * returns the fastest refresh rate when cases overlap to ensure responsiveness.
+ * 
  * @param displayMode - The display mode/case number
  * @return Update interval in milliseconds
  */
 unsigned int getDisplayUpdateInterval(byte displayMode) {
   switch (displayMode) {
     // Fast update displays (12Hz / 83ms) - RPM
-    case 4:   // RPM on display2
-    case 9:   // RPM on display1 (but also Falcon Script on display2 - handled below)
+    case 4:   // RPM on display2, Fuel Level on display1 (use slower default below)
+    case 9:   // RPM on display1, Falcon Script logo on display2
+      // Case 4: Could be RPM (83ms) or Fuel Level (500ms) depending on display
+      // Case 9: Could be RPM (83ms) or logo (1000ms) depending on display
+      // Use fast refresh for RPM responsiveness
       return 83;
     
     // Medium update displays (7Hz / 143ms) - Pressures, Speed, AFR, Ignition, Injector
-    case 5:   // Speed on display2
-    case 8:   // Speed on display1 (but also 302V logo on display2 - needs special handling)
-    case 11:  // AFR on display1
+    case 5:   // Speed on display2, Battery Voltage on display1
+    case 8:   // Speed on display1, 302V logo on display2
     case 10:  // Ignition angle on display1
+    case 11:  // AFR on display1
     case 12:  // Fuel pressure on display1
-    case 13:  // Injector duty on display1
+    case 13:  // Fuel composition on display1
+    case 14:  // Injector duty on display1
+      // Cases 5 & 8: Overlap between dynamic displays and logos
+      // Use medium refresh to balance speed and logo efficiency
       return 143;
     
     // Slow update displays (2Hz / 500ms) - Temps, Battery, Fuel Level, Clock, Odometer
@@ -1493,21 +1499,16 @@ unsigned int getDisplayUpdateInterval(byte displayMode) {
     case 1:   // Oil Pressure on display1, Coolant temp on display2
     case 2:   // Coolant Temp on display1, Battery voltage on display2
     case 3:   // Oil Temp on display1, Fuel level on display2
-    case 4:   // Fuel Level on display1 (case 4 also RPM, handled above)
-    case 5:   // Battery Voltage on display1 (case 5 also Speed, handled above)
     case 6:   // Clock on both displays
-    case 7:   // Trip odometer on display1, 302CID logo on display2 (logos use caching anyway)
+    case 7:   // Trip odometer on display1, 302CID logo on display2
       return 500;
       
     // Static content (1Hz / 1000ms) - Logos (only check for mode change)
-    // Note: Display2 logos (cases 7,8,9) overlap with other display1 screens
-    // Since logos use static content caching, the interval doesn't matter much
-    case 14:  // 302CID logo on display1
     case 15:  // Falcon Script logo on display1
-    case 16:  // Reserved for future logo on display1
+    case 16:  // Reserved for future content
       return 1000;
     
-    // Default: medium refresh rate
+    // Default: medium refresh rate for unknown modes
     default:
       return 143;
   }
