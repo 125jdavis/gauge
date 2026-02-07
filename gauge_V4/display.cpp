@@ -644,7 +644,7 @@ void dispOilTemp (Adafruit_SSD1306 *display) {
 
       display->display();
       
-      // Update previous value (already tracked by dispOilTempGfx, but update here too for consistency)
+      // Update previous value
       oilTemp_prev = oilTemp;
     }
 }
@@ -736,7 +736,7 @@ void dispFuelComp (Adafruit_SSD1306 *display) {
     }
     
     // Threshold: 1% change in ethanol content
-    if (modeChanged || abs(fuelComp - afr_prev) > 1.0) {  // Reuse afr_prev variable for fuel comp
+    if (modeChanged || abs(fuelComp - fuelComp_prev) > 1.0) {
       byte nDig = digits (fuelComp);
       byte center = 79;
       display->setTextColor(WHITE); 
@@ -751,6 +751,9 @@ void dispFuelComp (Adafruit_SSD1306 *display) {
       display->print(fuelComp, 0);  // Print percentage value
       display->println("%");        
       display->display();
+      
+      // Update previous value
+      fuelComp_prev = fuelComp;
     }
 }
 
@@ -1184,9 +1187,6 @@ void dispTripOdo (Adafruit_SSD1306 *display) {
     }
 }
 
-    display->display();  
-}
-
 void dispOdoResetYes(Adafruit_SSD1306 *display) {
     display->setTextColor(WHITE); 
     display->clearDisplay();             //clear buffer
@@ -1476,12 +1476,12 @@ unsigned int getDisplayUpdateInterval(byte displayMode) {
   switch (displayMode) {
     // Fast update displays (12Hz / 83ms) - RPM
     case 4:   // RPM on display2
-    case 9:   // RPM on display1
+    case 9:   // RPM on display1 (but also Falcon Script on display2 - handled below)
       return 83;
     
     // Medium update displays (7Hz / 143ms) - Pressures, Speed, AFR, Ignition, Injector
     case 5:   // Speed on display2
-    case 8:   // Speed on display1
+    case 8:   // Speed on display1 (but also 302V logo on display2 - needs special handling)
     case 11:  // AFR on display1
     case 10:  // Ignition angle on display1
     case 12:  // Fuel pressure on display1
@@ -1489,21 +1489,22 @@ unsigned int getDisplayUpdateInterval(byte displayMode) {
       return 143;
     
     // Slow update displays (2Hz / 500ms) - Temps, Battery, Fuel Level, Clock, Odometer
-    case 0:   // Oil pressure on display2
-    case 1:   // Coolant temp on display2
-    case 2:   // Battery voltage on display2
-    case 3:   // Fuel level on display2
-    case 6:   // Clock on display2
-    case 7:   // Trip odometer on display1
+    case 0:   // Settings on display1, Oil pressure on display2
+    case 1:   // Oil Pressure on display1, Coolant temp on display2
+    case 2:   // Coolant Temp on display1, Battery voltage on display2
+    case 3:   // Oil Temp on display1, Fuel level on display2
+    case 4:   // Fuel Level on display1 (case 4 also RPM, handled above)
+    case 5:   // Battery Voltage on display1 (case 5 also Speed, handled above)
+    case 6:   // Clock on both displays
+    case 7:   // Trip odometer on display1, 302CID logo on display2 (logos use caching anyway)
       return 500;
       
     // Static content (1Hz / 1000ms) - Logos (only check for mode change)
-    case 7:   // 302CID logo on display2
-    case 8:   // 302V logo on display2  
-    case 9:   // Falcon Script on display2
+    // Note: Display2 logos (cases 7,8,9) overlap with other display1 screens
+    // Since logos use static content caching, the interval doesn't matter much
     case 14:  // 302CID logo on display1
-    case 15:  // 302V logo on display1
-    case 16:  // Falcon Script on display1
+    case 15:  // Falcon Script logo on display1
+    case 16:  // Reserved for future logo on display1
       return 1000;
     
     // Default: medium refresh rate

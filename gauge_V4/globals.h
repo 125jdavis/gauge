@@ -172,6 +172,7 @@ extern float fuelPrs_prev;          // Previous fuel pressure for dirty tracking
 extern float fuelLvl_prev;          // Previous fuel level for dirty tracking
 extern float vBatt_prev;            // Previous battery voltage for dirty tracking
 extern float afr_prev;              // Previous AFR for dirty tracking
+extern float fuelComp_prev;         // Previous fuel composition for dirty tracking
 extern int RPM_prev;                // Previous RPM for dirty tracking
 extern int spd_prev;                // Previous speed for dirty tracking
 extern int ignAngCAN_prev;          // Previous ignition angle for dirty tracking

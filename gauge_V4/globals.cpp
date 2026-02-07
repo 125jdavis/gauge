@@ -180,6 +180,7 @@ float fuelPrs_prev = 0;          // Previous fuel pressure for dirty tracking
 float fuelLvl_prev = 0;          // Previous fuel level for dirty tracking
 float vBatt_prev = 0;            // Previous battery voltage for dirty tracking
 float afr_prev = 0;              // Previous AFR for dirty tracking
+float fuelComp_prev = 0;         // Previous fuel composition for dirty tracking
 int RPM_prev = 0;                // Previous RPM for dirty tracking
 int spd_prev = 0;                // Previous speed for dirty tracking
 int ignAngCAN_prev = 0;          // Previous ignition angle for dirty tracking
