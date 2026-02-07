@@ -352,13 +352,22 @@ void loop() {
   // Display updates are blocking operations (~10-20ms) that would otherwise delay
   // angle updates, causing visible jitter/ticks in motor motion.
   if (millis() - timerAngleUpdate > ANGLE_UPDATE_RATE) {
+    //Serial.println(millis() - timerAngleUpdate);
     motor1.setPosition(fuelLvlAngle(M1_SWEEP));
     motor2.setPosition(coolantTempAngle(M2_SWEEP));
     motor3.setPosition(fuelLvlAngle(M3_SWEEP));  // Motor 3 now same config as motor1
     motor4.setPosition(fuelLvlAngle(M4_SWEEP));
-    motorS.setPosition(speedometerAngleS(MS_SWEEP));  // Motor S is speedometer
+    // Motor S uses smoothing: update target at 50Hz, interpolation happens below
+    updateMotorSTarget(MS_SWEEP);
     timerAngleUpdate = millis();
   }
+  
+  // ===== MOTOR S POSITION SMOOTHING =====
+  // Continuously interpolate motorS position between target updates for smooth motion
+  // Called every loop iteration (typically >1kHz) to provide frequent position updates
+  // that the Timer3 ISR can act upon. This creates smooth needle motion instead of
+  // the jerky "move-stop-wait" behavior that occurs without interpolation.
+  updateMotorSSmoothing();
 
   // ===== MOTOR STEP EXECUTION =====
   // Motor updates (stepping) are now handled by Timer3 ISR for deterministic timing
