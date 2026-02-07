@@ -205,7 +205,7 @@ int speedometerAngleS(int sweep) {
  * 
  * This function updates the target angle that motorS should reach.
  * It's called nominally at ANGLE_UPDATE_RATE (50Hz, every 20ms) from the main loop,
- * but actual timing varies (typically 21-40ms, with occasional spikes to 6000ms).
+ * but actual timing varies (typically 21-40ms, with occasional spikes up to ~100ms).
  * The actual motor position is interpolated by updateMotorSSmoothing().
  * 
  * @param sweep - Maximum motor steps for full gauge sweep
@@ -220,10 +220,10 @@ void updateMotorSTarget(int sweep) {
   // This handles variable update rates (21-40ms typical, with occasional spikes)
   if (motorS_lastUpdateTime > 0 && currentTime >= motorS_lastUpdateTime) {
     motorS_updateInterval = currentTime - motorS_lastUpdateTime;
-    // Sanity check: limit to reasonable range (5ms to 10 seconds)
+    // Sanity check: limit to reasonable range (5ms to 500ms)
     // Prevents issues with extreme spikes or millis() overflow edge cases
     if (motorS_updateInterval < 5) motorS_updateInterval = 5;
-    if (motorS_updateInterval > 10000) motorS_updateInterval = 10000;
+    if (motorS_updateInterval > 500) motorS_updateInterval = 500;
   } else {
     // First call or overflow: use nominal rate
     motorS_updateInterval = ANGLE_UPDATE_RATE;
@@ -244,7 +244,7 @@ void updateMotorSTarget(int sweep) {
  * 
  * Design rationale:
  * - motorS.update() is called at 10kHz (very fast) via hardware interrupt
- * - Target angle updates happen at ~50Hz (variable: 21-40ms typical, occasional spikes to 6000ms)
+ * - Target angle updates happen at ~50Hz (variable: 21-40ms typical, occasional spikes up to ~100ms)
  * - SwitecX12 library can reach target in ~5ms at max velocity (300 steps/sec)
  * - Without smoothing: motor moves fast → stops → waits → moves fast (jerky!)
  * - With smoothing: motor moves continuously at controlled pace (smooth!)
@@ -291,7 +291,7 @@ void updateMotorSSmoothing(void) {
   // interpolatedPos = previous + (delta * elapsed) / updateInterval
   // Note: positionDelta can be negative (moving backward), which is fine
   // long (32-bit signed) can handle values up to ±2 billion, so no overflow risk
-  // Max calculation: positionDelta (-8000 to +8000) * elapsed (0-10000) = ±80,000,000
+  // Max calculation: positionDelta (-8000 to +8000) * elapsed (0-500) = ±4,000,000
   long interpolation = ((long)positionDelta * (long)elapsed) / (long)motorS_updateInterval;
   int interpolatedPosition = motorS_previousTarget + (int)interpolation;
   

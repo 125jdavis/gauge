@@ -8,8 +8,7 @@ The SwitecX12 stepper motor library has built-in acceleration/deceleration contr
 
 The gauge controller nominally updates motor target positions at 50Hz (every 20ms) via `motorS.setPosition()`. However, **actual update timing varies significantly**:
 - **Normal**: 21-22ms typical
-- **Display blocking**: Occasional spikes to 40ms
-- **Hall sensor processing**: Extreme spikes up to 6000ms observed
+- **Display blocking**: Occasional spikes to 40ms or more
 
 The motor steps are executed at 10kHz (every 100µs) via a hardware timer interrupt calling `motorS.update()`.
 
@@ -33,10 +32,10 @@ static unsigned long motorS_updateInterval = ANGLE_UPDATE_RATE; // Actual measur
 ```cpp
 void updateMotorSTarget(int sweep)
 ```
-- Called nominally every 20ms from main loop (actual: 21-40ms, with spikes to 6000ms)
+- Called nominally every 20ms from main loop (actual: 21-40ms or more during spikes)
 - Calculates new final target position based on current speed
 - **Measures actual time since last update** and stores in `motorS_updateInterval`
-- Sanity-checks interval (5ms to 10s range) to handle edge cases
+- Sanity-checks interval (5ms to 500ms range) to handle edge cases
 - Updates state: saves previous target, sets new final target, records timestamp
 
 #### 3. Smoothing Function (>1kHz)
@@ -67,8 +66,8 @@ Where:
 - `elapsed` = milliseconds since last target update (0 to measured_interval)
 - `measured_interval` = actual time between the last two target updates
   - Typical: 21-22ms
-  - Display blocking: 40ms spikes
-  - Hall sensor: up to 6000ms spikes
+  - Display blocking: 40ms or more spikes
+  - Capped at 500ms maximum to maintain responsiveness
 - As elapsed increases, position smoothly transitions from previous to final target
 - Interpolation completes just as the next update arrives (regardless of timing)
 
@@ -78,14 +77,14 @@ if (motorS_lastUpdateTime > 0 && currentTime >= motorS_lastUpdateTime) {
     motorS_updateInterval = currentTime - motorS_lastUpdateTime;
     // Sanity check: limit to reasonable range
     if (motorS_updateInterval < 5) motorS_updateInterval = 5;
-    if (motorS_updateInterval > 10000) motorS_updateInterval = 10000;
+    if (motorS_updateInterval > 500) motorS_updateInterval = 500;
 }
 ```
 
 The system:
 1. Measures the actual interval between each pair of target updates
 2. Uses that measured interval for the next interpolation period
-3. Applies sanity limits (5ms-10s) to handle edge cases and overflow
+3. Applies sanity limits (5ms-500ms) to handle edge cases and maintain responsiveness
 
 ### Integer Math Optimization
 Uses integer arithmetic to avoid floating-point overhead:
@@ -96,8 +95,8 @@ int interpolatedPosition = motorS_previousTarget + (int)interpolation;
 
 This is safe because:
 - Max positionDelta: ±8000 steps (full gauge range)
-- Max elapsed: 10000ms (sanity limit)
-- Max product: ±80,000,000 (well within `long` range of ±2,147,483,647)
+- Max elapsed: 500ms (sanity limit)
+- Max product: ±4,000,000 (well within `long` range of ±2,147,483,647)
 
 ### Edge Case Handling
 
@@ -149,8 +148,8 @@ Total overhead is negligible compared to other system tasks (CAN bus, GPS, displ
 ### Motion Quality
 - **Smoothness**: Continuous motion instead of jerky start-stop
 - **Accuracy**: Arrives at target within ±1 step precision
-- **Latency**: Adaptive smoothing period (21-40ms typical, longer during spikes)
-- **Robustness**: Handles extreme timing variations (up to 6000ms) without visible artifacts
+- **Latency**: Adaptive smoothing period (21-40ms typical, up to 500ms cap during extreme spikes)
+- **Robustness**: Handles timing variations up to 500ms gracefully
 - **Priority**: Motion smoothness > absolute positional accuracy (appropriate for analog gauge)
 
 ## Code Changes
@@ -181,8 +180,8 @@ Total overhead is negligible compared to other system tasks (CAN bus, GPS, displ
 
 ### Variable Timing Tests
 1. **Normal operation**: Observe smooth motion at typical 21-22ms update rate
-2. **Display updates**: Verify smooth motion during display blocking (40ms spikes)
-3. **Hall sensor mode**: Test with hall speed sensor to observe behavior during extreme spikes (up to 6000ms)
+2. **Display updates**: Verify smooth motion during display blocking (40ms or more spikes)
+3. **Extended delays**: Verify graceful handling when intervals exceed 500ms cap
 4. **Transitions**: Verify smooth transitions between different update rates
 
 ### Edge Case Tests
@@ -213,15 +212,15 @@ Motion:   [----SMOOTH CONTINUOUS MOTION----]  [----SMOOTH CONTINUOUS----]
 Result:   Smooth needle sweep, no visible ticking
 ```
 
-### After (With Adaptive Smoothing, Hall Sensor Spike: 6000ms)
+### After (With Adaptive Smoothing, Display Blocking: 100ms)
 ```
-Time:     0s     1.5s   3.0s   4.5s   6.0s   7.5s
-Position: 100 -> 113  -> 125  -> 138  -> 150 -> 163
-Motion:   [------------VERY SMOOTH SLOW MOTION------------]
-Result:   Extremely smooth motion during extreme spike (slower but continuous)
+Time:     0ms    25ms   50ms   75ms   100ms  125ms  150ms
+Position: 100 -> 113 -> 125  -> 138  -> 150 -> 163 -> 175
+Motion:   [------SMOOTH CONTINUOUS MOTION------]  [----SMOOTH----]
+Result:   Smooth motion even during extended blocking
 ```
 
-The adaptive system maintains smooth motion regardless of update rate variations.
+The adaptive system maintains smooth motion across normal timing variations and display blocking events.
 
 ## Tuning Parameters
 
@@ -229,7 +228,7 @@ The adaptive system maintains smooth motion regardless of update rate variations
 ```cpp
 constexpr unsigned int ANGLE_UPDATE_RATE = 20;  // Nominal 50Hz
 ```
-- **Current**: 20ms nominal (actual: 21-40ms with spikes to 6000ms)
+- **Current**: 20ms nominal (actual: 21-40ms or more during blocking)
 - **Purpose**: Used as default interval and sanity check baseline
 - **Note**: Actual interpolation uses measured intervals, not this fixed value
 - **Recommended**: Keep at 20ms as nominal target
@@ -237,10 +236,10 @@ constexpr unsigned int ANGLE_UPDATE_RATE = 20;  // Nominal 50Hz
 ### Interval Sanity Limits (outputs.cpp)
 ```cpp
 if (motorS_updateInterval < 5) motorS_updateInterval = 5;
-if (motorS_updateInterval > 10000) motorS_updateInterval = 10000;
+if (motorS_updateInterval > 500) motorS_updateInterval = 500;
 ```
 - **Min**: 5ms (prevents divide-by-near-zero issues)
-- **Max**: 10s (prevents extremely slow motion from pathological cases)
+- **Max**: 500ms (maintains responsiveness, prevents extremely slow motion)
 - **Recommended**: Keep current limits unless specific edge cases require adjustment
 
 ### Smoothing Function Call Rate
@@ -268,9 +267,9 @@ Currently called every main loop iteration.
 
 The adaptive position interpolation implementation successfully achieves smooth speedometer needle motion by spreading motor movement evenly across the **actual measured update interval** rather than a fixed period. The motor arrives at each new target position "just in time" for the next update, eliminating the jerky start-stop behavior observed in the original implementation.
 
-**Key Innovation**: By measuring and adapting to the actual update timing (21-40ms typical, with spikes to 6000ms), the system maintains smooth motion even under highly variable conditions. This makes it robust to:
+**Key Innovation**: By measuring and adapting to the actual update timing (21-40ms typical, with occasional spikes), the system maintains smooth motion even under variable conditions. The 500ms cap ensures responsiveness while handling timing variations from:
 - Display update blocking
-- Hall sensor processing delays
+- Processing delays
 - Other sources of main loop timing variation
 
 The solution is efficient, robust, and prioritizes motion smoothness over absolute positional accuracy - exactly what's needed for an analog speedometer gauge where smooth needle motion is more important than millisecond-precise positioning.
