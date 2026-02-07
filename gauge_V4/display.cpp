@@ -604,35 +604,49 @@ void dispSpd (Adafruit_SSD1306 *display){
  * @param display - Pointer to display object
  */
 void dispOilTemp (Adafruit_SSD1306 *display) {
-    float oilTempDisp;
-    display->setTextColor(WHITE); 
-    display->clearDisplay();
-    display->drawBitmap(0, 0, IMG_OIL_TEMP, 40, 32, 1);  // Draw oil/temp icon (40x32 pixels)
-    byte center = 71;  // Center point for text (offset for icon on left)
+    // Check if mode changed or temperature changed enough to warrant update
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
+    }
     
-    if (units == 0){    // Metric Units (Celsius)
-      oilTempDisp = oilTemp;  // No conversion needed - already in Celsius
-      byte nDig = digits (oilTempDisp);
-      display->setTextSize(3); 
-      display->setCursor(center-((nDig*18)/2),6);
-      display->print(oilTempDisp, 0);  // Print temperature value
-      display->drawCircle(center+((nDig*18)/2)+3, 7, 2, WHITE);  // Draw degree symbol (small circle)
-      display->setCursor(center+((nDig*18)/2)+9,6);
-      display->println("C");  // Celsius label
-    }
+    // Only update if mode changed or value changed significantly
+    if (modeChanged || needsUpdate_Temperature(oilTemp, oilTemp_prev)) {
+      float oilTempDisp;
+      display->setTextColor(WHITE); 
+      display->clearDisplay();
+      display->drawBitmap(0, 0, IMG_OIL_TEMP, 40, 32, 1);  // Draw oil/temp icon (40x32 pixels)
+      byte center = 71;  // Center point for text (offset for icon on left)
+      
+      if (units == 0){    // Metric Units (Celsius)
+        oilTempDisp = oilTemp;  // No conversion needed - already in Celsius
+        byte nDig = digits (oilTempDisp);
+        display->setTextSize(3); 
+        display->setCursor(center-((nDig*18)/2),6);
+        display->print(oilTempDisp, 0);  // Print temperature value
+        display->drawCircle(center+((nDig*18)/2)+3, 7, 2, WHITE);  // Draw degree symbol (small circle)
+        display->setCursor(center+((nDig*18)/2)+9,6);
+        display->println("C");  // Celsius label
+      }
 
-    else {              // Imperial Units (Fahrenheit)
-      oilTempDisp = (oilTemp*1.8) + 32;  // Convert Celsius to Fahrenheit
-      byte nDig = digits (oilTempDisp);
-      display->setTextSize(3); 
-      display->setCursor(center-((nDig*18)/2),6);
-      display->print(oilTempDisp, 0);
-      display->drawCircle(center+((nDig*18)/2)+3, 7, 2, WHITE);  // Draw degree symbol
-      display->setCursor(center+((nDig*18)/2)+9,6);
-      display->println("F");  // Fahrenheit label
-    }
+      else {              // Imperial Units (Fahrenheit)
+        oilTempDisp = (oilTemp*1.8) + 32;  // Convert Celsius to Fahrenheit
+        byte nDig = digits (oilTempDisp);
+        display->setTextSize(3); 
+        display->setCursor(center-((nDig*18)/2),6);
+        display->print(oilTempDisp, 0);
+        display->drawCircle(center+((nDig*18)/2)+3, 7, 2, WHITE);  // Draw degree symbol
+        display->setCursor(center+((nDig*18)/2)+9,6);
+        display->println("F");  // Fahrenheit label
+      }
 
-    display->display();
+      display->display();
+      
+      // Update previous value (already tracked by dispOilTempGfx, but update here too for consistency)
+      oilTemp_prev = oilTemp;
+    }
 }
 
 /**
@@ -649,43 +663,57 @@ void dispOilTemp (Adafruit_SSD1306 *display) {
  * Note: fuelPrs is gauge pressure in kPa (atmospheric pressure already subtracted)
  */
 void dispFuelPrs (Adafruit_SSD1306 *display) {
-    float fuelPrsDisp;
-    display->setTextColor(WHITE); 
-    display->clearDisplay();
-    display->setTextSize(2); 
-    display->setCursor(0,3);
-    display->println("FUEL");  // Label line 1
-    display->setTextSize(1); 
-    display->setCursor(0,21);
-    display->println("PRESSURE");  // Label line 2
-
-    if (units == 0){    // Metric Units (bar)
-      fuelPrsDisp = fuelPrs/100;  // Convert kPa to bar (1 bar = 100 kPa)
-      if (fuelPrsDisp < 0) {fuelPrsDisp = 0;}  // Clamp to 0 if negative
-      byte nDig = 3;  // Always 3 digits for bar (e.g., "3.5")
-      byte center = 79;
-      display->setTextSize(3);
-      display->setCursor(center-((nDig*18)/2),6);
-      display->print(fuelPrsDisp, 1);  // Print with 1 decimal place
-      display->setCursor(center+((nDig*18)/2)+3,18);
-      display->setTextSize(1); 
-      display->println("bar");
-               
-    } 
-    else {              // Imperial Units (PSI)
-      fuelPrsDisp = fuelPrs * 0.1450377;  // Convert kPa to PSI (1 kPa = 0.145 PSI)
-      if (fuelPrsDisp < 0) {fuelPrsDisp = 0;}  // Clamp to 0 if negative
-      byte nDig = digits (fuelPrsDisp);
-      byte center = 71;
-      display->setTextSize(3);
-      display->setCursor(center-((nDig*18)/2),6);
-      display->print(fuelPrsDisp, 0);  // Print without decimal
-      display->setCursor(center+((nDig*18)/2)+2,10);
-      display->setTextSize(2);
-      display->println("PSI");          
+    // Check if mode changed or fuel pressure changed enough to warrant update
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
     }
     
-    display->display();
+    // Only update if mode changed or value changed significantly
+    if (modeChanged || needsUpdate_Pressure(fuelPrs, fuelPrs_prev, units)) {
+      float fuelPrsDisp;
+      display->setTextColor(WHITE); 
+      display->clearDisplay();
+      display->setTextSize(2); 
+      display->setCursor(0,3);
+      display->println("FUEL");  // Label line 1
+      display->setTextSize(1); 
+      display->setCursor(0,21);
+      display->println("PRESSURE");  // Label line 2
+
+      if (units == 0){    // Metric Units (bar)
+        fuelPrsDisp = fuelPrs/100;  // Convert kPa to bar (1 bar = 100 kPa)
+        if (fuelPrsDisp < 0) {fuelPrsDisp = 0;}  // Clamp to 0 if negative
+        byte nDig = 3;  // Always 3 digits for bar (e.g., "3.5")
+        byte center = 79;
+        display->setTextSize(3);
+        display->setCursor(center-((nDig*18)/2),6);
+        display->print(fuelPrsDisp, 1);  // Print with 1 decimal place
+        display->setCursor(center+((nDig*18)/2)+3,18);
+        display->setTextSize(1); 
+        display->println("bar");
+                 
+      } 
+      else {              // Imperial Units (PSI)
+        fuelPrsDisp = fuelPrs * 0.1450377;  // Convert kPa to PSI (1 kPa = 0.145 PSI)
+        if (fuelPrsDisp < 0) {fuelPrsDisp = 0;}  // Clamp to 0 if negative
+        byte nDig = digits (fuelPrsDisp);
+        byte center = 71;
+        display->setTextSize(3);
+        display->setCursor(center-((nDig*18)/2),6);
+        display->print(fuelPrsDisp, 0);  // Print without decimal
+        display->setCursor(center+((nDig*18)/2)+2,10);
+        display->setTextSize(2);
+        display->println("PSI");          
+      }
+      
+      display->display();
+      
+      // Update previous value
+      fuelPrs_prev = fuelPrs;
+    }
 }
 
 /**
@@ -699,20 +727,31 @@ void dispFuelPrs (Adafruit_SSD1306 *display) {
  * Example: E85 would show as 85%
  */
 void dispFuelComp (Adafruit_SSD1306 *display) {
-    byte nDig = digits (fuelComp);
-    byte center = 79;
-    display->setTextColor(WHITE); 
-    display->clearDisplay();
-    display->setTextSize(2);
-    display->setCursor(2,0);
-    display->println("Flex");  // Label line 1
-    display->setCursor(2,15);
-    display->println("Fuel");  // Label line 2
-    display->setTextSize(3); 
-    display->setCursor(center-((nDig*18)/2),6);
-    display->print(fuelComp, 0);  // Print percentage value
-    display->println("%");        
-    display->display();
+    // Check if mode changed or fuel composition changed enough to warrant update
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
+    }
+    
+    // Threshold: 1% change in ethanol content
+    if (modeChanged || abs(fuelComp - afr_prev) > 1.0) {  // Reuse afr_prev variable for fuel comp
+      byte nDig = digits (fuelComp);
+      byte center = 79;
+      display->setTextColor(WHITE); 
+      display->clearDisplay();
+      display->setTextSize(2);
+      display->setCursor(2,0);
+      display->println("Flex");  // Label line 1
+      display->setCursor(2,15);
+      display->println("Fuel");  // Label line 2
+      display->setTextSize(3); 
+      display->setCursor(center-((nDig*18)/2),6);
+      display->print(fuelComp, 0);  // Print percentage value
+      display->println("%");        
+      display->display();
+    }
 }
 
 /**
