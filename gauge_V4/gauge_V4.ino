@@ -352,6 +352,7 @@ void loop() {
   // Display updates are blocking operations (~10-20ms) that would otherwise delay
   // angle updates, causing visible jitter/ticks in motor motion.
   if (millis() - timerAngleUpdate > ANGLE_UPDATE_RATE) {
+    //Serial.println(millis() - timerAngleUpdate);
     motor1.setPosition(fuelLvlAngle(M1_SWEEP));
     motor2.setPosition(coolantTempAngle(M2_SWEEP));
     motor3.setPosition(fuelLvlAngle(M3_SWEEP));  // Motor 3 now same config as motor1
