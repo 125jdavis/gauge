@@ -28,10 +28,7 @@ for smooth motor motion.
 ---
 
 ## Code Style
-- Clean, simple, readable code for a beginner-to-intermediate developer.
-- Descriptive names for everything — no cryptic abbreviations.
-- `#define` or `const` for all pin numbers, timing values, and magic numbers.
-- Short, single-purpose functions. Avoid dynamic memory allocation.
+- refer to /documentation/STYLE.md for code style.
 
 ---
 
