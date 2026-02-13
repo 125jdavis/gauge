@@ -384,6 +384,11 @@ void dispMenu() {
         break;  // Break for case 0 (Settings menu when in submenus)
       } // End Settings submenu levels 1-3
   } // End switch dispArray1[0] - Main menu selection
+  
+  // Update previous display mode for dirty tracking
+  for (int i = 0; i < 4; i++) {
+    dispArray1_prev[i] = dispArray1[i];
+  }
 } // End dispMenu()
 
 /**
@@ -447,6 +452,9 @@ void disp2(void){
       dispFalconScript(&display2);
       break;
   }
+  
+  // Update previous display mode for dirty tracking
+  dispArray2_prev = dispArray2[0];
 }
 
 void dispSettings (Adafruit_SSD1306 *display) {
@@ -499,17 +507,31 @@ void dispClockOffset (Adafruit_SSD1306 *display) {
 }
 
 void dispRPM (Adafruit_SSD1306 *display){
-    byte nDig = digits(RPM);  // Calculate number of digits for centering
-    byte center = 47;         // Center point for display
-    display->setTextColor(WHITE); 
-    display->clearDisplay();
-    display->setTextSize(3);  // Large text for main value
-    display->setCursor(center-((nDig*18)/2),6);  // Center based on digits (18 pixels per char at size 3)
-    display->println(RPM); 
-    display->setTextSize(2);  // Smaller text for label
-    display->setCursor(88,10);
-    display->println("RPM");                
-    display->display();
+    // Check if mode changed or RPM changed enough to warrant update
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
+    }
+    
+    // Only update if mode changed or value changed significantly
+    if (modeChanged || needsUpdate_RPM(RPM, RPM_prev)) {
+      byte nDig = digits(RPM);  // Calculate number of digits for centering
+      byte center = 47;         // Center point for display
+      display->setTextColor(WHITE); 
+      display->clearDisplay();
+      display->setTextSize(3);  // Large text for main value
+      display->setCursor(center-((nDig*18)/2),6);  // Center based on digits (18 pixels per char at size 3)
+      display->println(RPM); 
+      display->setTextSize(2);  // Smaller text for label
+      display->setCursor(88,10);
+      display->println("RPM");                
+      display->display();
+      
+      // Update previous value
+      RPM_prev = RPM;
+    }
 }
 
 /**
@@ -526,34 +548,48 @@ void dispRPM (Adafruit_SSD1306 *display){
  * Note: spd is stored as km/h * 100 for integer precision
  */
 void dispSpd (Adafruit_SSD1306 *display){
-    display->setTextColor(WHITE); 
-    display->clearDisplay();
-
-    if (units == 0){    // Metric Units (km/h)
-      float spdDisp = spd*0.01;  // Convert from km/h*100 to km/h
-      byte nDig = digits(spdDisp);  // Get number of digits for centering
-      byte center = 37;
-      display->setTextSize(3);  // Large text for speed value (18 pixels per character)
-      display->setCursor(center-((nDig*18)/2),6);
-      display->print(spdDisp, 0);  // Print without decimal places
-      display->setCursor(center+((nDig*18)/2)+4,10);
-      display->setTextSize(2);  // Smaller text for units
-      display->println("km/h");
-               
-    } 
-    else {              // Imperial Units (mph)
-      float spdDisp = spd * 0.006213711922;  // Convert km/h*100 to mph (factor = 0.6213712 / 100)
-      byte nDig = digits (spdDisp);
-      byte center = 47;
-      display->setTextSize(3);
-      display->setCursor(center-((nDig*18)/2),6);
-      display->print(spdDisp, 0);  // Print without decimal places
-      display->setCursor(center+((nDig*18)/2)+4,10);
-      display->setTextSize(2);
-      display->println("MPH");          
+    // Check if mode changed or speed changed enough to warrant update
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
     }
-          
-    display->display();
+    
+    // Only update if mode changed or value changed significantly
+    if (modeChanged || needsUpdate_Speed(spd, spd_prev)) {
+      display->setTextColor(WHITE); 
+      display->clearDisplay();
+
+      if (units == 0){    // Metric Units (km/h)
+        float spdDisp = spd*0.01;  // Convert from km/h*100 to km/h
+        byte nDig = digits(spdDisp);  // Get number of digits for centering
+        byte center = 37;
+        display->setTextSize(3);  // Large text for speed value (18 pixels per character)
+        display->setCursor(center-((nDig*18)/2),6);
+        display->print(spdDisp, 0);  // Print without decimal places
+        display->setCursor(center+((nDig*18)/2)+4,10);
+        display->setTextSize(2);  // Smaller text for units
+        display->println("km/h");
+                 
+      } 
+      else {              // Imperial Units (mph)
+        float spdDisp = spd * 0.006213711922;  // Convert km/h*100 to mph (factor = 0.6213712 / 100)
+        byte nDig = digits (spdDisp);
+        byte center = 47;
+        display->setTextSize(3);
+        display->setCursor(center-((nDig*18)/2),6);
+        display->print(spdDisp, 0);  // Print without decimal places
+        display->setCursor(center+((nDig*18)/2)+4,10);
+        display->setTextSize(2);
+        display->println("MPH");          
+      }
+            
+      display->display();
+      
+      // Update previous value
+      spd_prev = spd;
+    }
 }
 
 /**
@@ -568,35 +604,49 @@ void dispSpd (Adafruit_SSD1306 *display){
  * @param display - Pointer to display object
  */
 void dispOilTemp (Adafruit_SSD1306 *display) {
-    float oilTempDisp;
-    display->setTextColor(WHITE); 
-    display->clearDisplay();
-    display->drawBitmap(0, 0, IMG_OIL_TEMP, 40, 32, 1);  // Draw oil/temp icon (40x32 pixels)
-    byte center = 71;  // Center point for text (offset for icon on left)
+    // Check if mode changed or temperature changed enough to warrant update
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
+    }
     
-    if (units == 0){    // Metric Units (Celsius)
-      oilTempDisp = oilTemp;  // No conversion needed - already in Celsius
-      byte nDig = digits (oilTempDisp);
-      display->setTextSize(3); 
-      display->setCursor(center-((nDig*18)/2),6);
-      display->print(oilTempDisp, 0);  // Print temperature value
-      display->drawCircle(center+((nDig*18)/2)+3, 7, 2, WHITE);  // Draw degree symbol (small circle)
-      display->setCursor(center+((nDig*18)/2)+9,6);
-      display->println("C");  // Celsius label
-    }
+    // Only update if mode changed or value changed significantly
+    if (modeChanged || needsUpdate_Temperature(oilTemp, oilTemp_prev)) {
+      float oilTempDisp;
+      display->setTextColor(WHITE); 
+      display->clearDisplay();
+      display->drawBitmap(0, 0, IMG_OIL_TEMP, 40, 32, 1);  // Draw oil/temp icon (40x32 pixels)
+      byte center = 71;  // Center point for text (offset for icon on left)
+      
+      if (units == 0){    // Metric Units (Celsius)
+        oilTempDisp = oilTemp;  // No conversion needed - already in Celsius
+        byte nDig = digits (oilTempDisp);
+        display->setTextSize(3); 
+        display->setCursor(center-((nDig*18)/2),6);
+        display->print(oilTempDisp, 0);  // Print temperature value
+        display->drawCircle(center+((nDig*18)/2)+3, 7, 2, WHITE);  // Draw degree symbol (small circle)
+        display->setCursor(center+((nDig*18)/2)+9,6);
+        display->println("C");  // Celsius label
+      }
 
-    else {              // Imperial Units (Fahrenheit)
-      oilTempDisp = (oilTemp*1.8) + 32;  // Convert Celsius to Fahrenheit
-      byte nDig = digits (oilTempDisp);
-      display->setTextSize(3); 
-      display->setCursor(center-((nDig*18)/2),6);
-      display->print(oilTempDisp, 0);
-      display->drawCircle(center+((nDig*18)/2)+3, 7, 2, WHITE);  // Draw degree symbol
-      display->setCursor(center+((nDig*18)/2)+9,6);
-      display->println("F");  // Fahrenheit label
-    }
+      else {              // Imperial Units (Fahrenheit)
+        oilTempDisp = (oilTemp*1.8) + 32;  // Convert Celsius to Fahrenheit
+        byte nDig = digits (oilTempDisp);
+        display->setTextSize(3); 
+        display->setCursor(center-((nDig*18)/2),6);
+        display->print(oilTempDisp, 0);
+        display->drawCircle(center+((nDig*18)/2)+3, 7, 2, WHITE);  // Draw degree symbol
+        display->setCursor(center+((nDig*18)/2)+9,6);
+        display->println("F");  // Fahrenheit label
+      }
 
-    display->display();
+      display->display();
+      
+      // Update previous value
+      oilTemp_prev = oilTemp;
+    }
 }
 
 /**
@@ -613,43 +663,57 @@ void dispOilTemp (Adafruit_SSD1306 *display) {
  * Note: fuelPrs is gauge pressure in kPa (atmospheric pressure already subtracted)
  */
 void dispFuelPrs (Adafruit_SSD1306 *display) {
-    float fuelPrsDisp;
-    display->setTextColor(WHITE); 
-    display->clearDisplay();
-    display->setTextSize(2); 
-    display->setCursor(0,3);
-    display->println("FUEL");  // Label line 1
-    display->setTextSize(1); 
-    display->setCursor(0,21);
-    display->println("PRESSURE");  // Label line 2
-
-    if (units == 0){    // Metric Units (bar)
-      fuelPrsDisp = fuelPrs/100;  // Convert kPa to bar (1 bar = 100 kPa)
-      if (fuelPrsDisp < 0) {fuelPrsDisp = 0;}  // Clamp to 0 if negative
-      byte nDig = 3;  // Always 3 digits for bar (e.g., "3.5")
-      byte center = 79;
-      display->setTextSize(3);
-      display->setCursor(center-((nDig*18)/2),6);
-      display->print(fuelPrsDisp, 1);  // Print with 1 decimal place
-      display->setCursor(center+((nDig*18)/2)+3,18);
-      display->setTextSize(1); 
-      display->println("bar");
-               
-    } 
-    else {              // Imperial Units (PSI)
-      fuelPrsDisp = fuelPrs * 0.1450377;  // Convert kPa to PSI (1 kPa = 0.145 PSI)
-      if (fuelPrsDisp < 0) {fuelPrsDisp = 0;}  // Clamp to 0 if negative
-      byte nDig = digits (fuelPrsDisp);
-      byte center = 71;
-      display->setTextSize(3);
-      display->setCursor(center-((nDig*18)/2),6);
-      display->print(fuelPrsDisp, 0);  // Print without decimal
-      display->setCursor(center+((nDig*18)/2)+2,10);
-      display->setTextSize(2);
-      display->println("PSI");          
+    // Check if mode changed or fuel pressure changed enough to warrant update
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
     }
     
-    display->display();
+    // Only update if mode changed or value changed significantly
+    if (modeChanged || needsUpdate_Pressure(fuelPrs, fuelPrs_prev, units)) {
+      float fuelPrsDisp;
+      display->setTextColor(WHITE); 
+      display->clearDisplay();
+      display->setTextSize(2); 
+      display->setCursor(0,3);
+      display->println("FUEL");  // Label line 1
+      display->setTextSize(1); 
+      display->setCursor(0,21);
+      display->println("PRESSURE");  // Label line 2
+
+      if (units == 0){    // Metric Units (bar)
+        fuelPrsDisp = fuelPrs/100;  // Convert kPa to bar (1 bar = 100 kPa)
+        if (fuelPrsDisp < 0) {fuelPrsDisp = 0;}  // Clamp to 0 if negative
+        byte nDig = 3;  // Always 3 digits for bar (e.g., "3.5")
+        byte center = 79;
+        display->setTextSize(3);
+        display->setCursor(center-((nDig*18)/2),6);
+        display->print(fuelPrsDisp, 1);  // Print with 1 decimal place
+        display->setCursor(center+((nDig*18)/2)+3,18);
+        display->setTextSize(1); 
+        display->println("bar");
+                 
+      } 
+      else {              // Imperial Units (PSI)
+        fuelPrsDisp = fuelPrs * 0.1450377;  // Convert kPa to PSI (1 kPa = 0.145 PSI)
+        if (fuelPrsDisp < 0) {fuelPrsDisp = 0;}  // Clamp to 0 if negative
+        byte nDig = digits (fuelPrsDisp);
+        byte center = 71;
+        display->setTextSize(3);
+        display->setCursor(center-((nDig*18)/2),6);
+        display->print(fuelPrsDisp, 0);  // Print without decimal
+        display->setCursor(center+((nDig*18)/2)+2,10);
+        display->setTextSize(2);
+        display->println("PSI");          
+      }
+      
+      display->display();
+      
+      // Update previous value
+      fuelPrs_prev = fuelPrs;
+    }
 }
 
 /**
@@ -663,20 +727,34 @@ void dispFuelPrs (Adafruit_SSD1306 *display) {
  * Example: E85 would show as 85%
  */
 void dispFuelComp (Adafruit_SSD1306 *display) {
-    byte nDig = digits (fuelComp);
-    byte center = 79;
-    display->setTextColor(WHITE); 
-    display->clearDisplay();
-    display->setTextSize(2);
-    display->setCursor(2,0);
-    display->println("Flex");  // Label line 1
-    display->setCursor(2,15);
-    display->println("Fuel");  // Label line 2
-    display->setTextSize(3); 
-    display->setCursor(center-((nDig*18)/2),6);
-    display->print(fuelComp, 0);  // Print percentage value
-    display->println("%");        
-    display->display();
+    // Check if mode changed or fuel composition changed enough to warrant update
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
+    }
+    
+    // Threshold: 1% change in ethanol content
+    if (modeChanged || abs(fuelComp - fuelComp_prev) > 1.0) {
+      byte nDig = digits (fuelComp);
+      byte center = 79;
+      display->setTextColor(WHITE); 
+      display->clearDisplay();
+      display->setTextSize(2);
+      display->setCursor(2,0);
+      display->println("Flex");  // Label line 1
+      display->setCursor(2,15);
+      display->println("Fuel");  // Label line 2
+      display->setTextSize(3); 
+      display->setCursor(center-((nDig*18)/2),6);
+      display->print(fuelComp, 0);  // Print percentage value
+      display->println("%");        
+      display->display();
+      
+      // Update previous value
+      fuelComp_prev = fuelComp;
+    }
 }
 
 /**
@@ -688,45 +766,137 @@ void dispFuelComp (Adafruit_SSD1306 *display) {
  * @param display - Pointer to display object
  */
 void dispAFR (Adafruit_SSD1306 *display) {
-    display->setTextColor(WHITE); 
-    display->clearDisplay();
-    display->setCursor(8,6);
-    display->setTextSize(3); 
-    display->print(afr, 1);  // Print AFR with 1 decimal place (e.g., 14.7)
-    display->setCursor(88,10);
-    display->setTextSize(2);
-    display->println("AFR");         
-    display->display();
+    // Check if mode changed or AFR changed enough to warrant update
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
+    }
+    
+    // AFR uses same threshold as temperature (>1.0 change)
+    if (modeChanged || abs(afr - afr_prev) > 0.1) {  // 0.1 AFR change threshold
+      display->setTextColor(WHITE); 
+      display->clearDisplay();
+      display->setCursor(8,6);
+      display->setTextSize(3); 
+      display->print(afr, 1);  // Print AFR with 1 decimal place (e.g., 14.7)
+      display->setCursor(88,10);
+      display->setTextSize(2);
+      display->println("AFR");         
+      display->display();
+      
+      // Update previous value
+      afr_prev = afr;
+    }
 }
 
 /**
  * dispFalconScript - Display Falcon logo splash screen
  * Simple bitmap display - shows Falcon script logo
+ * Optimized: Only draws once, then skips updates for static content
  */
 void dispFalconScript(Adafruit_SSD1306 *display) {
-    display->clearDisplay();
-    display->drawBitmap(0, 0, IMG_FALCON_SCRIPT, SCREEN_W, SCREEN_H, 1);
-    display->display();
+    // Check if display mode changed (need to redraw)
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+      if (modeChanged) {
+        staticContentDrawn1 = false;
+      }
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
+      if (modeChanged) {
+        staticContentDrawn2 = false;
+      }
+    }
+    
+    // Only draw if not already drawn (static content optimization)
+    if ((display == &display1 && !staticContentDrawn1) || 
+        (display == &display2 && !staticContentDrawn2)) {
+      display->clearDisplay();
+      display->drawBitmap(0, 0, IMG_FALCON_SCRIPT, SCREEN_W, SCREEN_H, 1);
+      display->display();
+      
+      // Mark static content as drawn
+      if (display == &display1) {
+        staticContentDrawn1 = true;
+      } else {
+        staticContentDrawn2 = true;
+      }
+    }
 }
 
 /**
  * disp302CID - Display 302 CID engine badge
  * Shows "302 CID" (Cubic Inch Displacement) logo
+ * Optimized: Only draws once, then skips updates for static content
  */
 void disp302CID(Adafruit_SSD1306 *display) {
-    display->clearDisplay();
-    display->drawBitmap(0, 0, IMG_302_CID, SCREEN_W, SCREEN_H, 1);
-    display->display();
+    // Check if display mode changed (need to redraw)
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+      if (modeChanged) {
+        staticContentDrawn1 = false;
+      }
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
+      if (modeChanged) {
+        staticContentDrawn2 = false;
+      }
+    }
+    
+    // Only draw if not already drawn (static content optimization)
+    if ((display == &display1 && !staticContentDrawn1) || 
+        (display == &display2 && !staticContentDrawn2)) {
+      display->clearDisplay();
+      display->drawBitmap(0, 0, IMG_302_CID, SCREEN_W, SCREEN_H, 1);
+      display->display();
+      
+      // Mark static content as drawn
+      if (display == &display1) {
+        staticContentDrawn1 = true;
+      } else {
+        staticContentDrawn2 = true;
+      }
+    }
 }
 
 /**
  * disp302V - Display 302 V8 engine badge
  * Shows "302V" (V8) logo with graphic
+ * Optimized: Only draws once, then skips updates for static content
  */
 void disp302V(Adafruit_SSD1306 *display) {
-    display->clearDisplay();
-    display->drawBitmap(0, 0, IMG_302V, SCREEN_W, SCREEN_H, 1);
-    display->display();
+    // Check if display mode changed (need to redraw)
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+      if (modeChanged) {
+        staticContentDrawn1 = false;
+      }
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
+      if (modeChanged) {
+        staticContentDrawn2 = false;
+      }
+    }
+    
+    // Only draw if not already drawn (static content optimization)
+    if ((display == &display1 && !staticContentDrawn1) || 
+        (display == &display2 && !staticContentDrawn2)) {
+      display->clearDisplay();
+      display->drawBitmap(0, 0, IMG_302V, SCREEN_W, SCREEN_H, 1);
+      display->display();
+      
+      // Mark static content as drawn
+      if (display == &display1) {
+        staticContentDrawn1 = true;
+      } else {
+        staticContentDrawn2 = true;
+      }
+    }
 }
 
 /**
@@ -743,194 +913,275 @@ void disp302V(Adafruit_SSD1306 *display) {
  * Note: Negative values clamped to 0 (sensor error or engine off)
  */
 void dispOilPrsGfx (Adafruit_SSD1306 *display) {
-    float oilPrsDisp;
-    display->setTextColor(WHITE); 
-    display->clearDisplay();
-    display->drawBitmap(0, 0, IMG_OIL_PRS, 40, 32, 1);  // Draw oil can icon
-    if (oilPrs < 0) {oilPrs = 0;}  // Clamp negative values
-    
-    if (units == 0){    // Metric Units (bar)
-      oilPrsDisp = oilPrs/100;  // Convert kPa to bar
-      if (oilPrsDisp < 0) {oilPrsDisp = 0;}
-      byte nDig = 3;  // Always 3 digits for bar
-      byte center = 79;
-      display->setTextSize(3);
-      display->setCursor(center-((nDig*18)/2),6);
-      display->print(oilPrsDisp, 1);  // Print with 1 decimal
-      display->setCursor(center+((nDig*18)/2)+3,18);
-      display->setTextSize(1); 
-      display->println("bar");
-               
-    } 
-    else {              // Imperial Units (PSI)
-      oilPrsDisp = oilPrs * 0.1450377;  // Convert kPa to PSI
-      if (oilPrsDisp < 0) {oilPrsDisp = 0;}
-      byte nDig = digits (oilPrsDisp);
-      byte center = 71;
-      display->setTextSize(3); // char width = 18
-      display->setCursor(center-((nDig*18)/2),6);
-      display->print(oilPrsDisp, 0);  
-      display->setCursor(center+((nDig*18)/2)+2,10);
-      display->setTextSize(2);
-      display->println("PSI");          
+    // Check if mode changed or pressure changed enough to warrant update
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
     }
-          
-    display->display();
+    
+    // Only update if mode changed or value changed significantly
+    if (modeChanged || needsUpdate_Pressure(oilPrs, oilPrs_prev, units)) {
+      float oilPrsDisp;
+      display->setTextColor(WHITE); 
+      display->clearDisplay();
+      display->drawBitmap(0, 0, IMG_OIL_PRS, 40, 32, 1);  // Draw oil can icon
+      
+      if (units == 0){    // Metric Units (bar)
+        oilPrsDisp = (oilPrs < 0) ? 0 : oilPrs/100;  // Convert kPa to bar, clamp negative
+        byte nDig = 3;  // Always 3 digits for bar
+        byte center = 79;
+        display->setTextSize(3);
+        display->setCursor(center-((nDig*18)/2),6);
+        display->print(oilPrsDisp, 1);  // Print with 1 decimal
+        display->setCursor(center+((nDig*18)/2)+3,18);
+        display->setTextSize(1); 
+        display->println("bar");
+                 
+      } 
+      else {              // Imperial Units (PSI)
+        oilPrsDisp = (oilPrs < 0) ? 0 : oilPrs * 0.1450377;  // Convert kPa to PSI, clamp negative
+        byte nDig = digits (oilPrsDisp);
+        byte center = 71;
+        display->setTextSize(3); // char width = 18
+        display->setCursor(center-((nDig*18)/2),6);
+        display->print(oilPrsDisp, 0);  
+        display->setCursor(center+((nDig*18)/2)+2,10);
+        display->setTextSize(2);
+        display->println("PSI");          
+      }
+            
+      display->display();
+      
+      // Update previous value
+      oilPrs_prev = oilPrs;
+    }
 }
 
 void dispOilTempGfx (Adafruit_SSD1306 *display) {
-    float oilTempDisp;
-    display->setTextColor(WHITE); 
-    display->clearDisplay();             //clear buffer
-    display->drawBitmap(0, 0, IMG_OIL_TEMP, 40, 32, 1);
-    byte center = 71;
+    // Check if mode changed or temperature changed enough to warrant update
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
+    }
     
-    if (units == 0){    // Metric Units
-      oilTempDisp = oilTemp;
-      byte nDig = digits (oilTempDisp);
-      display->setTextSize(3); 
-      display->setCursor(center-((nDig*18)/2),6);
-      display->print(oilTempDisp, 0);
-      display->drawCircle(center+((nDig*18)/2)+3, 7, 2, WHITE);
-      display->setCursor(center+((nDig*18)/2)+9,6);
-      display->println("C");
-    }
+    // Only update if mode changed or value changed significantly
+    if (modeChanged || needsUpdate_Temperature(oilTemp, oilTemp_prev)) {
+      float oilTempDisp;
+      display->setTextColor(WHITE); 
+      display->clearDisplay();             //clear buffer
+      display->drawBitmap(0, 0, IMG_OIL_TEMP, 40, 32, 1);
+      byte center = 71;
+      
+      if (units == 0){    // Metric Units
+        oilTempDisp = oilTemp;
+        byte nDig = digits (oilTempDisp);
+        display->setTextSize(3); 
+        display->setCursor(center-((nDig*18)/2),6);
+        display->print(oilTempDisp, 0);
+        display->drawCircle(center+((nDig*18)/2)+3, 7, 2, WHITE);
+        display->setCursor(center+((nDig*18)/2)+9,6);
+        display->println("C");
+      }
 
-    else {              // 'Merican Units
-      oilTempDisp = (oilTemp*1.8) + 32; // convert C to F
-      byte nDig = digits (oilTempDisp);
-      display->setTextSize(3); 
-      display->setCursor(center-((nDig*18)/2),6);
-      display->print(oilTempDisp, 0);
-      display->drawCircle(center+((nDig*18)/2)+3, 7, 2, WHITE);
-      display->setCursor(center+((nDig*18)/2)+9,6);
-      display->println("F");
-    }
+      else {              // 'Merican Units
+        oilTempDisp = (oilTemp*1.8) + 32; // convert C to F
+        byte nDig = digits (oilTempDisp);
+        display->setTextSize(3); 
+        display->setCursor(center-((nDig*18)/2),6);
+        display->print(oilTempDisp, 0);
+        display->drawCircle(center+((nDig*18)/2)+3, 7, 2, WHITE);
+        display->setCursor(center+((nDig*18)/2)+9,6);
+        display->println("F");
+      }
 
-    display->display();
+      display->display();
+      
+      // Update previous value
+      oilTemp_prev = oilTemp;
+    }
 }
 
 void dispCoolantTempGfx (Adafruit_SSD1306 *display) {
-    float coolantTempDisp;
-    display->setTextColor(WHITE); 
-    display->clearDisplay();             //clear buffer
-    display->drawBitmap(0, 0, IMG_COOLANT_TEMP, 38, 32, 1);
-    byte center = 71;
+    // Check if mode changed or temperature changed enough to warrant update
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
+    }
     
-    if (units == 0){    // Metric Units
-      coolantTempDisp = coolantTemp;
-      byte nDig = digits (coolantTempDisp);
-      display->setTextSize(3); 
-      display->setCursor(center-((nDig*18)/2),6);
-      display->print(coolantTempDisp, 0);
-      display->drawCircle(center+((nDig*18)/2)+3, 7, 2, WHITE);
-      display->setCursor(center+((nDig*18)/2)+9,6);
-      display->println("C");
-    }
+    // Only update if mode changed or value changed significantly
+    if (modeChanged || needsUpdate_Temperature(coolantTemp, coolantTemp_prev)) {
+      float coolantTempDisp;
+      display->setTextColor(WHITE); 
+      display->clearDisplay();             //clear buffer
+      display->drawBitmap(0, 0, IMG_COOLANT_TEMP, 38, 32, 1);
+      byte center = 71;
+      
+      if (units == 0){    // Metric Units
+        coolantTempDisp = coolantTemp;
+        byte nDig = digits (coolantTempDisp);
+        display->setTextSize(3); 
+        display->setCursor(center-((nDig*18)/2),6);
+        display->print(coolantTempDisp, 0);
+        display->drawCircle(center+((nDig*18)/2)+3, 7, 2, WHITE);
+        display->setCursor(center+((nDig*18)/2)+9,6);
+        display->println("C");
+      }
 
-    else {              // 'Merican Units
-      coolantTempDisp = (coolantTemp*1.8) + 32; // convert C to F
-      byte nDig = digits (coolantTempDisp);
-      display->setTextSize(3); 
-      display->setCursor(center-((nDig*18)/2),6);
-      display->print(coolantTempDisp, 0);
-      display->drawCircle(center+((nDig*18)/2)+3, 7, 2, WHITE);
-      display->setCursor(center+((nDig*18)/2)+9,6);
-      display->println("F");
-    }
+      else {              // 'Merican Units
+        coolantTempDisp = (coolantTemp*1.8) + 32; // convert C to F
+        byte nDig = digits (coolantTempDisp);
+        display->setTextSize(3); 
+        display->setCursor(center-((nDig*18)/2),6);
+        display->print(coolantTempDisp, 0);
+        display->drawCircle(center+((nDig*18)/2)+3, 7, 2, WHITE);
+        display->setCursor(center+((nDig*18)/2)+9,6);
+        display->println("F");
+      }
 
-    display->display();
+      display->display();
+      
+      // Update previous value
+      coolantTemp_prev = coolantTemp;
+    }
 }
 
 void dispBattVoltGfx (Adafruit_SSD1306 *display) {
-    display->setTextColor(WHITE); 
-    display->clearDisplay();             //clear buffer
-    display->drawBitmap(0, 0, IMG_BATT_VOLT, 35, 32, 1);
-    display->setTextSize(3); 
-    display->setCursor(42,6);
-    display->println(vBatt, 1);
-    display->setTextSize(2);
-    display->setCursor(116,12); 
-    display->println("V");         
-    display->display();
+    // Check if mode changed or battery voltage changed enough to warrant update
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
+    }
+    
+    // Threshold: 0.1V change
+    if (modeChanged || abs(vBatt - vBatt_prev) > 0.1) {
+      display->setTextColor(WHITE); 
+      display->clearDisplay();             //clear buffer
+      display->drawBitmap(0, 0, IMG_BATT_VOLT, 35, 32, 1);
+      display->setTextSize(3); 
+      display->setCursor(42,6);
+      display->println(vBatt, 1);
+      display->setTextSize(2);
+      display->setCursor(116,12); 
+      display->println("V");         
+      display->display();
+      
+      // Update previous value
+      vBatt_prev = vBatt;
+    }
 }
 
 void dispFuelLvlGfx (Adafruit_SSD1306 *display) {
-    float fuelLvlDisp;
-    display->setTextColor(WHITE); 
-    display->clearDisplay();             //clear buffer
-    display->drawBitmap(0, 0, IMG_FUEL_LVL, 32, 32, 1);
-    byte center = 71;
+    // Check if mode changed or fuel level changed enough to warrant update
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
+    }
     
-    if (units == 0){    // Metric Units
-      fuelLvlDisp = fuelLvl*3.785; // convert to liters
-      byte nDig = digits(fuelLvlDisp);
-      display->setTextSize(3); 
-      display->setCursor(center-((nDig*18)/2),6);
-      display->print(fuelLvlDisp, 0);
-      display->setCursor(center+((nDig*18)/2)+4,6);
-      display->println("l");
-    }
+    // Threshold: 0.5 gallons/liters change
+    if (modeChanged || abs(fuelLvl - fuelLvl_prev) > 0.5) {
+      float fuelLvlDisp;
+      display->setTextColor(WHITE); 
+      display->clearDisplay();             //clear buffer
+      display->drawBitmap(0, 0, IMG_FUEL_LVL, 32, 32, 1);
+      byte center = 71;
+      
+      if (units == 0){    // Metric Units
+        fuelLvlDisp = fuelLvl*3.785; // convert to liters
+        byte nDig = digits(fuelLvlDisp);
+        display->setTextSize(3); 
+        display->setCursor(center-((nDig*18)/2),6);
+        display->print(fuelLvlDisp, 0);
+        display->setCursor(center+((nDig*18)/2)+4,6);
+        display->println("l");
+      }
 
-    else {              // 'Merican Units
-      fuelLvlDisp = fuelLvl; // read in gallons
-      byte nDig = digits(fuelLvlDisp) +2 ;
-      display->setTextSize(3); 
-      display->setCursor(center-((nDig*18)/2),6);
-      display->print(fuelLvlDisp, 1);
-      display->setCursor(center+((nDig*18)/2)+2,18);
-      display->setTextSize(1); 
-      display->println("gal");
-    }
+      else {              // 'Merican Units
+        fuelLvlDisp = fuelLvl; // read in gallons
+        byte nDig = digits(fuelLvlDisp) +2 ;
+        display->setTextSize(3); 
+        display->setCursor(center-((nDig*18)/2),6);
+        display->print(fuelLvlDisp, 1);
+        display->setCursor(center+((nDig*18)/2)+2,18);
+        display->setTextSize(1); 
+        display->println("gal");
+      }
 
-    display->display();
+      display->display();
+      
+      // Update previous value
+      fuelLvl_prev = fuelLvl;
+    }
 }
 
 void dispTripOdo (Adafruit_SSD1306 *display) {
-    float odoDisp;
-    display->setTextColor(WHITE); 
-    display->clearDisplay();             //clear buffer
-        
-    if (units == 0){    // Metric Units
-      odoDisp = odoTrip; 
-      display->setCursor(100,6);
-      display->setTextSize(2);
-      display->println("km");         
-    } 
-    else {              // 'Merican units
-      odoDisp = odoTrip * 0.6213712; //convert km to miles  
-      display->setCursor(100,6);
-      display->setTextSize(2);
-      display->println("mi");          
+    // Check if mode changed or odometer changed enough to warrant update
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
     }
+    
+    // Threshold: 0.1 km/miles change
+    if (modeChanged || abs(odoTrip - odoTrip_prev) > 0.1) {
+      float odoDisp;
+      display->setTextColor(WHITE); 
+      display->clearDisplay();             //clear buffer
+          
+      if (units == 0){    // Metric Units
+        odoDisp = odoTrip; 
+        display->setCursor(100,6);
+        display->setTextSize(2);
+        display->println("km");         
+      } 
+      else {              // 'Merican units
+        odoDisp = odoTrip * 0.6213712; //convert km to miles  
+        display->setCursor(100,6);
+        display->setTextSize(2);
+        display->println("mi");          
+      }
 
-    display->setCursor(35,6);
-    display->setTextSize(2); 
-    // right justify
-    if (odoDisp < 10) {
-      display->setTextColor(BLACK); 
-      display->print("00");
+      display->setCursor(35,6);
+      display->setTextSize(2); 
+      // right justify
+      if (odoDisp < 10) {
+        display->setTextColor(BLACK); 
+        display->print("00");
+      }
+      else if (odoDisp < 100){
+        display->setTextColor(BLACK); 
+        display->print("0");
+      }
+      
+      display->setTextColor(WHITE);
+      // remove tenths once 1000 is reached
+      if (odoDisp < 1000) { 
+        display->println(odoDisp, 1);
+      }
+      else {
+        display->println(odoDisp, 0);
+      }
+      
+      display->setTextSize(1);
+      display->setCursor(1,3);
+      display->println("Trip");
+      display->setCursor(1,13);
+      display->println("Odo:"); 
+      display->display();
+      
+      // Update previous value
+      odoTrip_prev = odoTrip;
     }
-    else if (odoDisp < 100){
-      display->setTextColor(BLACK); 
-      display->print("0");
-    }
-    
-    display->setTextColor(WHITE);
-    // remove tenths once 1000 is reached
-    if (odoDisp < 1000) { 
-      display->println(odoDisp, 1);
-    }
-    else {
-      display->println(odoDisp, 0);
-    }
-    
-    display->setTextSize(1);
-    display->setCursor(1,3);
-    display->println("Trip");
-    display->setCursor(1,13);
-    display->println("Odo:"); 
-    display->display();  
 }
 
 void dispOdoResetYes(Adafruit_SSD1306 *display) {
@@ -966,34 +1217,62 @@ void dispOdoResetNo(Adafruit_SSD1306 *display) {
 }
 
 void dispIgnAng (Adafruit_SSD1306 *display) {
-    display->setTextColor(WHITE); 
-    display->clearDisplay();             //clear buffer
-    display->setTextSize(2);             // text size
-    display->setCursor(6,0);
-    display->println("IGN");
-    display->setCursor(2,15);
-    display->println("BTDC");            
-    display->setTextSize(3); 
-    display->setCursor(66,6);
-    display->print(ignAngCAN/10); 
-    display->write(0xF7);  
-    display->println();      
-    display->display();
+    // Check if mode changed or ignition angle changed enough to warrant update
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
+    }
+    
+    // Threshold: 10 units (1 degree, since stored as degrees * 10)
+    if (modeChanged || abs(ignAngCAN - ignAngCAN_prev) > 10) {
+      display->setTextColor(WHITE); 
+      display->clearDisplay();             //clear buffer
+      display->setTextSize(2);             // text size
+      display->setCursor(6,0);
+      display->println("IGN");
+      display->setCursor(2,15);
+      display->println("BTDC");            
+      display->setTextSize(3); 
+      display->setCursor(66,6);
+      display->print(ignAngCAN/10); 
+      display->write(0xF7);  
+      display->println();      
+      display->display();
+      
+      // Update previous value
+      ignAngCAN_prev = ignAngCAN;
+    }
 }
 
 void dispInjDuty (Adafruit_SSD1306 *display) {
-    display->setTextColor(WHITE); 
-    display->clearDisplay();             //clear buffer
-    display->setTextSize(2);             // text size
-    display->setCursor(6,0);
-    display->println("INJ");
-    display->setCursor(2,15);
-    display->println("DUTY");            
-    display->setTextSize(3); 
-    display->setCursor(66,6);
-    display->print(injDutyCAN/10);  
-    display->println("%");      
-    display->display();
+    // Check if mode changed or injector duty changed enough to warrant update
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
+    }
+    
+    // Threshold: 10 units (1%, since stored as % * 10)
+    if (modeChanged || abs(injDutyCAN - injDutyCAN_prev) > 10) {
+      display->setTextColor(WHITE); 
+      display->clearDisplay();             //clear buffer
+      display->setTextSize(2);             // text size
+      display->setCursor(6,0);
+      display->println("INJ");
+      display->setCursor(2,15);
+      display->println("DUTY");            
+      display->setTextSize(3); 
+      display->setCursor(66,6);
+      display->print(injDutyCAN/10);  
+      display->println("%");      
+      display->display();
+      
+      // Update previous value
+      injDutyCAN_prev = injDutyCAN;
+    }
 }
 
 /**
@@ -1011,28 +1290,43 @@ void dispInjDuty (Adafruit_SSD1306 *display) {
  * - Minutes are zero-padded (e.g., "3:05" not "3:5")
  */
 void dispClock (Adafruit_SSD1306 *display){
-    byte hourAdj;
-    display->clearDisplay();
+    // Check if mode changed or time changed
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
+    }
     
-    // Calculate local hour from UTC + offset with wraparound
-    if (clockOffset + hour > 23) {        
-      hourAdj = clockOffset + hour - 24;  // Wrap to next day
-    }
-    else {
-      hourAdj = clockOffset + hour;
-    }
+    // Only update if mode changed or time changed
+    if (modeChanged || needsUpdate_Time(hour, minute, hour_prev, minute_prev)) {
+      byte hourAdj;
+      display->clearDisplay();
+      
+      // Calculate local hour from UTC + offset with wraparound
+      if (clockOffset + hour > 23) {        
+        hourAdj = clockOffset + hour - 24;  // Wrap to next day
+      }
+      else {
+        hourAdj = clockOffset + hour;
+      }
 
-    byte nDig = digits(hourAdj)+3;  // +3 for colon and 2-digit minutes
-    byte center = 63;
-    
-    display->setTextColor(WHITE);
-    display->setTextSize(3);
-    display->setCursor(center-((nDig*18)/2),6);
-    display->print(hourAdj); 
-    display->print(':');
-    if (minute < 10) { display->print('0'); }  // Zero-pad minutes (e.g., "03" not "3")
-    display->println(minute);
-    display->display();
+      byte nDig = digits(hourAdj)+3;  // +3 for colon and 2-digit minutes
+      byte center = 63;
+      
+      display->setTextColor(WHITE);
+      display->setTextSize(3);
+      display->setCursor(center-((nDig*18)/2),6);
+      display->print(hourAdj); 
+      display->print(':');
+      if (minute < 10) { display->print('0'); }  // Zero-pad minutes (e.g., "03" not "3")
+      display->println(minute);
+      display->display();
+      
+      // Update previous values
+      hour_prev = hour;
+      minute_prev = minute;
+    }
 }
 
 /**
@@ -1063,4 +1357,175 @@ byte digits(float val){
     else if (val > -1000) {nDigits = 4;}  // "-" + 3 digits
   }
   return nDigits;
+}
+
+/*
+ * ========================================
+ * DISPLAY OPTIMIZATION FUNCTIONS
+ * ========================================
+ * These functions implement dirty tracking and variable refresh rates
+ * to minimize unnecessary display updates and improve performance.
+ */
+
+/**
+ * needsUpdate_Temperature - Check if temperature changed enough to warrant update
+ * 
+ * Temperature must change more than 1 degree (F or C) to trigger update
+ * 
+ * @param current - Current temperature value
+ * @param previous - Previous temperature value
+ * @return true if update needed, false otherwise
+ */
+bool needsUpdate_Temperature(float current, float previous) {
+  return (abs(current - previous) > 1.0);
+}
+
+/**
+ * needsUpdate_Pressure - Check if pressure changed enough to warrant update
+ * 
+ * Pressure change must be:
+ * - > 10 kPa (metric units), or
+ * - > 1 PSI (imperial units, ~6.89 kPa)
+ * 
+ * @param current - Current pressure in kPa
+ * @param previous - Previous pressure in kPa
+ * @param units - 0=metric, 1=imperial
+ * @return true if update needed, false otherwise
+ */
+bool needsUpdate_Pressure(float current, float previous, byte units) {
+  float threshold = (units == 0) ? 10.0 : 6.89;  // 10 kPa or 1 PSI
+  return (abs(current - previous) > threshold);
+}
+
+/**
+ * needsUpdate_Speed - Check if speed changed enough to warrant update
+ * 
+ * Speed change must be > 1 mph or km/h
+ * 
+ * @param current - Current speed (km/h * 100)
+ * @param previous - Previous speed (km/h * 100)
+ * @return true if update needed, false otherwise
+ */
+bool needsUpdate_Speed(int current, int previous) {
+  return (abs(current - previous) > 100);  // >1 km/h (stored as km/h * 100)
+}
+
+/**
+ * needsUpdate_RPM - Check if RPM changed enough to warrant update
+ * 
+ * RPM change must be > 20 rpm
+ * 
+ * @param current - Current RPM
+ * @param previous - Previous RPM
+ * @return true if update needed, false otherwise
+ */
+bool needsUpdate_RPM(int current, int previous) {
+  return (abs(current - previous) > 20);
+}
+
+/**
+ * needsUpdate_Time - Check if time display should update
+ * 
+ * Updates when minute changes (hour changes are implicit)
+ * 
+ * @param hour_curr - Current hour
+ * @param minute_curr - Current minute
+ * @param hour_prev - Previous hour
+ * @param minute_prev - Previous minute
+ * @return true if update needed, false otherwise
+ */
+bool needsUpdate_Time(byte hour_curr, byte minute_curr, byte hour_prev, byte minute_prev) {
+  return (hour_curr != hour_prev || minute_curr != minute_prev);
+}
+
+/**
+ * needsUpdate_ModeChange - Check if display mode/menu changed
+ * 
+ * Compares current and previous display array to detect mode changes
+ * 
+ * @param current - Pointer to current display array
+ * @param previous - Pointer to previous display array
+ * @param size - Size of array to compare
+ * @return true if mode changed, false otherwise
+ */
+bool needsUpdate_ModeChange(byte* current, byte* previous, int size) {
+  for (int i = 0; i < size; i++) {
+    if (current[i] != previous[i]) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * getDisplayUpdateInterval - Get appropriate refresh rate for display mode
+ * 
+ * Variable refresh rates based on content type:
+ * - 83ms (12Hz): RPM - needs fast updates for responsiveness
+ * - 143ms (7Hz): Pressures, speed, AFR, ignition, injector - moderate updates
+ * - 500ms (2Hz): Temps, battery, fuel level, clock, odometer - slow changing values
+ * - 1000ms (1Hz): Static logos - minimal updates (check for mode change only)
+ * 
+ * @param displayMode - The display mode/case number
+ * @param displayNum - Which display: 1 or 2
+ * @return Update interval in milliseconds
+ */
+unsigned int getDisplayUpdateInterval(byte displayMode, byte displayNum) {
+  // Display 1 refresh rates
+  if (displayNum == 1) {
+    switch (displayMode) {
+      case 9:   // RPM
+        return 83;
+      
+      case 8:   // Speed
+      case 10:  // Ignition angle
+      case 11:  // AFR
+      case 12:  // Fuel pressure
+      case 14:  // Injector duty
+        return 143;
+      
+      case 0:   // Settings menu
+      case 1:   // Oil Pressure
+      case 2:   // Coolant Temp
+      case 3:   // Oil Temp
+      case 4:   // Fuel Level
+      case 5:   // Battery Voltage
+      case 6:   // Clock
+      case 7:   // Trip Odometer
+      case 13:  // Fuel composition
+        return 500;
+      
+      case 15:  // Falcon Script logo
+      case 16:  // Reserved
+        return 1000;
+      
+      default:
+        return 143;
+    }
+  }
+  // Display 2 refresh rates
+  else {
+    switch (displayMode) {
+      case 4:   // RPM
+        return 83;
+      
+      case 5:   // Speed
+        return 143;
+      
+      case 0:   // Oil Pressure
+      case 1:   // Coolant Temp
+      case 2:   // Battery Voltage
+      case 3:   // Fuel Level
+      case 6:   // Clock
+        return 500;
+      
+      case 7:   // 302CID logo
+      case 8:   // 302V logo
+      case 9:   // Falcon Script logo
+        return 1000;
+      
+      default:
+        return 143;
+    }
+  }
 }

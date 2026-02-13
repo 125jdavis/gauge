@@ -56,6 +56,9 @@ constexpr uint8_t SWITCH = 1;       // Rotary encoder push button pin (V4 hardwa
 constexpr uint8_t SCREEN_W = 128;   // OLED display width in pixels
 constexpr uint8_t SCREEN_H = 32;    // OLED display height in pixels
 
+// SPI Communication Settings
+constexpr uint32_t OLED_SPI_CLOCK = 8000000UL;  // OLED display SPI clock speed: 8 MHz (8,000,000 Hz)
+
 // Display 1 Configuration (SPI interface)
 constexpr uint8_t OLED_DC_1 = 6;    // Display 1 Data/Command pin
 constexpr uint8_t OLED_CS_1 = 5;    // Display 1 Chip Select pin
@@ -117,7 +120,7 @@ constexpr unsigned int TACH_FLASH_RATE = 50;      // Flash shift light every 50m
 constexpr unsigned int SIG_SELECT_UPDATE_RATE = 10; // Update signal selection/synthetic generators every 10ms (100Hz)
 constexpr unsigned int GPS_UPDATE_RATE = 100;     // GPS update check rate (might not be needed)
 constexpr unsigned int CHECK_GPS_RATE = 1;        // Check for GPS data every 1ms
-constexpr unsigned int ANGLE_UPDATE_RATE = 20;    // Update motor angles every 20ms (50Hz)
+constexpr unsigned int ANGLE_UPDATE_RATE = 150;    // Update motor angles every 20ms (50Hz)
 constexpr unsigned int SPLASH_TIME = 1500;        // Duration of startup splash screens (milliseconds)
 constexpr unsigned int HALL_UPDATE_RATE = 20;     // Recalculate Hall sensor speed every 20ms (50Hz)
 constexpr unsigned int ENGINE_RPM_UPDATE_RATE = 20; // Check engine RPM timeout every 20ms (50Hz)

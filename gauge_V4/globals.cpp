@@ -171,3 +171,29 @@ unsigned int nMenuLevel = 15;    // Number of items in current menu level (0-ind
 byte dispArray1[4] = { 1, 0, 0, 0 };  // Menu position array for display 1 [level0, level1, level2, level3]
 byte dispArray2[1] = {1};        // Menu selection for display 2 (single level)
 
+// ===== DISPLAY OPTIMIZATION VARIABLES =====
+// Previous values for dirty tracking - detect when values change enough to warrant display update
+float oilPrs_prev = 0;           // Previous oil pressure for dirty tracking
+float coolantTemp_prev = 0;      // Previous coolant temp for dirty tracking
+float oilTemp_prev = 0;          // Previous oil temp for dirty tracking
+float fuelPrs_prev = 0;          // Previous fuel pressure for dirty tracking
+float fuelLvl_prev = 0;          // Previous fuel level for dirty tracking
+float vBatt_prev = 0;            // Previous battery voltage for dirty tracking
+float afr_prev = 0;              // Previous AFR for dirty tracking
+float fuelComp_prev = 0;         // Previous fuel composition for dirty tracking
+int RPM_prev = 0;                // Previous RPM for dirty tracking
+int spd_prev = 0;                // Previous speed for dirty tracking
+int ignAngCAN_prev = 0;          // Previous ignition angle for dirty tracking
+int injDutyCAN_prev = 0;         // Previous injector duty for dirty tracking
+byte hour_prev = 0;              // Previous hour for clock dirty tracking
+byte minute_prev = 0;            // Previous minute for clock dirty tracking
+float odoTrip_prev = 0;          // Previous trip odometer for dirty tracking
+byte dispArray1_prev[4] = {0, 0, 0, 0}; // Previous display 1 menu state
+byte dispArray2_prev = 0;        // Previous display 2 selection
+bool staticContentDrawn1 = false; // Flag: static content drawn on display1
+bool staticContentDrawn2 = false; // Flag: static content drawn on display2
+
+// Variable refresh rate timers
+unsigned long timerDisp1Update = 0;  // Timer for display 1 updates
+unsigned long timerDisp2Update = 0;  // Timer for display 2 updates
+

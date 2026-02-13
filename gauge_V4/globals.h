@@ -163,4 +163,30 @@ extern unsigned int nMenuLevel;     // Number of items in current menu level
 extern byte dispArray1[4];          // Menu position array for display 1
 extern byte dispArray2[1];          // Menu selection for display 2
 
+// ===== DISPLAY OPTIMIZATION VARIABLES =====
+// Previous values for dirty tracking
+extern float oilPrs_prev;           // Previous oil pressure for dirty tracking
+extern float coolantTemp_prev;      // Previous coolant temp for dirty tracking
+extern float oilTemp_prev;          // Previous oil temp for dirty tracking
+extern float fuelPrs_prev;          // Previous fuel pressure for dirty tracking
+extern float fuelLvl_prev;          // Previous fuel level for dirty tracking
+extern float vBatt_prev;            // Previous battery voltage for dirty tracking
+extern float afr_prev;              // Previous AFR for dirty tracking
+extern float fuelComp_prev;         // Previous fuel composition for dirty tracking
+extern int RPM_prev;                // Previous RPM for dirty tracking
+extern int spd_prev;                // Previous speed for dirty tracking
+extern int ignAngCAN_prev;          // Previous ignition angle for dirty tracking
+extern int injDutyCAN_prev;         // Previous injector duty for dirty tracking
+extern byte hour_prev;              // Previous hour for clock dirty tracking
+extern byte minute_prev;            // Previous minute for clock dirty tracking
+extern float odoTrip_prev;          // Previous trip odometer for dirty tracking
+extern byte dispArray1_prev[4];     // Previous display 1 menu state
+extern byte dispArray2_prev;        // Previous display 2 selection
+extern bool staticContentDrawn1;    // Flag: static content drawn on display1
+extern bool staticContentDrawn2;    // Flag: static content drawn on display2
+
+// Variable refresh rate timers
+extern unsigned long timerDisp1Update;  // Timer for display 1 updates
+extern unsigned long timerDisp2Update;  // Timer for display 2 updates
+
 #endif // GLOBALS_H
