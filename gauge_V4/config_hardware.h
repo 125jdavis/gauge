@@ -56,6 +56,9 @@ constexpr uint8_t SWITCH = 1;       // Rotary encoder push button pin (V4 hardwa
 constexpr uint8_t SCREEN_W = 128;   // OLED display width in pixels
 constexpr uint8_t SCREEN_H = 32;    // OLED display height in pixels
 
+// SPI Communication Settings
+constexpr uint32_t OLED_SPI_CLOCK = 8000000UL;  // OLED display SPI clock speed: 8 MHz (8,000,000 Hz)
+
 // Display 1 Configuration (SPI interface)
 constexpr uint8_t OLED_DC_1 = 6;    // Display 1 Data/Command pin
 constexpr uint8_t OLED_CS_1 = 5;    // Display 1 Chip Select pin
