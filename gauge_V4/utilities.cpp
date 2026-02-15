@@ -702,5 +702,9 @@ float generateSyntheticManifoldPressure(void) {
  * Linear interpolation from input range to output range
  */
 float mapFloat(float x, float in_min, float in_max, float out_min, float out_max) {
+  // Prevent division by zero if input range is invalid
+  if (in_max == in_min) {
+    return out_min;  // Return minimum output value for degenerate case
+  }
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }

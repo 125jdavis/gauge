@@ -1406,6 +1406,7 @@ void dispBoostPSI(Adafruit_SSD1306 *display) {
     }
     
     // Draw tick marks at key pressure points
+    // -7.3 PSI (min), 0 PSI (atmospheric), 7.3 PSI, 14.7 PSI (2x atmospheric), 22 PSI (max)
     float ticks[] = { -7.3, 0, 7.3, 14.7, 22 };
     for (byte i = 0; i < 5; i++) {
       float px = mapFloat(ticks[i], BAR_MIN, BAR_MAX, 0, BAR_WIDTH);
@@ -1526,6 +1527,7 @@ void dispBoostKPA(Adafruit_SSD1306 *display) {
     }
     
     // Draw tick marks at key pressure points (0, 100, 200, 300 kPa)
+    // 0 kPa (vacuum), 100 kPa (~atmospheric), 200 kPa, 300 kPa (high boost)
     float ticks[] = { 0, 100, 200, 300 };
     for (byte i = 0; i < 4; i++) {
       float px = mapFloat(ticks[i], BAR_MIN, BAR_MAX, 0, BAR_WIDTH);
