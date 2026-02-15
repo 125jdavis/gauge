@@ -206,10 +206,10 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(IGNITION_PULSE_PIN), ignitionPulseISR, FALLING);
 
   // ===== DISPLAY INITIALIZATION =====
-  // Initialize displays with 8MHz SPI clock speed
-  // begin(vccstate, i2caddr, reset, periphBegin, freq)
-  display1.begin(SSD1306_SWITCHCAPVCC, 0, true, true, OLED_SPI_CLOCK);
-  display2.begin(SSD1306_SWITCHCAPVCC, 0, true, true, OLED_SPI_CLOCK);
+  // Initialize displays (SPI clock speed set by library default)
+  // begin(vccstate, i2caddr, reset, periphBegin)
+  display1.begin(SSD1306_SWITCHCAPVCC, 0, true, true);
+  display2.begin(SSD1306_SWITCHCAPVCC, 0, true, true);
   dispFalconScript(&display1);
   disp302CID(&display2);
   
