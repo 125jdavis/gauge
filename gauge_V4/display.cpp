@@ -375,7 +375,7 @@ void dispMenu() {
                 detachInterrupt(1);
                 attachInterrupt(0, rotate, CHANGE);  // Reattach normal menu rotation handler
                 attachInterrupt(1, rotate, CHANGE);
-                EEPROM.write(clockOffset, clockOffsetAddress);  // Save offset to EEPROM
+                EEPROM.write(clockOffsetAddress, clockOffset);  // Save offset to EEPROM (address, value)
                 goToLevel0();  // Return to main menu
               } 
               else {
