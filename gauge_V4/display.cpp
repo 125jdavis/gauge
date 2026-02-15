@@ -8,6 +8,7 @@
 #include "globals.h"
 #include "image_data.h"
 #include "menu.h"
+#include "utilities.h"
 #include <EEPROM.h>
 
 void dispMenu() {
