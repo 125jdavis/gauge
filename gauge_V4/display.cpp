@@ -1309,7 +1309,7 @@ void dispInjDuty (Adafruit_SSD1306 *display) {
  * dispBoostPSI - Display boost pressure bar gauge (Imperial units)
  * 
  * Shows manifold absolute pressure (MAP) as "boost" with horizontal bar gauge and numeric value.
- * Range: -7.3 to 22 PSI absolute (~50 to 250 kPa absolute)
+ * Range: -14.7 to 29.4 PSI (corresponds to 0 to 300 kPa absolute)
  * Values below ~0 PSI (atmospheric) shown with checkered pattern (vacuum/throttling)
  * Values above ~0 PSI shown solid white (boost/forced induction)
  * 
@@ -1319,9 +1319,10 @@ void dispInjDuty (Adafruit_SSD1306 *display) {
  * @param display - Pointer to display object
  * 
  * Optimized for speed:
- * - Only updates on mode change or significant pressure change
+ * - Only updates on mode change or significant pressure change (>0.3 PSI)
  * - Bar calculations use pre-computed constants
  * - Pixel operations minimized
+ * - 12Hz (83ms) refresh rate, same as RPM
  */
 void dispBoostPSI(Adafruit_SSD1306 *display) {
   // Check if mode changed or boost pressure changed enough to warrant update
@@ -1343,8 +1344,8 @@ void dispBoostPSI(Adafruit_SSD1306 *display) {
     const int BAR_Y = 17;
     const int BAR_WIDTH = 120;
     const int BAR_HEIGHT = 12;
-    const float BAR_MIN = -7.3;
-    const float BAR_MAX = 22.0;
+    const float BAR_MIN = -14.7;
+    const float BAR_MAX = 29.4;
     
     display->clearDisplay();
     display->setTextSize(1);
@@ -1406,8 +1407,9 @@ void dispBoostPSI(Adafruit_SSD1306 *display) {
     }
     
     // Draw tick marks at key pressure points
-    // -7.3 PSI (min), 0 PSI (atmospheric baseline), 7.3 PSI (~0.5 bar boost), 14.7 PSI (~1 bar boost), 22 PSI (max)
-    float ticks[] = { -7.3, 0, 7.3, 14.7, 22 };
+    // Tick positions correspond to 50, 100, 150, 200, 250 kPa in metric
+    // -7.3 PSI (50 kPa), 0 PSI (101.3 kPa/atmospheric), 7.3 PSI (150 kPa), 14.7 PSI (200 kPa), 21.8 PSI (250 kPa)
+    float ticks[] = { -7.3, 0, 7.3, 14.7, 21.8 };
     for (byte i = 0; i < 5; i++) {
       float px = mapFloat(ticks[i], BAR_MIN, BAR_MAX, 0, BAR_WIDTH);
       int x = BAR_X + px;
@@ -1435,9 +1437,10 @@ void dispBoostPSI(Adafruit_SSD1306 *display) {
  * @param display - Pointer to display object
  * 
  * Optimized for speed:
- * - Only updates on mode change or significant pressure change
+ * - Only updates on mode change or significant pressure change (>2 kPa)
  * - Bar calculations use pre-computed constants
  * - Pixel operations minimized
+ * - 12Hz (83ms) refresh rate, same as RPM
  */
 void dispBoostKPA(Adafruit_SSD1306 *display) {
   // Check if mode changed or boost pressure changed enough to warrant update
@@ -1475,7 +1478,7 @@ void dispBoostKPA(Adafruit_SSD1306 *display) {
     int valueX = decimalX - (d * 6);
     
     display->setCursor(valueX, 2);
-    display->print(kpa, 1);
+    display->print((int)kpa, DEC);  // Display as integer with no decimal points
     display->print(F(" kPa"));
     
     // Draw 2px bar outline with rounded corners
@@ -1526,10 +1529,10 @@ void dispBoostKPA(Adafruit_SSD1306 *display) {
       }
     }
     
-    // Draw tick marks at key pressure points (0, 100, 200, 300 kPa)
-    // 0 kPa (absolute zero/scale minimum), 100 kPa (~atmospheric), 200 kPa (~1 bar boost), 300 kPa (high boost)
-    float ticks[] = { 0, 100, 200, 300 };
-    for (byte i = 0; i < 4; i++) {
+    // Draw tick marks at key pressure points
+    // Tick marks at 50, 100, 150, 200, 250 kPa (evenly spaced across 0-300 range)
+    float ticks[] = { 50, 100, 150, 200, 250 };
+    for (byte i = 0; i < 5; i++) {
       float px = mapFloat(ticks[i], BAR_MIN, BAR_MAX, 0, BAR_WIDTH);
       int x = BAR_X + px;
       display->drawFastVLine(x, innerY, innerH, SSD1306_WHITE);
@@ -1694,8 +1697,8 @@ bool needsUpdate_RPM(int current, int previous) {
  * needsUpdate_Boost - Check if boost pressure changed enough to warrant update
  * 
  * Boost pressure change must be:
- * - > 10 kPa (metric units), or
- * - > 1 PSI (imperial units, ~6.89 kPa)
+ * - > 2 kPa (metric units), or
+ * - > 0.3 PSI (imperial units, ~2.07 kPa)
  * 
  * @param current - Current boost/MAP pressure in kPa
  * @param previous - Previous boost/MAP pressure in kPa
@@ -1703,7 +1706,7 @@ bool needsUpdate_RPM(int current, int previous) {
  * @return true if update needed, false otherwise
  */
 bool needsUpdate_Boost(float current, float previous, byte units) {
-  float threshold = (units == 0) ? 10.0 : 6.89;  // 10 kPa or 1 PSI
+  float threshold = (units == 0) ? 2.0 : 2.07;  // 2 kPa or 0.3 PSI
   return (abs(current - previous) > threshold);
 }
 
@@ -1759,6 +1762,7 @@ unsigned int getDisplayUpdateInterval(byte displayMode, byte displayNum) {
   if (displayNum == 1) {
     switch (displayMode) {
       case 9:   // RPM
+      case 16:  // Boost gauge (12Hz, same as RPM)
         return 83;
       
       case 8:   // Speed
@@ -1766,7 +1770,6 @@ unsigned int getDisplayUpdateInterval(byte displayMode, byte displayNum) {
       case 11:  // AFR
       case 12:  // Fuel pressure
       case 14:  // Injector duty
-      case 16:  // Boost gauge
         return 143;
       
       case 0:   // Settings menu
@@ -1791,10 +1794,10 @@ unsigned int getDisplayUpdateInterval(byte displayMode, byte displayNum) {
   else {
     switch (displayMode) {
       case 4:   // RPM
+      case 10:  // Boost gauge (12Hz, same as RPM)
         return 83;
       
       case 5:   // Speed
-      case 10:  // Boost gauge
         return 143;
       
       case 0:   // Oil Pressure
