@@ -168,7 +168,7 @@ int output = 0;                  // Output buffer for EEPROM operations
 // Track current position in the multi-level menu system
 byte menuLevel = 0;              // Current menu depth (0=top level, 1=submenu, 2=sub-submenu)
 byte units = 0;                  // Unit system: 0=metric (km/h, C, bar), 1=imperial (mph, F, PSI)
-unsigned int nMenuLevel = 16;    // Number of items in current menu level (0-indexed, so 16 = 17 items)
+unsigned int nMenuLevel = 16;    // Maximum menu index (0-16 = 17 total items)
 byte dispArray1[4] = { 1, 0, 0, 0 };  // Menu position array for display 1 [level0, level1, level2, level3]
 byte dispArray2[1] = {1};        // Menu selection for display 2 (single level)
 
