@@ -727,4 +727,11 @@ void sigSelect (void) {
     fuelComp = fuelCompCAN/10.0;  // Fuel composition - divide by 10 (e.g., 850 becomes 85%)
     fuelLvlCAN = (int)((fuelLvl/fuelCapacity)*100);  // Calculate fuel level percentage for CAN transmission
 
+    // Set boost pressure to manifold absolute pressure for display
+    // Note: Called "boost" for simplicity, but displays absolute manifold pressure (MAP)
+    // Typical atmospheric pressure is ~101.325 kPa, so:
+    // - Values below atmospheric indicate vacuum/throttling
+    // - Values above atmospheric indicate forced induction (turbo/supercharger)
+    boostPrs = manifoldPrs;
+
 }

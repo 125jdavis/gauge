@@ -120,6 +120,7 @@ float battVolt = 12.6;     // Battery voltage in volts
 float afr = 14.2;          // Air/Fuel Ratio (stoichiometric for gasoline ~14.7)
 float fuelComp = 0;        // Ethanol percentage (0-100%)
 float manifoldPrs = 101.3; // Manifold Absolute Pressure in kPa (default to atmospheric)
+float boostPrs = 101.3;    // Boost pressure display (actually MAP for ease of use)
 int RPM = 0;               // Engine RPM for display
 int spd = 0;               // Vehicle speed in km/h * 100 (for integer precision)
 float spdMph = 0;          // Vehicle speed in miles per hour
@@ -167,7 +168,7 @@ int output = 0;                  // Output buffer for EEPROM operations
 // Track current position in the multi-level menu system
 byte menuLevel = 0;              // Current menu depth (0=top level, 1=submenu, 2=sub-submenu)
 byte units = 0;                  // Unit system: 0=metric (km/h, C, bar), 1=imperial (mph, F, PSI)
-unsigned int nMenuLevel = 15;    // Number of items in current menu level (0-indexed, so 15 = 16 items)
+unsigned int nMenuLevel = 16;    // Number of items in current menu level (0-indexed, so 16 = 17 items)
 byte dispArray1[4] = { 1, 0, 0, 0 };  // Menu position array for display 1 [level0, level1, level2, level3]
 byte dispArray2[1] = {1};        // Menu selection for display 2 (single level)
 
@@ -181,6 +182,7 @@ float fuelLvl_prev = 0;          // Previous fuel level for dirty tracking
 float vBatt_prev = 0;            // Previous battery voltage for dirty tracking
 float afr_prev = 0;              // Previous AFR for dirty tracking
 float fuelComp_prev = 0;         // Previous fuel composition for dirty tracking
+float boostPrs_prev = 0;         // Previous boost pressure for dirty tracking
 int RPM_prev = 0;                // Previous RPM for dirty tracking
 int spd_prev = 0;                // Previous speed for dirty tracking
 int ignAngCAN_prev = 0;          // Previous ignition angle for dirty tracking

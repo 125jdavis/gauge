@@ -112,5 +112,5 @@ void goToLevel0() {
   dispArray1[1] = 0;    // Clear level 1 selection
   dispArray1[2] = 0;    // Clear level 2 selection
   menuLevel = 0;        // Return to top menu level
-  nMenuLevel = 14;      // Set to 15 items in main menu (0-indexed)
+  nMenuLevel = 16;      // Set to 17 items in main menu (0-indexed): 0-16 now includes boost at 16
 }
