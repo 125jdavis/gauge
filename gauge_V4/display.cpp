@@ -360,6 +360,8 @@ void dispMenu() {
             if (menuLevel == 1 && button == 1) {
               button = 0;
               menuLevel = 2;  // Go to level 2 (offset value selection)
+              // Force mode change detection so dispClock updates immediately
+              dispArray1_prev[0] = 255;  // Set to invalid value to force update
               // nMenuLevel set dynamically in level 2 handler
             } 
             else if (menuLevel == 1) {
