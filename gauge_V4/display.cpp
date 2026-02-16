@@ -362,6 +362,11 @@ void dispMenu() {
               menuLevel = 2;  // Go to level 2 (offset value selection)
               // Force mode change detection so dispClock updates immediately
               dispArray1_prev[0] = 255;  // Set to invalid value to force update
+              // Switch encoder handlers to clock offset adjustment mode
+              detachInterrupt(0);
+              detachInterrupt(1);
+              attachInterrupt(0, incrementOffset, CHANGE);  // Use special offset increment handler
+              attachInterrupt(1, incrementOffset, CHANGE);
               // nMenuLevel set dynamically in level 2 handler
             } 
             else if (menuLevel == 1) {
@@ -374,21 +379,19 @@ void dispMenu() {
               // Always show the clock so user can see the time as they adjust
               if (button == 1) {
                 // Button pressed - save clock offset and return to main menu
-                detachInterrupt(0);  // Temporarily detach encoder interrupts
+                button = 0;  // Clear button flag immediately
+                detachInterrupt(0);  // Detach offset adjustment handlers
                 detachInterrupt(1);
                 attachInterrupt(0, rotate, CHANGE);  // Reattach normal menu rotation handler
                 attachInterrupt(1, rotate, CHANGE);
                 EEPROM.write(clockOffsetAddress, clockOffset);  // Save offset to EEPROM (address, value)
                 goToLevel0();  // Return to main menu
               } 
-              // Always display clock while in adjustment mode (menuLevel 2)
-              // Rotary encoder adjusts clock offset value (-12 to +12 hours)
-              // Change encoder handler to modify clockOffset directly
-              detachInterrupt(0);
-              detachInterrupt(1);
-              attachInterrupt(0, incrementOffset, CHANGE);  // Use special offset increment handler
-              attachInterrupt(1, incrementOffset, CHANGE);
-              dispClock(&display1);  // Display time with current offset applied
+              else {
+                // Display clock with current offset applied
+                // Encoder rotation handled by incrementOffset ISR
+                dispClock(&display1);
+              }
             } // End level 2 - Clock offset adjustment
             break;  // End case 2 - Clock offset submenu
           
@@ -1563,7 +1566,7 @@ void dispBoostKPA(Adafruit_SSD1306 *display) {
  * - Minutes are zero-padded (e.g., "3:05" not "3:5")
  */
 void dispClock (Adafruit_SSD1306 *display){
-    // Check if mode changed or time changed
+    // Check if mode changed or time changed or clockOffset changed
     bool modeChanged = false;
     if (display == &display1) {
       modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
@@ -1571,8 +1574,11 @@ void dispClock (Adafruit_SSD1306 *display){
       modeChanged = (dispArray2[0] != dispArray2_prev);
     }
     
-    // Only update if mode changed or time changed
-    if (modeChanged || needsUpdate_Time(hour, minute, hour_prev, minute_prev)) {
+    // Check if clock offset changed (for adjustment mode)
+    bool offsetChanged = (clockOffset != clockOffset_prev);
+    
+    // Only update if mode changed or time changed or offset changed
+    if (modeChanged || needsUpdate_Time(hour, minute, hour_prev, minute_prev) || offsetChanged) {
       byte hourAdj;
       display->clearDisplay();
       
@@ -1599,6 +1605,7 @@ void dispClock (Adafruit_SSD1306 *display){
       // Update previous values
       hour_prev = hour;
       minute_prev = minute;
+      clockOffset_prev = clockOffset;  // Track previous offset
     }
 }
 

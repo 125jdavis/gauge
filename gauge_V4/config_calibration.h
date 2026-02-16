@@ -110,6 +110,7 @@ extern uint8_t LAMBDA_SOURCE;
 // Hours to add to UTC time for local time zone (-12 to +12)
 // Note: This is also saved/loaded from EEPROM
 extern byte clockOffset;
+extern byte clockOffset_prev;  // Previous clock offset for dirty tracking
 
 // ===== FUEL TANK CAPACITY =====
 extern float fuelCapacity;            // Total fuel tank capacity in gallons (used for percentage calculations)
