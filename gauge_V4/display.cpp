@@ -363,12 +363,13 @@ void dispMenu() {
               // nMenuLevel set dynamically in level 2 handler
             } 
             else if (menuLevel == 1) {
-              // Show "SET CLOCK" menu header
+              // Show "SET CLOCK" menu header at level 1
               // Serial.println("ClockOffset");  // Debug output
               dispClockOffset(&display1);
             } 
             else {
-              // Level 2 - Display current offset and adjust with encoder
+              // Level 2 - Display clock while adjusting offset with encoder
+              // Always show the clock so user can see the time as they adjust
               if (button == 1) {
                 // Button pressed - save clock offset and return to main menu
                 detachInterrupt(0);  // Temporarily detach encoder interrupts
@@ -378,15 +379,14 @@ void dispMenu() {
                 EEPROM.write(clockOffsetAddress, clockOffset);  // Save offset to EEPROM (address, value)
                 goToLevel0();  // Return to main menu
               } 
-              else {
-                // Rotary encoder adjusts clock offset value (-12 to +12 hours)
-                // Temporarily change encoder handler to modify clockOffset directly
-                detachInterrupt(0);
-                detachInterrupt(1);
-                attachInterrupt(0, incrementOffset, CHANGE);  // Use special offset increment handler
-                attachInterrupt(1, incrementOffset, CHANGE);
-                dispClock(&display1);  // Display time with current offset applied
-              }
+              // Always display clock while in adjustment mode (menuLevel 2)
+              // Rotary encoder adjusts clock offset value (-12 to +12 hours)
+              // Change encoder handler to modify clockOffset directly
+              detachInterrupt(0);
+              detachInterrupt(1);
+              attachInterrupt(0, incrementOffset, CHANGE);  // Use special offset increment handler
+              attachInterrupt(1, incrementOffset, CHANGE);
+              dispClock(&display1);  // Display time with current offset applied
             } // End level 2 - Clock offset adjustment
             break;  // End case 2 - Clock offset submenu
           

@@ -393,11 +393,16 @@ void loop() {
   // from delaying time-critical motor position updates
   // Each display uses independent timing with variable refresh rates based on content
   
+  // Check for user input requiring immediate display update
+  bool needsImmediateUpdate = (button == 1) || encoderMoved;
+  
   // Display 1 update - Variable refresh rate based on content type
+  // Update immediately on user input, or at scheduled interval
   unsigned int disp1Interval = getDisplayUpdateInterval(dispArray1[0], 1);
-  if (millis() - timerDisp1Update > disp1Interval) {
+  if (needsImmediateUpdate || (millis() - timerDisp1Update > disp1Interval)) {
     dispMenu();
     timerDisp1Update = millis();
+    encoderMoved = false;  // Clear flag after update
   }
   
   // Display 2 update - Variable refresh rate based on content type

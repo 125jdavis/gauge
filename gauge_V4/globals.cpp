@@ -71,6 +71,7 @@ unsigned int coolantTemp_g;    // Coolant temperature for gauge calculation
 // are now declared as static locals inside swRead() function (not globals)
 // to prevent potential interference from other parts of the code
 bool button = 0;                       // Button press event flag (set when press completes)
+volatile bool encoderMoved = false;    // Flag set when encoder rotates (for immediate display update)
 
 // ===== TIMING VARIABLES =====
 // Manage update rates for different subsystems

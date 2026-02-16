@@ -80,6 +80,7 @@ extern unsigned int coolantTemp_g;  // Coolant temperature for gauge calculation
 
 // ===== ROTARY ENCODER VARIABLES =====
 extern bool button;                 // Button press event flag (set when press completes)
+extern volatile bool encoderMoved;  // Flag set when encoder rotates (for immediate display update)
 
 // ===== TIMING VARIABLES =====
 extern unsigned long timer0, timerDispUpdate, timerCANsend;

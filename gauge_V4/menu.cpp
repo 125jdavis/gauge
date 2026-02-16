@@ -63,6 +63,7 @@ void rotate() {
       dispArray1[menuLevel] = 0;  // Wrap to beginning
     else 
       dispArray1[menuLevel]++;    // Move to next item
+    encoderMoved = true;  // Set flag for immediate display update
   } 
   else if (result == DIR_CCW) {
     // Counter-clockwise rotation - decrement menu position
@@ -70,6 +71,7 @@ void rotate() {
       dispArray1[menuLevel] = nMenuLevel;  // Wrap to end
     else 
       dispArray1[menuLevel]--;              // Move to previous item
+    encoderMoved = true;  // Set flag for immediate display update
   }
 }
 
@@ -96,6 +98,7 @@ void incrementOffset() {
       clockOffset = 0;  // Wrap to 0
     else 
       clockOffset++;    // Increment
+    encoderMoved = true;  // Set flag for immediate display update
   } 
   else if (result == DIR_CCW) {
     // Counter-clockwise - decrement offset with wraparound
@@ -103,6 +106,7 @@ void incrementOffset() {
       clockOffset = 23;  // Wrap to 23
     else 
       clockOffset--;     // Decrement
+    encoderMoved = true;  // Set flag for immediate display update
   }
 }
 
