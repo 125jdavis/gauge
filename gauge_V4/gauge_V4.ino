@@ -407,10 +407,11 @@ void loop() {
   
   // Display 2 update - Variable refresh rate based on content type
   // Update immediately when selection changes (e.g., scrolling through Display 2 options in Settings)
-  // or at scheduled interval for data refresh
+  // or when button is pressed (entering Display 2 submenu), or at scheduled interval for data refresh
   bool disp2SelectionChanged = (dispArray2[0] != dispArray2_prev);
+  bool needsDisp2Update = disp2SelectionChanged || needsImmediateUpdate;
   unsigned int disp2Interval = getDisplayUpdateInterval(dispArray2[0], 2);
-  if (disp2SelectionChanged || (millis() - timerDisp2Update > disp2Interval)) {
+  if (needsDisp2Update || (millis() - timerDisp2Update > disp2Interval)) {
     disp2();
     timerDisp2Update = millis();
   }
