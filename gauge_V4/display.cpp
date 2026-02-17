@@ -1766,7 +1766,7 @@ void dispBoost(Adafruit_SSD1306 *display) {
     // Draw turbo icon on the right side (note: coolant uses left, we'll mirror and use right)
     display->drawBitmap(104, 1, IMG_TURBO, 24, 30, 1);
     
-    byte center = 50;  // Center for text display
+    byte center = 52;  // Center for text display (half of available space: 104/2)
     
     if (units == 0) {  // Metric units (kPa)
       float kpa = boostPrs;
