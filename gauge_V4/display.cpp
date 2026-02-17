@@ -521,7 +521,7 @@ void dispSettings (Adafruit_SSD1306 *display) {
     display->setTextColor(WHITE); 
     display->clearDisplay();
     display->setTextSize(2);
-    display->setCursor(20,8);
+    display->setCursor(16,8);  // Centered for "SETTINGS" (8 chars * 12px = 96px, (128-96)/2 = 16)
     display->println("SETTINGS");
     display->drawRect(0,0,128,32,SSD1306_WHITE);  // Draw border rectangle              
     display->display();
@@ -535,7 +535,7 @@ void dispDisp2Select (Adafruit_SSD1306 *display) {
     display->setTextColor(WHITE); 
     display->clearDisplay();
     display->setTextSize(2);
-    display->setCursor(15,8);
+    display->setCursor(10,8);  // Centered for "DISPLAY 2" (9 chars * 12px = 108px, (128-108)/2 = 10)
     display->println("DISPLAY 2");                 
     display->display();
 }
@@ -548,7 +548,7 @@ void dispUnits (Adafruit_SSD1306 *display) {
     display->setTextColor(WHITE); 
     display->clearDisplay();
     display->setTextSize(2);
-    display->setCursor(32,8);
+    display->setCursor(34,8);  // Centered for "UNITS" (5 chars * 12px = 60px, (128-60)/2 = 34)
     display->println("UNITS");                 
     display->display();
 }
@@ -561,7 +561,7 @@ void dispClockOffset (Adafruit_SSD1306 *display) {
     display->setTextColor(WHITE); 
     display->clearDisplay();
     display->setTextSize(2);
-    display->setCursor(0,9);
+    display->setCursor(10,9);  // Centered for "SET CLOCK" (9 chars * 12px = 108px, (128-108)/2 = 10)
     display->println("SET CLOCK");                 
     display->display();
 }
@@ -1754,15 +1754,15 @@ void dispBoost(Adafruit_SSD1306 *display) {
       
       // Position units label at right side (text size 2)
       display->setTextSize(2);
-      display->setCursor(96, 12);  // Fixed position for units on right
+      display->setCursor(104, 12);  // Fixed position for units on right
       display->print("kPa");
       
       // Calculate position for value (right-aligned next to units)
-      // Text size 3: each digit is 18px wide
-      display->setTextSize(3);
+      // Text size 2: each digit is 12px wide
+      display->setTextSize(2);
       byte nDig = digits(kpaInt);
-      int valueX = 96 - (nDig * 18) - 3;  // 3px gap before units
-      display->setCursor(valueX, 6);
+      int valueX = 104 - (nDig * 12) - 3;  // 3px gap before units
+      display->setCursor(valueX, 12);
       display->print(kpaInt, DEC);
       
     } else {  // Imperial units (PSI)
@@ -1771,16 +1771,16 @@ void dispBoost(Adafruit_SSD1306 *display) {
       
       // Position units label at right side (text size 2)
       display->setTextSize(2);
-      display->setCursor(100, 12);  // Fixed position for units on right
+      display->setCursor(104, 12);  // Fixed position for units on right
       display->print("PSI");
       
       // Calculate position for value with 1 decimal (right-aligned next to units)
-      // Text size 3: each digit/decimal is ~18px wide, decimal point ~6px
-      display->setTextSize(3);
+      // Text size 2: each digit/decimal is ~12px wide, decimal point ~6px
+      display->setTextSize(2);
       byte nDig = digits(psi);
-      // Account for decimal point and one decimal digit: add ~24px (1 digit + point)
-      int valueX = 100 - (nDig * 18) - 24 - 3;  // 3px gap before units
-      display->setCursor(valueX, 6);
+      // Account for decimal point and one decimal digit: add ~18px (1 digit + point)
+      int valueX = 104 - (nDig * 12) - 18 - 3;  // 3px gap before units
+      display->setCursor(valueX, 12);
       display->print(psi, 1);
     }
     

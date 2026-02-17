@@ -647,8 +647,8 @@ float generateSyntheticManifoldPressure(void) {
     // Constants
     const float MIN_PRESSURE = 0.0;
     const float MAX_PRESSURE = 250.0;
-    const float MAX_RATE = 600.0;  // 600 kPa/second max
-    const float MIN_RATE = 100.0;  // 100 kPa/second min
+    const float MAX_RATE = 200.0;  // 200 kPa/second max (reduced from 600 by factor of 3)
+    const float MIN_RATE = 33.3;   // 33.3 kPa/second min (reduced from 100 by factor of 3)
     
     // Initialize on first call
     if (lastUpdateTime == 0) {
