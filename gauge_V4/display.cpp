@@ -1481,7 +1481,7 @@ void dispBoostKPA(Adafruit_SSD1306 *display) {
     const int BAR_HEIGHT = 12;
     const float BAR_MIN = 0.0;
     const float BAR_MAX = 300.0;
-    const float CHECKER_THRESHOLD = 100.0;  // Checkered pattern below 100 kPa
+    const float ZERO_KPA = 101.0;  // Atmospheric pressure = zero point (101 kPa)
     
     display->clearDisplay();
     display->setTextSize(1);
@@ -1512,38 +1512,33 @@ void dispBoostKPA(Adafruit_SSD1306 *display) {
     int innerY = BAR_Y + 1;
     int innerH = BAR_HEIGHT - 2;
     
-    // Calculate bar and threshold positions
+    // Calculate bar position and zero point position (101 kPa = atmospheric)
     float barPosition = mapFloat(kpa, BAR_MIN, BAR_MAX, 0, BAR_WIDTH);
     barPosition = constrain(barPosition, 0, BAR_WIDTH);
-    float thresholdPosition = mapFloat(CHECKER_THRESHOLD, BAR_MIN, BAR_MAX, 0, BAR_WIDTH);
+    float zeroPosition = mapFloat(ZERO_KPA, BAR_MIN, BAR_MAX, 0, BAR_WIDTH);
     
     int barPos = BAR_X + barPosition;
-    int thresholdX = BAR_X + thresholdPosition;
+    int zeroX = BAR_X + zeroPosition;
     
-    // Fill bar: checkered pattern from 0-100 kPa, solid above 100 kPa
-    if (kpa <= CHECKER_THRESHOLD) {
-      // Below threshold - checkered pattern only
-      for (int x = BAR_X; x < barPos && x < thresholdX; x++) {
-        for (int y = innerY; y < innerY + innerH; y++) {
-          if ((((x - BAR_X) >> 1) + ((y - innerY) >> 1)) & 1) {
-            display->drawPixel(x, y, SSD1306_WHITE);
-          }
-        }
+    // Fill bar: checkered for vacuum (< 101 kPa), solid for boost (> 101 kPa)
+    if (kpa >= ZERO_KPA) {
+      // Boost (positive pressure) - solid bar extends RIGHT from zero point
+      int fillW = barPos - zeroX;
+      if (fillW > 0) {
+        display->fillRect(zeroX, innerY, fillW, innerH, SSD1306_WHITE);
       }
     } else {
-      // Above threshold - checkered pattern up to threshold, then solid
-      // Checkered section (0-100 kPa)
-      for (int x = BAR_X; x < thresholdX; x++) {
+      // Vacuum (negative pressure) - checkered bar extends LEFT from zero point
+      int fillX = barPos;
+      int fillW = zeroX - barPos;
+      
+      // Checkered pattern locked to zeroX so right edge is always solid
+      for (int x = fillX; x < zeroX; x++) {
         for (int y = innerY; y < innerY + innerH; y++) {
-          if ((((x - BAR_X) >> 1) + ((y - innerY) >> 1)) & 1) {
+          if ((((zeroX - x) >> 1) + ((y - innerY) >> 1)) & 1) {
             display->drawPixel(x, y, SSD1306_WHITE);
           }
         }
-      }
-      // Solid section (100+ kPa)
-      int fillW = barPos - thresholdX;
-      if (fillW > 0) {
-        display->fillRect(thresholdX, innerY, fillW, innerH, SSD1306_WHITE);
       }
     }
     
