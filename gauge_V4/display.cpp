@@ -207,6 +207,10 @@ void dispMenu() {
               button = 0;
               menuLevel = 2;   // Go to level 2
               nMenuLevel = 9;  // 10 display options (0-indexed): 0-9 now includes boost
+              // Validate dispArray1[2] is in valid range (prevent EEPROM corruption issues)
+              if (dispArray1[2] > 9) {
+                dispArray1[2] = 0;  // Reset to first option if out of range
+              }
               // Force mode change detection so display updates immediately
               dispArray1_prev[0] = 255;  // Set to invalid value to force update
             } 
@@ -317,6 +321,10 @@ void dispMenu() {
               button = 0;
               menuLevel = 2;   // Go to level 2
               nMenuLevel = 1;  // 2 options: Metric or Imperial (0-indexed)
+              // Validate dispArray1[2] is in valid range (prevent EEPROM corruption issues)
+              if (dispArray1[2] > 1) {
+                dispArray1[2] = 0;  // Reset to first option if out of range
+              }
               // Force mode change detection so display updates immediately
               dispArray1_prev[0] = 255;  // Set to invalid value to force update
             } 
