@@ -24,5 +24,6 @@ extern const unsigned char IMG_OIL_TEMP[] PROGMEM;       // 40x32px - Oil can wi
 extern const unsigned char IMG_BATT_VOLT[] PROGMEM;      // 38x32px - Battery icon
 extern const unsigned char IMG_COOLANT_TEMP[] PROGMEM;   // 35x32px - Thermometer icon
 extern const unsigned char IMG_FUEL_LVL[] PROGMEM;       // 32x32px - Gas pump icon
+extern const unsigned char IMG_TURBO[] PROGMEM;          // 24x30px - Turbo icon
 
 #endif // IMAGE_DATA_H
