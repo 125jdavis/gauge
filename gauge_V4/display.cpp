@@ -1658,15 +1658,6 @@ void dispBoostGfx(Adafruit_SSD1306 *display) {
         display->drawFastVLine(x, innerY, innerH, SSD1306_WHITE);
       }
       
-      // Draw value below bar
-      display->setTextSize(1);
-      byte d = digits(kpa);
-      int decimalX = 77;  // Center point for value
-      int valueX = decimalX - (d * 6);
-      display->setCursor(valueX, 24);
-      display->print((int)kpa, DEC);
-      display->print(F(" kPa"));
-      
     } else {  // Imperial units (PSI)
       // Convert to gauge pressure (relative to atmospheric)
       float psi = boostPrs * 0.1450377 - 14.7;
@@ -1722,15 +1713,6 @@ void dispBoostGfx(Adafruit_SSD1306 *display) {
         int x = BAR_X + px;
         display->drawFastVLine(x, innerY, innerH, SSD1306_WHITE);
       }
-      
-      // Draw value below bar
-      display->setTextSize(1);
-      byte d = digits(psi);
-      int decimalX = 77;  // Center point for value
-      int valueX = decimalX - (d * 6);
-      display->setCursor(valueX, 24);
-      display->print(psi, 1);
-      display->print(F(" PSI"));
     }
     
     display->display();
@@ -1743,8 +1725,8 @@ void dispBoostGfx(Adafruit_SSD1306 *display) {
 /**
  * dispBoost - Display boost pressure with turbo icon (text only, no bar)
  * 
- * Shows boost/manifold pressure with turbo icon on the right.
- * Text-only display similar to dispCoolantTempGfx pattern.
+ * Shows boost/manifold pressure with turbo icon on the left.
+ * Text-only display with right-aligned values and units.
  * Supports both metric (kPa) and imperial (PSI) units.
  * 
  * @param display - Pointer to display object
@@ -1763,30 +1745,43 @@ void dispBoost(Adafruit_SSD1306 *display) {
     display->setTextColor(WHITE);
     display->clearDisplay();
     
-    // Draw turbo icon on the right side (note: coolant uses left, we'll mirror and use right)
-    display->drawBitmap(104, 1, IMG_TURBO, 24, 30, 1);
-    
-    byte center = 52;  // Center for text display (half of available space: 104/2)
+    // Draw turbo icon on the left side
+    display->drawBitmap(0, 0, IMG_TURBO, 24, 30, 1);
     
     if (units == 0) {  // Metric units (kPa)
       float kpa = boostPrs;
-      byte nDig = digits(kpa);
-      display->setTextSize(3);
-      display->setCursor(center - ((nDig * 18) / 2), 6);
-      display->print((int)kpa, DEC);
+      int kpaInt = (int)kpa;
+      
+      // Position units label at right side (text size 2)
       display->setTextSize(2);
-      display->setCursor(center + ((nDig * 18) / 2) + 3, 12);
-      display->println("kPa");
+      display->setCursor(96, 12);  // Fixed position for units on right
+      display->print("kPa");
+      
+      // Calculate position for value (right-aligned next to units)
+      // Text size 3: each digit is 18px wide
+      display->setTextSize(3);
+      byte nDig = digits(kpaInt);
+      int valueX = 96 - (nDig * 18) - 3;  // 3px gap before units
+      display->setCursor(valueX, 6);
+      display->print(kpaInt, DEC);
+      
     } else {  // Imperial units (PSI)
       // Convert to gauge pressure (relative to atmospheric)
       float psi = boostPrs * 0.1450377 - 14.7;
-      byte nDig = digits(psi);
-      display->setTextSize(3);
-      display->setCursor(center - ((nDig * 18) / 2), 6);
-      display->print(psi, 1);
+      
+      // Position units label at right side (text size 2)
       display->setTextSize(2);
-      display->setCursor(center + ((nDig * 18) / 2) + 3, 12);
-      display->println("PSI");
+      display->setCursor(100, 12);  // Fixed position for units on right
+      display->print("PSI");
+      
+      // Calculate position for value with 1 decimal (right-aligned next to units)
+      // Text size 3: each digit/decimal is ~18px wide, decimal point ~6px
+      display->setTextSize(3);
+      byte nDig = digits(psi);
+      // Account for decimal point and one decimal digit: add ~24px (1 digit + point)
+      int valueX = 100 - (nDig * 18) - 24 - 3;  // 3px gap before units
+      display->setCursor(valueX, 6);
+      display->print(psi, 1);
     }
     
     display->display();
