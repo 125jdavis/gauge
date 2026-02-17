@@ -8,6 +8,7 @@
 #include "globals.h"
 #include "image_data.h"
 #include "menu.h"
+#include "utilities.h"
 #include <EEPROM.h>
 
 void dispMenu() {
@@ -163,6 +164,19 @@ void dispMenu() {
       dispFalconScript(&display1);  // Display Falcon logo
       break;  
 
+    case 16:  // Boost Gauge Display                   dispArray1 = {16, x, x, x}
+      if (menuLevel == 0 && button == 1) {
+        button = 0; // Clear button flag
+      }
+      // Serial.println("Boost");  // Debug output
+      // Display appropriate boost gauge based on units setting
+      if (units == 0) {
+        dispBoostKPA(&display1);  // Metric: 0-300 kPa
+      } else {
+        dispBoostPSI(&display1);  // Imperial: -7.3 to 22 PSI
+      }
+      break;
+
     case 0:  // SETTINGS MENU - Always last screen for easy wrapping access
              // This is a complex multi-level menu for system configuration
              // Structure: Settings -> [Display 2 Select | Units | Clock Offset | Fuel Sensor Cal]
@@ -192,7 +206,13 @@ void dispMenu() {
               // Enter Display 2 selection submenu
               button = 0;
               menuLevel = 2;   // Go to level 2
-              nMenuLevel = 8;  // 9 display options (0-indexed)
+              nMenuLevel = 9;  // 10 display options (0-indexed): 0-9 now includes boost
+              // Validate dispArray1[2] is in valid range (prevent EEPROM corruption issues)
+              if (dispArray1[2] > 9) {
+                dispArray1[2] = 0;  // Reset to first option if out of range
+              }
+              // Force mode change detection so display updates immediately
+              dispArray1_prev[0] = 255;  // Set to invalid value to force update
             } 
             else if (menuLevel == 1) {
               // Show "DISPLAY 2" menu header
@@ -282,6 +302,14 @@ void dispMenu() {
                     goToLevel0();  // Save and return to main menu
                   }
                   break;
+                  
+                case 10:  // Boost Gauge on Display 2      dispArray1 = {0, 0, 10, x}
+                  //Serial.println("Disp2: Boost");  // Debug output
+                  dispArray2[0] = 10;  // Set display 2 to boost gauge
+                  if (button == 1) {
+                    goToLevel0();  // Save and return to main menu
+                  }
+                  break;
                 
               } // End switch dispArray1[2] - Display 2 options
             } // End level 2 - Display 2 selection
@@ -293,6 +321,12 @@ void dispMenu() {
               button = 0;
               menuLevel = 2;   // Go to level 2
               nMenuLevel = 1;  // 2 options: Metric or Imperial (0-indexed)
+              // Validate dispArray1[2] is in valid range (prevent EEPROM corruption issues)
+              if (dispArray1[2] > 1) {
+                dispArray1[2] = 0;  // Reset to first option if out of range
+              }
+              // Force mode change detection so display updates immediately
+              dispArray1_prev[0] = 255;  // Set to invalid value to force update
             } 
             else if (menuLevel == 1) {
               // Show "UNITS" menu header
@@ -338,32 +372,37 @@ void dispMenu() {
             if (menuLevel == 1 && button == 1) {
               button = 0;
               menuLevel = 2;  // Go to level 2 (offset value selection)
+              // Force mode change detection so dispClock updates immediately
+              dispArray1_prev[0] = 255;  // Set to invalid value to force update
+              // Switch encoder handlers to clock offset adjustment mode
+              detachInterrupt(0);
+              detachInterrupt(1);
+              attachInterrupt(0, incrementOffset, CHANGE);  // Use special offset increment handler
+              attachInterrupt(1, incrementOffset, CHANGE);
               // nMenuLevel set dynamically in level 2 handler
             } 
             else if (menuLevel == 1) {
-              // Show "SET CLOCK" menu header
+              // Show "SET CLOCK" menu header at level 1
               // Serial.println("ClockOffset");  // Debug output
               dispClockOffset(&display1);
             } 
             else {
-              // Level 2 - Display current offset and adjust with encoder
+              // Level 2 - Display clock while adjusting offset with encoder
+              // Always show the clock so user can see the time as they adjust
               if (button == 1) {
                 // Button pressed - save clock offset and return to main menu
-                detachInterrupt(0);  // Temporarily detach encoder interrupts
+                button = 0;  // Clear button flag immediately
+                detachInterrupt(0);  // Detach offset adjustment handlers
                 detachInterrupt(1);
                 attachInterrupt(0, rotate, CHANGE);  // Reattach normal menu rotation handler
                 attachInterrupt(1, rotate, CHANGE);
-                EEPROM.write(clockOffset, clockOffsetAddress);  // Save offset to EEPROM
+                EEPROM.write(clockOffsetAddress, clockOffset);  // Save offset to EEPROM (address, value)
                 goToLevel0();  // Return to main menu
               } 
               else {
-                // Rotary encoder adjusts clock offset value (-12 to +12 hours)
-                // Temporarily change encoder handler to modify clockOffset directly
-                detachInterrupt(0);
-                detachInterrupt(1);
-                attachInterrupt(0, incrementOffset, CHANGE);  // Use special offset increment handler
-                attachInterrupt(1, incrementOffset, CHANGE);
-                dispClock(&display1);  // Display time with current offset applied
+                // Display clock with current offset applied
+                // Encoder rotation handled by incrementOffset ISR
+                dispClock(&display1);
               }
             } // End level 2 - Clock offset adjustment
             break;  // End case 2 - Clock offset submenu
@@ -450,6 +489,15 @@ void disp2(void){
 
     case 9: // Falcon Script Logo
       dispFalconScript(&display2);
+      break;
+
+    case 10: // Boost Gauge
+      // Display appropriate boost gauge based on units setting
+      if (units == 0) {
+        dispBoostKPA(&display2);  // Metric: 0-300 kPa
+      } else {
+        dispBoostPSI(&display2);  // Imperial: -7.3 to 22 PSI
+      }
       break;
   }
   
@@ -1276,6 +1324,241 @@ void dispInjDuty (Adafruit_SSD1306 *display) {
 }
 
 /**
+ * dispBoostPSI - Display boost pressure bar gauge (Imperial units)
+ * 
+ * Shows manifold absolute pressure (MAP) as "boost" with horizontal bar gauge and numeric value.
+ * Range: -14.7 to 29.4 PSI (corresponds to 0 to 300 kPa absolute)
+ * Values below ~0 PSI (atmospheric) shown with checkered pattern (vacuum/throttling)
+ * Values above ~0 PSI shown solid white (boost/forced induction)
+ * 
+ * Note: Despite the name "boost", this displays absolute manifold pressure.
+ * Atmospheric pressure at sea level is ~14.7 PSI (~101.325 kPa).
+ * 
+ * @param display - Pointer to display object
+ * 
+ * Optimized for speed:
+ * - Only updates on mode change or significant pressure change (>0.3 PSI)
+ * - Bar calculations use pre-computed constants
+ * - Pixel operations minimized
+ * - 12Hz (83ms) refresh rate, same as RPM
+ */
+void dispBoostPSI(Adafruit_SSD1306 *display) {
+  // Check if mode changed or boost pressure changed enough to warrant update
+  bool modeChanged = false;
+  if (display == &display1) {
+    modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+  } else {
+    modeChanged = (dispArray2[0] != dispArray2_prev);
+  }
+  
+  // Only update if mode changed or value changed significantly
+  if (modeChanged || needsUpdate_Boost(boostPrs, boostPrs_prev, 1)) {
+    // Convert manifold absolute pressure from kPa to PSI
+    // Display as relative to atmospheric (~14.7 PSI) for easier reading
+    float psi = boostPrs * 0.1450377 - 14.7;
+    
+    // Bar gauge constants
+    const int BAR_X = 4;
+    const int BAR_Y = 17;
+    const int BAR_WIDTH = 120;
+    const int BAR_HEIGHT = 12;
+    const float BAR_MIN = -14.7;
+    const float BAR_MAX = 29.4;
+    
+    display->clearDisplay();
+    display->setTextSize(1);
+    display->setTextColor(SSD1306_WHITE);
+    
+    // Draw label and value
+    display->setCursor(20, 2);
+    display->print(F("BOOST:"));
+    
+    byte d = digits(psi);
+    int decimalX = 74;
+    int valueX = decimalX - (d * 6);
+    
+    display->setCursor(valueX, 2);
+    display->print(psi, 1);
+    display->print(F(" PSI"));
+    
+    // Draw 2px bar outline with rounded corners
+    display->drawRect(BAR_X - 2, BAR_Y - 2, BAR_WIDTH + 4, BAR_HEIGHT + 4, SSD1306_WHITE);
+    display->drawRect(BAR_X - 1, BAR_Y - 1, BAR_WIDTH + 2, BAR_HEIGHT + 2, SSD1306_WHITE);
+    
+    // Clear corner pixels for rounded appearance
+    display->drawPixel(BAR_X - 2, BAR_Y - 2, 0);
+    display->drawPixel(BAR_X + BAR_WIDTH + 1, BAR_Y - 2, 0);
+    display->drawPixel(BAR_X + BAR_WIDTH + 1, BAR_Y + BAR_HEIGHT + 1, 0);
+    display->drawPixel(BAR_X - 2, BAR_Y + BAR_HEIGHT + 1, 0);
+    
+    int innerY = BAR_Y + 1;
+    int innerH = BAR_HEIGHT - 2;
+    
+    // Calculate bar and zero positions
+    float barPosition = mapFloat(psi, BAR_MIN, BAR_MAX, 0, BAR_WIDTH);
+    barPosition = constrain(barPosition, 0, BAR_WIDTH);
+    float zeroPosition = mapFloat(0, BAR_MIN, BAR_MAX, 0, BAR_WIDTH);
+    
+    int barPos = BAR_X + barPosition;
+    int zeroX = BAR_X + zeroPosition;
+    
+    // Fill bar based on positive (boost) or negative (vacuum) pressure
+    if (psi >= 0) {
+      // Positive boost - solid fill
+      int fillW = barPos - zeroX;
+      if (fillW > 0) {
+        display->fillRect(zeroX, innerY, fillW, innerH, SSD1306_WHITE);
+      }
+    } else {
+      // Negative pressure (vacuum) - checkered pattern
+      int fillX = barPos;
+      int fillW = zeroX - barPos;
+      
+      // Checker locked to zeroX so right edge is always solid
+      for (int x = fillX; x < zeroX; x++) {
+        for (int y = innerY; y < innerY + innerH; y++) {
+          if ((((zeroX - x) >> 1) + ((y - innerY) >> 1)) & 1) {
+            display->drawPixel(x, y, SSD1306_WHITE);
+          }
+        }
+      }
+    }
+    
+    // Draw tick marks at key pressure points
+    // Tick positions correspond to 50, 100, 150, 200, 250 kPa in metric
+    // -7.3 PSI (50 kPa), 0 PSI (101.3 kPa/atmospheric), 7.3 PSI (150 kPa), 14.7 PSI (200 kPa), 21.8 PSI (250 kPa)
+    float ticks[] = { -7.3, 0, 7.3, 14.7, 21.8 };
+    for (byte i = 0; i < 5; i++) {
+      float px = mapFloat(ticks[i], BAR_MIN, BAR_MAX, 0, BAR_WIDTH);
+      int x = BAR_X + px;
+      display->drawFastVLine(x, innerY, innerH, SSD1306_WHITE);
+    }
+    
+    display->display();
+    
+    // Update previous value
+    boostPrs_prev = boostPrs;
+  }
+}
+
+/**
+ * dispBoostKPA - Display boost pressure bar gauge (Metric units)
+ * 
+ * Shows manifold absolute pressure (MAP) as "boost" with horizontal bar gauge and numeric value.
+ * Range: 0 to 300 kPa absolute
+ * 0-100 kPa range shown with checkered pattern (vacuum/below atmospheric)
+ * 100-300 kPa range shown solid white (atmospheric to boost/forced induction)
+ * 
+ * Note: Despite the name "boost", this displays absolute manifold pressure.
+ * Atmospheric pressure at sea level is ~101.325 kPa.
+ * 
+ * @param display - Pointer to display object
+ * 
+ * Optimized for speed:
+ * - Only updates on mode change or significant pressure change (>2 kPa)
+ * - Bar calculations use pre-computed constants
+ * - Pixel operations minimized
+ * - 12Hz (83ms) refresh rate, same as RPM
+ */
+void dispBoostKPA(Adafruit_SSD1306 *display) {
+  // Check if mode changed or boost pressure changed enough to warrant update
+  bool modeChanged = false;
+  if (display == &display1) {
+    modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+  } else {
+    modeChanged = (dispArray2[0] != dispArray2_prev);
+  }
+  
+  // Only update if mode changed or value changed significantly
+  if (modeChanged || needsUpdate_Boost(boostPrs, boostPrs_prev, 0)) {
+    // Display manifold absolute pressure directly in kPa
+    float kpa = boostPrs;
+    
+    // Bar gauge constants
+    const int BAR_X = 4;
+    const int BAR_Y = 17;
+    const int BAR_WIDTH = 120;
+    const int BAR_HEIGHT = 12;
+    const float BAR_MIN = 0.0;
+    const float BAR_MAX = 300.0;
+    const float ZERO_KPA = 101.0;  // Atmospheric pressure = zero point (101 kPa)
+    
+    display->clearDisplay();
+    display->setTextSize(1);
+    display->setTextColor(SSD1306_WHITE);
+    
+    // Draw label and value
+    display->setCursor(20, 2);
+    display->print(F("BOOST:"));
+    
+    byte d = digits(kpa);
+    int decimalX = 74;
+    int valueX = decimalX - (d * 6);
+    
+    display->setCursor(valueX, 2);
+    display->print((int)kpa, DEC);  // Display as integer with no decimal points
+    display->print(F(" kPa"));
+    
+    // Draw 2px bar outline with rounded corners
+    display->drawRect(BAR_X - 2, BAR_Y - 2, BAR_WIDTH + 4, BAR_HEIGHT + 4, SSD1306_WHITE);
+    display->drawRect(BAR_X - 1, BAR_Y - 1, BAR_WIDTH + 2, BAR_HEIGHT + 2, SSD1306_WHITE);
+    
+    // Clear corner pixels for rounded appearance
+    display->drawPixel(BAR_X - 2, BAR_Y - 2, 0);
+    display->drawPixel(BAR_X + BAR_WIDTH + 1, BAR_Y - 2, 0);
+    display->drawPixel(BAR_X + BAR_WIDTH + 1, BAR_Y + BAR_HEIGHT + 1, 0);
+    display->drawPixel(BAR_X - 2, BAR_Y + BAR_HEIGHT + 1, 0);
+    
+    int innerY = BAR_Y + 1;
+    int innerH = BAR_HEIGHT - 2;
+    
+    // Calculate bar position and zero point position (101 kPa = atmospheric)
+    float barPosition = mapFloat(kpa, BAR_MIN, BAR_MAX, 0, BAR_WIDTH);
+    barPosition = constrain(barPosition, 0, BAR_WIDTH);
+    float zeroPosition = mapFloat(ZERO_KPA, BAR_MIN, BAR_MAX, 0, BAR_WIDTH);
+    
+    int barPos = BAR_X + barPosition;
+    int zeroX = BAR_X + zeroPosition;
+    
+    // Fill bar: checkered for vacuum (< 101 kPa), solid for boost (> 101 kPa)
+    if (kpa >= ZERO_KPA) {
+      // Boost (positive pressure) - solid bar extends RIGHT from zero point
+      int fillW = barPos - zeroX;
+      if (fillW > 0) {
+        display->fillRect(zeroX, innerY, fillW, innerH, SSD1306_WHITE);
+      }
+    } else {
+      // Vacuum (negative pressure) - checkered bar extends LEFT from zero point
+      int fillX = barPos;
+      int fillW = zeroX - barPos;
+      
+      // Checkered pattern locked to zeroX so right edge is always solid
+      for (int x = fillX; x < zeroX; x++) {
+        for (int y = innerY; y < innerY + innerH; y++) {
+          if ((((zeroX - x) >> 1) + ((y - innerY) >> 1)) & 1) {
+            display->drawPixel(x, y, SSD1306_WHITE);
+          }
+        }
+      }
+    }
+    
+    // Draw tick marks at key pressure points
+    // Tick marks at 50, 100, 150, 200, 250 kPa (evenly spaced across 0-300 range)
+    float ticks[] = { 50, 100, 150, 200, 250 };
+    for (byte i = 0; i < 5; i++) {
+      float px = mapFloat(ticks[i], BAR_MIN, BAR_MAX, 0, BAR_WIDTH);
+      int x = BAR_X + px;
+      display->drawFastVLine(x, innerY, innerH, SSD1306_WHITE);
+    }
+    
+    display->display();
+    
+    // Update previous value
+    boostPrs_prev = boostPrs;
+  }
+}
+
+/**
  * dispClock - Display time from GPS with local offset
  * 
  * Shows current time in HH:MM format using GPS time + clock offset.
@@ -1290,7 +1573,7 @@ void dispInjDuty (Adafruit_SSD1306 *display) {
  * - Minutes are zero-padded (e.g., "3:05" not "3:5")
  */
 void dispClock (Adafruit_SSD1306 *display){
-    // Check if mode changed or time changed
+    // Check if mode changed or time changed or clockOffset changed
     bool modeChanged = false;
     if (display == &display1) {
       modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
@@ -1298,8 +1581,11 @@ void dispClock (Adafruit_SSD1306 *display){
       modeChanged = (dispArray2[0] != dispArray2_prev);
     }
     
-    // Only update if mode changed or time changed
-    if (modeChanged || needsUpdate_Time(hour, minute, hour_prev, minute_prev)) {
+    // Check if clock offset changed (for adjustment mode)
+    bool offsetChanged = (clockOffset != clockOffset_prev);
+    
+    // Only update if mode changed or time changed or offset changed
+    if (modeChanged || needsUpdate_Time(hour, minute, hour_prev, minute_prev) || offsetChanged) {
       byte hourAdj;
       display->clearDisplay();
       
@@ -1326,6 +1612,7 @@ void dispClock (Adafruit_SSD1306 *display){
       // Update previous values
       hour_prev = hour;
       minute_prev = minute;
+      clockOffset_prev = clockOffset;  // Track previous offset
     }
 }
 
@@ -1424,6 +1711,23 @@ bool needsUpdate_RPM(int current, int previous) {
 }
 
 /**
+ * needsUpdate_Boost - Check if boost pressure changed enough to warrant update
+ * 
+ * Boost pressure change must be:
+ * - > 2 kPa (metric units), or
+ * - > 0.3 PSI (imperial units, ~2.07 kPa)
+ * 
+ * @param current - Current boost/MAP pressure in kPa
+ * @param previous - Previous boost/MAP pressure in kPa
+ * @param units - 0=metric, 1=imperial
+ * @return true if update needed, false otherwise
+ */
+bool needsUpdate_Boost(float current, float previous, byte units) {
+  float threshold = (units == 0) ? 2.0 : 2.07;  // 2 kPa or 0.3 PSI
+  return (abs(current - previous) > threshold);
+}
+
+/**
  * needsUpdate_Time - Check if time display should update
  * 
  * Updates when minute changes (hour changes are implicit)
@@ -1475,6 +1779,7 @@ unsigned int getDisplayUpdateInterval(byte displayMode, byte displayNum) {
   if (displayNum == 1) {
     switch (displayMode) {
       case 9:   // RPM
+      case 16:  // Boost gauge (12Hz, same as RPM)
         return 83;
       
       case 8:   // Speed
@@ -1496,7 +1801,6 @@ unsigned int getDisplayUpdateInterval(byte displayMode, byte displayNum) {
         return 500;
       
       case 15:  // Falcon Script logo
-      case 16:  // Reserved
         return 1000;
       
       default:
@@ -1507,6 +1811,7 @@ unsigned int getDisplayUpdateInterval(byte displayMode, byte displayNum) {
   else {
     switch (displayMode) {
       case 4:   // RPM
+      case 10:  // Boost gauge (12Hz, same as RPM)
         return 83;
       
       case 5:   // Speed

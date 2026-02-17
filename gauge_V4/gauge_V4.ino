@@ -206,10 +206,10 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(IGNITION_PULSE_PIN), ignitionPulseISR, FALLING);
 
   // ===== DISPLAY INITIALIZATION =====
-  // Initialize displays with 8MHz SPI clock speed
-  // begin(vccstate, i2caddr, reset, periphBegin, freq)
-  display1.begin(SSD1306_SWITCHCAPVCC, 0, true, true, OLED_SPI_CLOCK);
-  display2.begin(SSD1306_SWITCHCAPVCC, 0, true, true, OLED_SPI_CLOCK);
+  // Initialize displays (SPI clock speed set by library default)
+  // begin(vccstate, i2caddr, reset, periphBegin)
+  display1.begin(SSD1306_SWITCHCAPVCC, 0, true, true);
+  display2.begin(SSD1306_SWITCHCAPVCC, 0, true, true);
   dispFalconScript(&display1);
   disp302CID(&display2);
   
@@ -393,16 +393,25 @@ void loop() {
   // from delaying time-critical motor position updates
   // Each display uses independent timing with variable refresh rates based on content
   
+  // Check for user input requiring immediate display update
+  bool needsImmediateUpdate = (button == 1) || encoderMoved;
+  
   // Display 1 update - Variable refresh rate based on content type
+  // Update immediately on user input, or at scheduled interval
   unsigned int disp1Interval = getDisplayUpdateInterval(dispArray1[0], 1);
-  if (millis() - timerDisp1Update > disp1Interval) {
+  if (needsImmediateUpdate || (millis() - timerDisp1Update > disp1Interval)) {
     dispMenu();
     timerDisp1Update = millis();
+    encoderMoved = false;  // Clear flag after update
   }
   
   // Display 2 update - Variable refresh rate based on content type
+  // Update immediately when selection changes (e.g., scrolling through Display 2 options in Settings)
+  // or when button is pressed (entering Display 2 submenu), or at scheduled interval for data refresh
+  bool disp2SelectionChanged = (dispArray2[0] != dispArray2_prev);
+  bool needsDisp2Update = disp2SelectionChanged || needsImmediateUpdate;
   unsigned int disp2Interval = getDisplayUpdateInterval(dispArray2[0], 2);
-  if (millis() - timerDisp2Update > disp2Interval) {
+  if (needsDisp2Update || (millis() - timerDisp2Update > disp2Interval)) {
     disp2();
     timerDisp2Update = millis();
   }

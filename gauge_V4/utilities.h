@@ -113,4 +113,21 @@ float generateSyntheticFuelLevel(void);
  */
 float generateSyntheticManifoldPressure(void);
 
+/**
+ * mapFloat - Map a float value from one range to another
+ * 
+ * Similar to Arduino's map() but for floating point values.
+ * Linearly interpolates a value from input range to output range.
+ * 
+ * @param x - Value to map
+ * @param in_min - Lower bound of input range
+ * @param in_max - Upper bound of input range
+ * @param out_min - Lower bound of output range
+ * @param out_max - Upper bound of output range
+ * @return Mapped value in output range
+ * 
+ * Example: mapFloat(50, 0, 100, 0.0, 1.0) returns 0.5
+ */
+float mapFloat(float x, float in_min, float in_max, float out_min, float out_max);
+
 #endif // UTILITIES_H

@@ -80,6 +80,7 @@ extern unsigned int coolantTemp_g;  // Coolant temperature for gauge calculation
 
 // ===== ROTARY ENCODER VARIABLES =====
 extern bool button;                 // Button press event flag (set when press completes)
+extern volatile bool encoderMoved;  // Flag set when encoder rotates (for immediate display update)
 
 // ===== TIMING VARIABLES =====
 extern unsigned long timer0, timerDispUpdate, timerCANsend;
@@ -126,6 +127,7 @@ extern float battVolt;              // Battery voltage in volts
 extern float afr;                   // Air/Fuel Ratio
 extern float fuelComp;              // Ethanol percentage (0-100%)
 extern float manifoldPrs;           // Manifold Absolute Pressure in kPa
+extern float boostPrs;              // Boost pressure display (actually MAP for ease of use)
 extern int RPM;                     // Engine RPM for display
 extern int spd;                     // Vehicle speed in km/h * 100
 extern float spdMph;                // Vehicle speed in miles per hour
@@ -173,6 +175,7 @@ extern float fuelLvl_prev;          // Previous fuel level for dirty tracking
 extern float vBatt_prev;            // Previous battery voltage for dirty tracking
 extern float afr_prev;              // Previous AFR for dirty tracking
 extern float fuelComp_prev;         // Previous fuel composition for dirty tracking
+extern float boostPrs_prev;         // Previous boost pressure for dirty tracking
 extern int RPM_prev;                // Previous RPM for dirty tracking
 extern int spd_prev;                // Previous speed for dirty tracking
 extern int ignAngCAN_prev;          // Previous ignition angle for dirty tracking

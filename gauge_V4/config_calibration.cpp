@@ -26,8 +26,7 @@ uint8_t FILTER_AV2 = 12;            // Sensor B filter
 uint8_t FILTER_AV3 = 12;            // Sensor C filter
 
 // ===== HALL EFFECT SPEED SENSOR PARAMETERS =====
-uint16_t REVS_PER_KM = 1625;        /
-/ Revolutions of VSS per kilometer (8000 pulses per mile is standard)
+uint16_t REVS_PER_KM = 1625;        // Revolutions of VSS per kilometer (8000 pulses per mile is standard)
 uint8_t TEETH_PER_REV = 8;         // Teeth per revolution of the VSS
 uint8_t FILTER_HALL_SPEED = 64;    // EMA filter coefficient (205/256 ≈ 0.8)
 uint8_t HALL_SPEED_MIN = 50;        // Minimum reportable speed in km/h*100 (50 = 0.5 km/h)
@@ -64,6 +63,7 @@ uint8_t LAMBDA_SOURCE = 1;          // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2,
 
 // ===== TIME ZONE OFFSET =====
 byte clockOffset = 0;               // Hours to add to UTC time
+byte clockOffset_prev = 0;          // Previous clock offset for dirty tracking
 
 // ===== FUEL TANK CAPACITY =====
 float fuelCapacity = 16;            // Total fuel tank capacity in gallons

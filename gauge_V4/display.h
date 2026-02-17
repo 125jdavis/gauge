@@ -32,6 +32,8 @@ void dispFuelComp(Adafruit_SSD1306 *display);       // Fuel composition (ethanol
 void dispAFR(Adafruit_SSD1306 *display);            // Air/Fuel Ratio
 void dispIgnAng(Adafruit_SSD1306 *display);         // Ignition angle
 void dispInjDuty(Adafruit_SSD1306 *display);        // Injector duty cycle
+void dispBoostPSI(Adafruit_SSD1306 *display);        // Boost pressure bar gauge (PSI, imperial)
+void dispBoostKPA(Adafruit_SSD1306 *display);        // Boost pressure bar gauge (kPa, metric)
 void dispClock(Adafruit_SSD1306 *display);          // Clock display
 void dispTripOdo(Adafruit_SSD1306 *display);        // Trip odometer
 
@@ -59,6 +61,7 @@ bool needsUpdate_Temperature(float current, float previous);  // Check if temp c
 bool needsUpdate_Pressure(float current, float previous, byte units);  // Check if pressure changed > threshold
 bool needsUpdate_Speed(int current, int previous);   // Check if speed changed > 1 unit
 bool needsUpdate_RPM(int current, int previous);     // Check if RPM changed > 20
+bool needsUpdate_Boost(float current, float previous, byte units);  // Check if boost changed > threshold
 bool needsUpdate_Time(byte hour_curr, byte minute_curr, byte hour_prev, byte minute_prev);  // Check if time changed
 bool needsUpdate_ModeChange(byte* current, byte* previous, int size);  // Check if display mode changed
 unsigned int getDisplayUpdateInterval(byte displayMode, byte displayNum);  // Get refresh rate for display mode (displayNum: 1 or 2)
