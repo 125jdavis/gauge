@@ -221,12 +221,6 @@ void dispMenu() {
                 
                 case 0:  // Oil Pressure on Display 2    dispArray1 = {0, 0, 0, x}
                   //Serial.println("Disp2: Oil Pressure");  // Debug output
-                  display1.setTextColor(WHITE); 
-                  display1.clearDisplay();
-                  display1.setTextSize(2);
-                  display1.setCursor(20,8);
-                  display1.println(F("Oil Prs"));  // Show selection on Display 1
-                  display1.display();
                   dispArray2[0] = 0;  // Set display 2 to oil pressure
                   if (button == 1) {
                     goToLevel0();  // Save and return to main menu
@@ -235,12 +229,6 @@ void dispMenu() {
                   
                 case 1:  // Coolant Temp on Display 2    dispArray1 = {0, 0, 1, x}
                   //Serial.println("Disp2: Coolant Temp");  // Debug output
-                  display1.setTextColor(WHITE); 
-                  display1.clearDisplay();
-                  display1.setTextSize(2);
-                  display1.setCursor(14,8);
-                  display1.println(F("Coolant"));  // Show selection on Display 1
-                  display1.display();
                   dispArray2[0] = 1;  // Set display 2 to coolant temp
                   if (button == 1) {
                     goToLevel0();  // Save and return to main menu
@@ -249,12 +237,6 @@ void dispMenu() {
                   
                 case 2:  // Battery Voltage on Display 2  dispArray1 = {0, 0, 2, x}
                   //Serial.println("Disp2: Battery Voltage");  // Debug output
-                  display1.setTextColor(WHITE); 
-                  display1.clearDisplay();
-                  display1.setTextSize(2);
-                  display1.setCursor(14,8);
-                  display1.println(F("Battery"));  // Show selection on Display 1
-                  display1.display();
                   dispArray2[0] = 2;  // Set display 2 to battery voltage
                   if (button == 1) {
                     goToLevel0();  // Save and return to main menu
@@ -263,12 +245,6 @@ void dispMenu() {
                   
                 case 3:  // Fuel Level on Display 2       dispArray1 = {0, 0, 3, x}
                   //Serial.println("Disp2: Fuel Level");  // Debug output
-                  display1.setTextColor(WHITE); 
-                  display1.clearDisplay();
-                  display1.setTextSize(2);
-                  display1.setCursor(38,8);
-                  display1.println(F("Fuel"));  // Show selection on Display 1
-                  display1.display();
                   dispArray2[0] = 3;  // Set display 2 to fuel level
                   if (button == 1) {
                     goToLevel0();  // Save and return to main menu;
@@ -277,12 +253,6 @@ void dispMenu() {
                   
                 case 4:  // RPM on Display 2              dispArray1 = {0, 0, 4, x}
                   //Serial.println("Disp2: RPM");  // Debug output
-                  display1.setTextColor(WHITE); 
-                  display1.clearDisplay();
-                  display1.setTextSize(2);
-                  display1.setCursor(44,8);
-                  display1.println(F("RPM"));  // Show selection on Display 1
-                  display1.display();
                   dispArray2[0] = 4;  // Set display 2 to RPM
                   if (button == 1) {
                     goToLevel0();  // Save and return to main menu
@@ -291,12 +261,6 @@ void dispMenu() {
                   
                 case 5:  // Speed on Display 2            dispArray1 = {0, 0, 5, x}
                   //Serial.println("Disp2: Speed");  // Debug output
-                  display1.setTextColor(WHITE); 
-                  display1.clearDisplay();
-                  display1.setTextSize(2);
-                  display1.setCursor(32,8);
-                  display1.println(F("Speed"));  // Show selection on Display 1
-                  display1.display();
                   dispArray2[0] = 5;  // Set display 2 to speed
                   if (button == 1) {
                     goToLevel0();  // Save and return to main menu
@@ -305,12 +269,6 @@ void dispMenu() {
 
                 case 6:  // Clock on Display 2            dispArray1 = {0, 0, 6, x}
                   //Serial.println("Clock");  // Debug output
-                  display1.setTextColor(WHITE); 
-                  display1.clearDisplay();
-                  display1.setTextSize(2);
-                  display1.setCursor(32,8);
-                  display1.println(F("Clock"));  // Show selection on Display 1
-                  display1.display();
                   dispArray2[0] = 6;  // Set display 2 to clock
                   if (button == 1) {
                     goToLevel0();  // Save and return to main menu
@@ -319,12 +277,6 @@ void dispMenu() {
 
                 case 7:  // 302CID Logo on Display 2      dispArray1 = {0, 0, 7, x}
                   //Serial.println("Disp2: 302CID");  // Debug output
-                  display1.setTextColor(WHITE); 
-                  display1.clearDisplay();
-                  display1.setTextSize(2);
-                  display1.setCursor(14,8);
-                  display1.println(F("302 CID"));  // Show selection on Display 1
-                  display1.display();
                   dispArray2[0] = 7;  // Set display 2 to 302 CID logo
                   if (button == 1) {
                     goToLevel0();  // Save and return to main menu
@@ -333,12 +285,6 @@ void dispMenu() {
                   
                 case 8:  // 302V Logo on Display 2        dispArray1 = {0, 0, 8, x}
                   //Serial.println("Disp2: 302V");  // Debug output
-                  display1.setTextColor(WHITE); 
-                  display1.clearDisplay();
-                  display1.setTextSize(2);
-                  display1.setCursor(26,8);
-                  display1.println(F("302 V8"));  // Show selection on Display 1
-                  display1.display();
                   dispArray2[0] = 8;  // Set display 2 to 302V logo
                   if (button == 1) {
                     goToLevel0();  // Save and return to main menu
@@ -347,12 +293,6 @@ void dispMenu() {
                   
                 case 9:  // Falcon Script on Display 2    dispArray1 = {0, 0, 9, x}
                   //Serial.println("Disp2: Falcon Script");  // Debug output
-                  display1.setTextColor(WHITE); 
-                  display1.clearDisplay();
-                  display1.setTextSize(2);
-                  display1.setCursor(26,8);
-                  display1.println(F("Falcon"));  // Show selection on Display 1
-                  display1.display();
                   dispArray2[0] = 9;  // Set display 2 to Falcon logo
                   if (button == 1) {
                     goToLevel0();  // Save and return to main menu
@@ -361,12 +301,6 @@ void dispMenu() {
                   
                 case 10:  // Boost Gauge on Display 2      dispArray1 = {0, 0, 10, x}
                   //Serial.println("Disp2: Boost");  // Debug output
-                  display1.setTextColor(WHITE); 
-                  display1.clearDisplay();
-                  display1.setTextSize(2);
-                  display1.setCursor(32,8);
-                  display1.println(F("Boost"));  // Show selection on Display 1
-                  display1.display();
                   dispArray2[0] = 10;  // Set display 2 to boost gauge
                   if (button == 1) {
                     goToLevel0();  // Save and return to main menu
