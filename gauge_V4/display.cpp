@@ -207,6 +207,8 @@ void dispMenu() {
               button = 0;
               menuLevel = 2;   // Go to level 2
               nMenuLevel = 9;  // 10 display options (0-indexed): 0-9 now includes boost
+              // Force mode change detection so display updates immediately
+              dispArray1_prev[0] = 255;  // Set to invalid value to force update
             } 
             else if (menuLevel == 1) {
               // Show "DISPLAY 2" menu header
@@ -315,6 +317,8 @@ void dispMenu() {
               button = 0;
               menuLevel = 2;   // Go to level 2
               nMenuLevel = 1;  // 2 options: Metric or Imperial (0-indexed)
+              // Force mode change detection so display updates immediately
+              dispArray1_prev[0] = 255;  // Set to invalid value to force update
             } 
             else if (menuLevel == 1) {
               // Show "UNITS" menu header
