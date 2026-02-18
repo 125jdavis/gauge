@@ -1358,7 +1358,7 @@ void dispBoostGfx(Adafruit_SSD1306 *display) {
   if (modeChanged || needsUpdate_Boost(boostPrs, boostPrs_prev, units)) {
     // Bar gauge constants
     const int BAR_X = 29;
-    const int BAR_Y = 4;
+    const int BAR_Y = 8;
     const int BAR_WIDTH = 96;
     const int BAR_HEIGHT = 18;
     
@@ -1366,7 +1366,7 @@ void dispBoostGfx(Adafruit_SSD1306 *display) {
     display->setTextColor(SSD1306_WHITE);
     
     // Draw turbo icon on the left
-    display->drawBitmap(1, 0, IMG_TURBO, 24, 30, 1);
+    display->drawBitmap(0, 4, IMG_TURBO, 24, 30, 1);
     
     if (units == 0) {  // Metric units (kPa)
       float kpa = boostPrs;
@@ -1512,7 +1512,7 @@ void dispBoost(Adafruit_SSD1306 *display) {
     display->clearDisplay();
     
     // Draw turbo icon on the left side
-    display->drawBitmap(0, 0, IMG_TURBO, 24, 30, 1);
+    display->drawBitmap(0, 4, IMG_TURBO, 24, 30, 1);
     
     if (units == 0) {  // Metric units (kPa)
       float kpa = boostPrs;
@@ -1540,17 +1540,18 @@ void dispBoost(Adafruit_SSD1306 *display) {
       // Position units label at right side (text size 2)
       // Display width is 128px, "PSI" is 3 chars * 12px = 36px
       // Position at 92 so text ends at 128 (92 + 36 = 128)
-      display->setTextSize(1);
-      display->setCursor(102, 10);  // Fixed position for units on right
-      display->print("PSI");
+      // DUE TO SPACE LIMITATIONS, UNIT IS OMITTED
+      // display->setTextSize(1);
+      // display->setCursor(102, 10);  // Fixed position for units on right
+      // display->print("PSI");
       
       // Calculate position for value with 1 decimal (right-aligned next to units)
       // Text size 2: each digit/decimal is ~12px wide, decimal point ~6px
       display->setTextSize(3);
       byte nDig = digits(psi);
       // Account for decimal point and one decimal digit: add ~18px (1 digit + point)
-      int valueX = 86 - (nDig * 12) - 18 - 3;  // 3px gap before units     
-      display->setCursor(valueX, 10);
+      int valueX = 78 - (nDig* 18);    
+      display->setCursor(valueX, 6);
       display->print(psi, 1);
     }
     
