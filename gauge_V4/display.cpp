@@ -84,6 +84,7 @@ void dispMenu() {
 			        odoTrip = 0;  // Clear trip odometer
 			        goToLevel0();  // Return to main menu
 			        dispArray1[0] = 7;  // Stay on trip odo screen
+			        dispArray1_prev[0] = 255;  // Force display update
             } 
             break;
             
@@ -93,6 +94,7 @@ void dispMenu() {
                 // User cancelled reset
 				      goToLevel0();  // Return to main menu
 				      dispArray1[0] = 7;  // Stay on trip odo screen
+				      dispArray1_prev[0] = 255;  // Force display update
 			      } 
           break;
 		    } 
