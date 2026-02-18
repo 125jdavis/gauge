@@ -648,15 +648,15 @@ float generateSyntheticManifoldPressure(void) {
     const float MIN_PRESSURE = 0.0;
     const float MAX_PRESSURE = 250.0;
     const float MAX_RATE = 200.0;  // 200 kPa/second max (reduced from 600 by factor of 3)
-    const float MIN_RATE = 33.3;   // 33.3 kPa/second min (reduced from 100 by factor of 3)
+    const float MIN_RATE = 10;   // 33.3 kPa/second min (reduced from 100 by factor of 3)
     
     // Initialize on first call
     if (lastUpdateTime == 0) {
         lastUpdateTime = millis();
         stateStartTime = millis();
         currentPressure = 100.0;
-        targetPressure = random(80, 200);
-        rate = random(1000, 6000) / 10.0;  // 100 to 600 kPa/s
+        targetPressure = random(80, 280);
+        rate = random(100, 2000) / 10.0;  // 100 to 600 kPa/s
         stateDuration = random(1000, 5000);  // 1-5 seconds
         return currentPressure;
     }
@@ -683,7 +683,7 @@ float generateSyntheticManifoldPressure(void) {
     
     if (fabs(currentPressure - targetPressure) < 10.0 || timeInState >= stateDuration) {
         stateStartTime = currentTime;
-        stateDuration = random(1000, 5000);  // 1-5 seconds
+        stateDuration = random(2000, 5000);  // 1-5 seconds
         
         // New random target
         targetPressure = random(0, (int)MAX_PRESSURE);
