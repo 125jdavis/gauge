@@ -1200,18 +1200,18 @@ void dispTripOdo (Adafruit_SSD1306 *display) {
           
       if (units == 0){    // Metric Units
         odoDisp = odoTrip; 
-        display->setCursor(100,6);
+        display->setCursor(100,10);
         display->setTextSize(2);
         display->println("km");         
       } 
       else {              // 'Merican units
         odoDisp = odoTrip * 0.6213712; //convert km to miles  
-        display->setCursor(100,6);
+        display->setCursor(100,10);
         display->setTextSize(2);
         display->println("mi");          
       }
 
-      display->setCursor(35,6);
+      display->setCursor(35,10);
       display->setTextSize(2); 
       // right justify
       if (odoDisp < 10) {
@@ -1233,9 +1233,9 @@ void dispTripOdo (Adafruit_SSD1306 *display) {
       }
       
       display->setTextSize(1);
-      display->setCursor(1,3);
+      display->setCursor(1,7);
       display->println("Trip");
-      display->setCursor(1,13);
+      display->setCursor(1,17);
       display->println("Odo:"); 
       display->display();
       
