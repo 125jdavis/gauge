@@ -1756,15 +1756,15 @@ void dispBoost(Adafruit_SSD1306 *display) {
       // Display width is 128px, "kPa" is 3 chars * 12px = 36px
       // Position at 92 so text ends at 128 (92 + 36 = 128)
       display->setTextSize(2);
-      display->setCursor(92, 12);  // Fixed position for units on right
+      display->setCursor(92, 10);  // Fixed position for units on right
       display->print("kPa");
       
       // Calculate position for value (right-aligned next to units)
       // Text size 2: each digit is 12px wide
-      display->setTextSize(2);
+      display->setTextSize(3);
       byte nDig = digits(kpaInt);
-      int valueX = 92 - (nDig * 12) - 3;  // 3px gap before units
-      display->setCursor(valueX, 12);
+      int valueX = 92 - (nDig * 18) - 3;  // 3px gap before units
+      display->setCursor(valueX, 6);
       display->print(kpaInt, DEC);
       
     } else {  // Imperial units (PSI)
@@ -1774,17 +1774,17 @@ void dispBoost(Adafruit_SSD1306 *display) {
       // Position units label at right side (text size 2)
       // Display width is 128px, "PSI" is 3 chars * 12px = 36px
       // Position at 92 so text ends at 128 (92 + 36 = 128)
-      display->setTextSize(2);
-      display->setCursor(92, 12);  // Fixed position for units on right
+      display->setTextSize(1);
+      display->setCursor(102, 10);  // Fixed position for units on right
       display->print("PSI");
       
       // Calculate position for value with 1 decimal (right-aligned next to units)
       // Text size 2: each digit/decimal is ~12px wide, decimal point ~6px
-      display->setTextSize(2);
+      display->setTextSize(3);
       byte nDig = digits(psi);
       // Account for decimal point and one decimal digit: add ~18px (1 digit + point)
-      int valueX = 92 - (nDig * 12) - 18 - 3;  // 3px gap before units
-      display->setCursor(valueX, 12);
+      int valueX = 86 - (nDig * 12) - 18 - 3;  // 3px gap before units     
+      display->setCursor(valueX, 10);
       display->print(psi, 1);
     }
     
