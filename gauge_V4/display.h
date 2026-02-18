@@ -34,6 +34,8 @@ void dispIgnAng(Adafruit_SSD1306 *display);         // Ignition angle
 void dispInjDuty(Adafruit_SSD1306 *display);        // Injector duty cycle
 void dispBoostPSI(Adafruit_SSD1306 *display);        // Boost pressure bar gauge (PSI, imperial)
 void dispBoostKPA(Adafruit_SSD1306 *display);        // Boost pressure bar gauge (kPa, metric)
+void dispBoostGfx(Adafruit_SSD1306 *display);        // Boost pressure with turbo icon and bar gauge
+void dispBoost(Adafruit_SSD1306 *display);           // Boost pressure with turbo icon (text only, no bar)
 void dispClock(Adafruit_SSD1306 *display);          // Clock display
 void dispTripOdo(Adafruit_SSD1306 *display);        // Trip odometer
 

@@ -12,6 +12,8 @@
 #include <EEPROM.h>
 
 void dispMenu() {
+  bool forceDisplayUpdate = false;  // Flag to force display update after returning from submenu
+  
   switch (dispArray1[0]) {  // Level 0 - Main menu selection
     
     case 1:  // Oil Pressure Display                 dispArray1 = {1, x, x, x}
@@ -84,6 +86,7 @@ void dispMenu() {
 			        odoTrip = 0;  // Clear trip odometer
 			        goToLevel0();  // Return to main menu
 			        dispArray1[0] = 7;  // Stay on trip odo screen
+			        forceDisplayUpdate = true;  // Flag for force update after for loop
             } 
             break;
             
@@ -93,6 +96,7 @@ void dispMenu() {
                 // User cancelled reset
 				      goToLevel0();  // Return to main menu
 				      dispArray1[0] = 7;  // Stay on trip odo screen
+				      forceDisplayUpdate = true;  // Flag for force update after for loop
 			      } 
           break;
 		    } 
@@ -164,17 +168,20 @@ void dispMenu() {
       dispFalconScript(&display1);  // Display Falcon logo
       break;  
 
-    case 16:  // Boost Gauge Display                   dispArray1 = {16, x, x, x}
+    case 16:  // Boost Gauge Display (with bar)        dispArray1 = {16, x, x, x}
       if (menuLevel == 0 && button == 1) {
         button = 0; // Clear button flag
       }
-      // Serial.println("Boost");  // Debug output
-      // Display appropriate boost gauge based on units setting
-      if (units == 0) {
-        dispBoostKPA(&display1);  // Metric: 0-300 kPa
-      } else {
-        dispBoostPSI(&display1);  // Imperial: -7.3 to 22 PSI
+      // Serial.println("Boost GFX");  // Debug output
+      dispBoostGfx(&display1);  // Show boost with turbo icon and bar gauge
+      break;
+
+    case 17:  // Boost Display (text only)             dispArray1 = {17, x, x, x}
+      if (menuLevel == 0 && button == 1) {
+        button = 0; // Clear button flag
       }
+      // Serial.println("Boost Text");  // Debug output
+      dispBoost(&display1);  // Show boost with turbo icon, text only
       break;
 
     case 0:  // SETTINGS MENU - Always last screen for easy wrapping access
@@ -206,9 +213,9 @@ void dispMenu() {
               // Enter Display 2 selection submenu
               button = 0;
               menuLevel = 2;   // Go to level 2
-              nMenuLevel = 9;  // 10 display options (0-indexed): 0-9 now includes boost
+              nMenuLevel = 11;  // 12 display options (0-indexed): 0-11 now includes both boost options
               // Validate dispArray1[2] is in valid range (prevent EEPROM corruption issues)
-              if (dispArray1[2] > 9) {
+              if (dispArray1[2] > 11) {
                 dispArray1[2] = 0;  // Reset to first option if out of range
               }
               // Force mode change detection so display updates immediately
@@ -303,9 +310,17 @@ void dispMenu() {
                   }
                   break;
                   
-                case 10:  // Boost Gauge on Display 2      dispArray1 = {0, 0, 10, x}
-                  //Serial.println("Disp2: Boost");  // Debug output
-                  dispArray2[0] = 10;  // Set display 2 to boost gauge
+                case 10:  // Boost Gauge on Display 2 (with bar)  dispArray1 = {0, 0, 10, x}
+                  //Serial.println("Disp2: Boost GFX");  // Debug output
+                  dispArray2[0] = 10;  // Set display 2 to boost gauge with bar
+                  if (button == 1) {
+                    goToLevel0();  // Save and return to main menu
+                  }
+                  break;
+
+                case 11:  // Boost Display on Display 2 (text)  dispArray1 = {0, 0, 11, x}
+                  //Serial.println("Disp2: Boost Text");  // Debug output
+                  dispArray2[0] = 11;  // Set display 2 to boost text display
                   if (button == 1) {
                     goToLevel0();  // Save and return to main menu
                   }
@@ -428,6 +443,11 @@ void dispMenu() {
   for (int i = 0; i < 4; i++) {
     dispArray1_prev[i] = dispArray1[i];
   }
+  
+  // Apply force update if flagged (must be after for loop to prevent overwriting)
+  if (forceDisplayUpdate) {
+    dispArray1_prev[0] = 255;  // Force mode change detection
+  }
 } // End dispMenu()
 
 /**
@@ -447,6 +467,8 @@ void dispMenu() {
  * 7 - 302CID logo
  * 8 - 302V logo
  * 9 - Falcon Script logo
+ * 10 - Boost Gauge (with bar)
+ * 11 - Boost Display (text only)
  */
 void disp2(void){
   switch (dispArray2[0]){
@@ -491,13 +513,12 @@ void disp2(void){
       dispFalconScript(&display2);
       break;
 
-    case 10: // Boost Gauge
-      // Display appropriate boost gauge based on units setting
-      if (units == 0) {
-        dispBoostKPA(&display2);  // Metric: 0-300 kPa
-      } else {
-        dispBoostPSI(&display2);  // Imperial: -7.3 to 22 PSI
-      }
+    case 10: // Boost Gauge (with bar)
+      dispBoostGfx(&display2);  // Show boost with turbo icon and bar gauge
+      break;
+
+    case 11: // Boost Display (text only)
+      dispBoost(&display2);  // Show boost with turbo icon, text only
       break;
   }
   
@@ -509,7 +530,7 @@ void dispSettings (Adafruit_SSD1306 *display) {
     display->setTextColor(WHITE); 
     display->clearDisplay();
     display->setTextSize(2);
-    display->setCursor(20,8);
+    display->setCursor(16,8);  // Centered for "SETTINGS" (8 chars * 12px = 96px, (128-96)/2 = 16)
     display->println("SETTINGS");
     display->drawRect(0,0,128,32,SSD1306_WHITE);  // Draw border rectangle              
     display->display();
@@ -523,7 +544,7 @@ void dispDisp2Select (Adafruit_SSD1306 *display) {
     display->setTextColor(WHITE); 
     display->clearDisplay();
     display->setTextSize(2);
-    display->setCursor(15,8);
+    display->setCursor(10,8);  // Centered for "DISPLAY 2" (9 chars * 12px = 108px, (128-108)/2 = 10)
     display->println("DISPLAY 2");                 
     display->display();
 }
@@ -536,7 +557,7 @@ void dispUnits (Adafruit_SSD1306 *display) {
     display->setTextColor(WHITE); 
     display->clearDisplay();
     display->setTextSize(2);
-    display->setCursor(32,8);
+    display->setCursor(34,8);  // Centered for "UNITS" (5 chars * 12px = 60px, (128-60)/2 = 34)
     display->println("UNITS");                 
     display->display();
 }
@@ -549,7 +570,7 @@ void dispClockOffset (Adafruit_SSD1306 *display) {
     display->setTextColor(WHITE); 
     display->clearDisplay();
     display->setTextSize(2);
-    display->setCursor(0,9);
+    display->setCursor(10,9);  // Centered for "SET CLOCK" (9 chars * 12px = 108px, (128-108)/2 = 10)
     display->println("SET CLOCK");                 
     display->display();
 }
@@ -1188,18 +1209,18 @@ void dispTripOdo (Adafruit_SSD1306 *display) {
           
       if (units == 0){    // Metric Units
         odoDisp = odoTrip; 
-        display->setCursor(100,6);
+        display->setCursor(100,10);
         display->setTextSize(2);
         display->println("km");         
       } 
       else {              // 'Merican units
         odoDisp = odoTrip * 0.6213712; //convert km to miles  
-        display->setCursor(100,6);
+        display->setCursor(100,10);
         display->setTextSize(2);
         display->println("mi");          
       }
 
-      display->setCursor(35,6);
+      display->setCursor(35,10);
       display->setTextSize(2); 
       // right justify
       if (odoDisp < 10) {
@@ -1221,9 +1242,9 @@ void dispTripOdo (Adafruit_SSD1306 *display) {
       }
       
       display->setTextSize(1);
-      display->setCursor(1,3);
+      display->setCursor(1,7);
       display->println("Trip");
-      display->setCursor(1,13);
+      display->setCursor(1,17);
       display->println("Odo:"); 
       display->display();
       
@@ -1323,26 +1344,17 @@ void dispInjDuty (Adafruit_SSD1306 *display) {
     }
 }
 
+
 /**
- * dispBoostPSI - Display boost pressure bar gauge (Imperial units)
+ * dispBoostGfx - Display boost pressure with turbo icon and bar gauge
  * 
- * Shows manifold absolute pressure (MAP) as "boost" with horizontal bar gauge and numeric value.
- * Range: -14.7 to 29.4 PSI (corresponds to 0 to 300 kPa absolute)
- * Values below ~0 PSI (atmospheric) shown with checkered pattern (vacuum/throttling)
- * Values above ~0 PSI shown solid white (boost/forced induction)
- * 
- * Note: Despite the name "boost", this displays absolute manifold pressure.
- * Atmospheric pressure at sea level is ~14.7 PSI (~101.325 kPa).
+ * Shows boost/manifold pressure with turbo icon on the left and horizontal bar gauge.
+ * Bar gauge displays pressure range with visual representation.
+ * Supports both metric (kPa) and imperial (PSI) units.
  * 
  * @param display - Pointer to display object
- * 
- * Optimized for speed:
- * - Only updates on mode change or significant pressure change (>0.3 PSI)
- * - Bar calculations use pre-computed constants
- * - Pixel operations minimized
- * - 12Hz (83ms) refresh rate, same as RPM
  */
-void dispBoostPSI(Adafruit_SSD1306 *display) {
+void dispBoostGfx(Adafruit_SSD1306 *display) {
   // Check if mode changed or boost pressure changed enough to warrant update
   bool modeChanged = false;
   if (display == &display1) {
@@ -1352,86 +1364,130 @@ void dispBoostPSI(Adafruit_SSD1306 *display) {
   }
   
   // Only update if mode changed or value changed significantly
-  if (modeChanged || needsUpdate_Boost(boostPrs, boostPrs_prev, 1)) {
-    // Convert manifold absolute pressure from kPa to PSI
-    // Display as relative to atmospheric (~14.7 PSI) for easier reading
-    float psi = boostPrs * 0.1450377 - 14.7;
-    
+  if (modeChanged || needsUpdate_Boost(boostPrs, boostPrs_prev, units)) {
     // Bar gauge constants
-    const int BAR_X = 4;
-    const int BAR_Y = 17;
-    const int BAR_WIDTH = 120;
-    const int BAR_HEIGHT = 12;
-    const float BAR_MIN = -14.7;
-    const float BAR_MAX = 29.4;
+    const int BAR_X = 29;
+    const int BAR_Y = 8;
+    const int BAR_WIDTH = 96;
+    const int BAR_HEIGHT = 18;
     
     display->clearDisplay();
-    display->setTextSize(1);
     display->setTextColor(SSD1306_WHITE);
     
-    // Draw label and value
-    display->setCursor(20, 2);
-    display->print(F("BOOST:"));
+    // Draw turbo icon on the left
+    display->drawBitmap(0, 4, IMG_TURBO, 24, 30, 1);
     
-    byte d = digits(psi);
-    int decimalX = 74;
-    int valueX = decimalX - (d * 6);
-    
-    display->setCursor(valueX, 2);
-    display->print(psi, 1);
-    display->print(F(" PSI"));
-    
-    // Draw 2px bar outline with rounded corners
-    display->drawRect(BAR_X - 2, BAR_Y - 2, BAR_WIDTH + 4, BAR_HEIGHT + 4, SSD1306_WHITE);
-    display->drawRect(BAR_X - 1, BAR_Y - 1, BAR_WIDTH + 2, BAR_HEIGHT + 2, SSD1306_WHITE);
-    
-    // Clear corner pixels for rounded appearance
-    display->drawPixel(BAR_X - 2, BAR_Y - 2, 0);
-    display->drawPixel(BAR_X + BAR_WIDTH + 1, BAR_Y - 2, 0);
-    display->drawPixel(BAR_X + BAR_WIDTH + 1, BAR_Y + BAR_HEIGHT + 1, 0);
-    display->drawPixel(BAR_X - 2, BAR_Y + BAR_HEIGHT + 1, 0);
-    
-    int innerY = BAR_Y + 1;
-    int innerH = BAR_HEIGHT - 2;
-    
-    // Calculate bar and zero positions
-    float barPosition = mapFloat(psi, BAR_MIN, BAR_MAX, 0, BAR_WIDTH);
-    barPosition = constrain(barPosition, 0, BAR_WIDTH);
-    float zeroPosition = mapFloat(0, BAR_MIN, BAR_MAX, 0, BAR_WIDTH);
-    
-    int barPos = BAR_X + barPosition;
-    int zeroX = BAR_X + zeroPosition;
-    
-    // Fill bar based on positive (boost) or negative (vacuum) pressure
-    if (psi >= 0) {
-      // Positive boost - solid fill
-      int fillW = barPos - zeroX;
-      if (fillW > 0) {
-        display->fillRect(zeroX, innerY, fillW, innerH, SSD1306_WHITE);
-      }
-    } else {
-      // Negative pressure (vacuum) - checkered pattern
-      int fillX = barPos;
-      int fillW = zeroX - barPos;
+    if (units == 0) {  // Metric units (kPa)
+      float kpa = boostPrs;
+      const float BAR_MIN = 0.0;
+      const float BAR_MAX = 300.0;
+      const float ZERO_KPA = 101.0;  // Atmospheric pressure
       
-      // Checker locked to zeroX so right edge is always solid
-      for (int x = fillX; x < zeroX; x++) {
-        for (int y = innerY; y < innerY + innerH; y++) {
-          if ((((zeroX - x) >> 1) + ((y - innerY) >> 1)) & 1) {
-            display->drawPixel(x, y, SSD1306_WHITE);
+      // Draw 2px bar outline with rounded corners
+      display->drawRect(BAR_X - 2, BAR_Y - 2, BAR_WIDTH + 4, BAR_HEIGHT + 4, SSD1306_WHITE);
+      display->drawRect(BAR_X - 1, BAR_Y - 1, BAR_WIDTH + 2, BAR_HEIGHT + 2, SSD1306_WHITE);
+      
+      // Clear corner pixels for rounded appearance
+      display->drawPixel(BAR_X - 2, BAR_Y - 2, 0);
+      display->drawPixel(BAR_X + BAR_WIDTH + 1, BAR_Y - 2, 0);
+      display->drawPixel(BAR_X + BAR_WIDTH + 1, BAR_Y + BAR_HEIGHT + 1, 0);
+      display->drawPixel(BAR_X - 2, BAR_Y + BAR_HEIGHT + 1, 0);
+      
+      int innerY = BAR_Y + 1;
+      int innerH = BAR_HEIGHT - 2;
+      
+      // Calculate bar position and zero point
+      float barPosition = mapFloat(kpa, BAR_MIN, BAR_MAX, 0, BAR_WIDTH);
+      barPosition = constrain(barPosition, 0, BAR_WIDTH);
+      float zeroPosition = mapFloat(ZERO_KPA, BAR_MIN, BAR_MAX, 0, BAR_WIDTH);
+      
+      int barPos = BAR_X + barPosition;
+      int zeroX = BAR_X + zeroPosition;
+      
+      // Fill bar: checkered for vacuum, solid for boost
+      if (kpa >= ZERO_KPA) {
+        // Boost - solid fill
+        int fillW = barPos - zeroX;
+        if (fillW > 0) {
+          display->fillRect(zeroX, innerY, fillW, innerH, SSD1306_WHITE);
+        }
+      } else {
+        // Vacuum - checkered pattern
+        int fillX = barPos;
+        int fillW = zeroX - barPos;
+        
+        for (int x = fillX; x < zeroX; x++) {
+          for (int y = innerY; y < innerY + innerH; y++) {
+            if ((((zeroX - x) >> 1) + ((y - innerY) >> 1)) & 1) {
+              display->drawPixel(x, y, SSD1306_WHITE);
+            }
           }
         }
       }
-    }
-    
-    // Draw tick marks at key pressure points
-    // Tick positions correspond to 50, 100, 150, 200, 250 kPa in metric
-    // -7.3 PSI (50 kPa), 0 PSI (101.3 kPa/atmospheric), 7.3 PSI (150 kPa), 14.7 PSI (200 kPa), 21.8 PSI (250 kPa)
-    float ticks[] = { -7.3, 0, 7.3, 14.7, 21.8 };
-    for (byte i = 0; i < 5; i++) {
-      float px = mapFloat(ticks[i], BAR_MIN, BAR_MAX, 0, BAR_WIDTH);
-      int x = BAR_X + px;
-      display->drawFastVLine(x, innerY, innerH, SSD1306_WHITE);
+      
+      // Draw tick marks at key pressure points
+      float ticks[] = { 50, 100, 150, 200, 250 };
+      for (byte i = 0; i < 5; i++) {
+        float px = mapFloat(ticks[i], BAR_MIN, BAR_MAX, 0, BAR_WIDTH);
+        int x = BAR_X + px;
+        display->drawFastVLine(x, innerY, innerH, SSD1306_WHITE);
+      }
+      
+    } else {  // Imperial units (PSI)
+      // Convert to gauge pressure (relative to atmospheric)
+      float psi = boostPrs * 0.1450377 - 14.7;
+      const float BAR_MIN = -14.7;
+      const float BAR_MAX = 29.4;
+      
+      // Draw 2px bar outline with rounded corners
+      display->drawRect(BAR_X - 2, BAR_Y - 2, BAR_WIDTH + 4, BAR_HEIGHT + 4, SSD1306_WHITE);
+      display->drawRect(BAR_X - 1, BAR_Y - 1, BAR_WIDTH + 2, BAR_HEIGHT + 2, SSD1306_WHITE);
+      
+      // Clear corner pixels for rounded appearance
+      display->drawPixel(BAR_X - 2, BAR_Y - 2, 0);
+      display->drawPixel(BAR_X + BAR_WIDTH + 1, BAR_Y - 2, 0);
+      display->drawPixel(BAR_X + BAR_WIDTH + 1, BAR_Y + BAR_HEIGHT + 1, 0);
+      display->drawPixel(BAR_X - 2, BAR_Y + BAR_HEIGHT + 1, 0);
+      
+      int innerY = BAR_Y + 1;
+      int innerH = BAR_HEIGHT - 2;
+      
+      // Calculate bar and zero positions
+      float barPosition = mapFloat(psi, BAR_MIN, BAR_MAX, 0, BAR_WIDTH);
+      barPosition = constrain(barPosition, 0, BAR_WIDTH);
+      float zeroPosition = mapFloat(0, BAR_MIN, BAR_MAX, 0, BAR_WIDTH);
+      
+      int barPos = BAR_X + barPosition;
+      int zeroX = BAR_X + zeroPosition;
+      
+      // Fill bar based on positive (boost) or negative (vacuum) pressure
+      if (psi >= 0) {
+        // Positive boost - solid fill
+        int fillW = barPos - zeroX;
+        if (fillW > 0) {
+          display->fillRect(zeroX, innerY, fillW, innerH, SSD1306_WHITE);
+        }
+      } else {
+        // Negative pressure (vacuum) - checkered pattern
+        int fillX = barPos;
+        int fillW = zeroX - barPos;
+        
+        for (int x = fillX; x < zeroX; x++) {
+          for (int y = innerY; y < innerY + innerH; y++) {
+            if ((((zeroX - x) >> 1) + ((y - innerY) >> 1)) & 1) {
+              display->drawPixel(x, y, SSD1306_WHITE);
+            }
+          }
+        }
+      }
+      
+      // Draw tick marks at key pressure points
+      float ticks[] = { -7.3, 0, 7.3, 14.7, 21.8 };
+      for (byte i = 0; i < 5; i++) {
+        float px = mapFloat(ticks[i], BAR_MIN, BAR_MAX, 0, BAR_WIDTH);
+        int x = BAR_X + px;
+        display->drawFastVLine(x, innerY, innerH, SSD1306_WHITE);
+      }
     }
     
     display->display();
@@ -1442,25 +1498,15 @@ void dispBoostPSI(Adafruit_SSD1306 *display) {
 }
 
 /**
- * dispBoostKPA - Display boost pressure bar gauge (Metric units)
+ * dispBoost - Display boost pressure with turbo icon (text only, no bar)
  * 
- * Shows manifold absolute pressure (MAP) as "boost" with horizontal bar gauge and numeric value.
- * Range: 0 to 300 kPa absolute
- * 0-100 kPa range shown with checkered pattern (vacuum/below atmospheric)
- * 100-300 kPa range shown solid white (atmospheric to boost/forced induction)
- * 
- * Note: Despite the name "boost", this displays absolute manifold pressure.
- * Atmospheric pressure at sea level is ~101.325 kPa.
+ * Shows boost/manifold pressure with turbo icon on the left.
+ * Text-only display with right-aligned values and units.
+ * Supports both metric (kPa) and imperial (PSI) units.
  * 
  * @param display - Pointer to display object
- * 
- * Optimized for speed:
- * - Only updates on mode change or significant pressure change (>2 kPa)
- * - Bar calculations use pre-computed constants
- * - Pixel operations minimized
- * - 12Hz (83ms) refresh rate, same as RPM
  */
-void dispBoostKPA(Adafruit_SSD1306 *display) {
+void dispBoost(Adafruit_SSD1306 *display) {
   // Check if mode changed or boost pressure changed enough to warrant update
   bool modeChanged = false;
   if (display == &display1) {
@@ -1470,85 +1516,52 @@ void dispBoostKPA(Adafruit_SSD1306 *display) {
   }
   
   // Only update if mode changed or value changed significantly
-  if (modeChanged || needsUpdate_Boost(boostPrs, boostPrs_prev, 0)) {
-    // Display manifold absolute pressure directly in kPa
-    float kpa = boostPrs;
-    
-    // Bar gauge constants
-    const int BAR_X = 4;
-    const int BAR_Y = 17;
-    const int BAR_WIDTH = 120;
-    const int BAR_HEIGHT = 12;
-    const float BAR_MIN = 0.0;
-    const float BAR_MAX = 300.0;
-    const float ZERO_KPA = 101.0;  // Atmospheric pressure = zero point (101 kPa)
-    
+  if (modeChanged || needsUpdate_Boost(boostPrs, boostPrs_prev, units)) {
+    display->setTextColor(WHITE);
     display->clearDisplay();
-    display->setTextSize(1);
-    display->setTextColor(SSD1306_WHITE);
     
-    // Draw label and value
-    display->setCursor(20, 2);
-    display->print(F("BOOST:"));
+    // Draw turbo icon on the left side
+    display->drawBitmap(0, 4, IMG_TURBO, 24, 30, 1);
     
-    byte d = digits(kpa);
-    int decimalX = 74;
-    int valueX = decimalX - (d * 6);
-    
-    display->setCursor(valueX, 2);
-    display->print((int)kpa, DEC);  // Display as integer with no decimal points
-    display->print(F(" kPa"));
-    
-    // Draw 2px bar outline with rounded corners
-    display->drawRect(BAR_X - 2, BAR_Y - 2, BAR_WIDTH + 4, BAR_HEIGHT + 4, SSD1306_WHITE);
-    display->drawRect(BAR_X - 1, BAR_Y - 1, BAR_WIDTH + 2, BAR_HEIGHT + 2, SSD1306_WHITE);
-    
-    // Clear corner pixels for rounded appearance
-    display->drawPixel(BAR_X - 2, BAR_Y - 2, 0);
-    display->drawPixel(BAR_X + BAR_WIDTH + 1, BAR_Y - 2, 0);
-    display->drawPixel(BAR_X + BAR_WIDTH + 1, BAR_Y + BAR_HEIGHT + 1, 0);
-    display->drawPixel(BAR_X - 2, BAR_Y + BAR_HEIGHT + 1, 0);
-    
-    int innerY = BAR_Y + 1;
-    int innerH = BAR_HEIGHT - 2;
-    
-    // Calculate bar position and zero point position (101 kPa = atmospheric)
-    float barPosition = mapFloat(kpa, BAR_MIN, BAR_MAX, 0, BAR_WIDTH);
-    barPosition = constrain(barPosition, 0, BAR_WIDTH);
-    float zeroPosition = mapFloat(ZERO_KPA, BAR_MIN, BAR_MAX, 0, BAR_WIDTH);
-    
-    int barPos = BAR_X + barPosition;
-    int zeroX = BAR_X + zeroPosition;
-    
-    // Fill bar: checkered for vacuum (< 101 kPa), solid for boost (> 101 kPa)
-    if (kpa >= ZERO_KPA) {
-      // Boost (positive pressure) - solid bar extends RIGHT from zero point
-      int fillW = barPos - zeroX;
-      if (fillW > 0) {
-        display->fillRect(zeroX, innerY, fillW, innerH, SSD1306_WHITE);
-      }
-    } else {
-      // Vacuum (negative pressure) - checkered bar extends LEFT from zero point
-      int fillX = barPos;
-      int fillW = zeroX - barPos;
+    if (units == 0) {  // Metric units (kPa)
+      float kpa = boostPrs;
+      int kpaInt = (int)kpa;
       
-      // Checkered pattern locked to zeroX so right edge is always solid
-      for (int x = fillX; x < zeroX; x++) {
-        for (int y = innerY; y < innerY + innerH; y++) {
-          if ((((zeroX - x) >> 1) + ((y - innerY) >> 1)) & 1) {
-            display->drawPixel(x, y, SSD1306_WHITE);
-          }
-        }
-      }
-    }
-    
-    // Draw tick marks at key pressure points
-    // Tick marks at 50, 100, 150, 200, 250 kPa (evenly spaced across 0-300 range)
-    float ticks[] = { 50, 100, 150, 200, 250 };
-    for (byte i = 0; i < 5; i++) {
-      float px = mapFloat(ticks[i], BAR_MIN, BAR_MAX, 0, BAR_WIDTH);
-      int x = BAR_X + px;
-      display->drawFastVLine(x, innerY, innerH, SSD1306_WHITE);
+      // Position units label at right side (text size 2)
+      // Display width is 128px, "kPa" is 3 chars * 12px = 36px
+      // Position at 92 so text ends at 128 (92 + 36 = 128)
+      display->setTextSize(2);
+      display->setCursor(92, 10);  // Fixed position for units on right
+      display->print("kPa");
+      
+      // Calculate position for value (right-aligned next to units)
+      // Text size 2: each digit is 12px wide
+      display->setTextSize(3);
+      byte nDig = digits(kpaInt);
+      int valueX = 92 - (nDig * 18) - 3;  // 3px gap before units
+      display->setCursor(valueX, 6);
+      display->print(kpaInt, DEC);
+      
+    } else {  // Imperial units (PSI)
+      // Convert to gauge pressure (relative to atmospheric)
+      float psi = boostPrs * 0.1450377 - 14.7;
+      
+      // Position units label at right side (text size 2)
+      // Display width is 128px, "PSI" is 3 chars * 12px = 36px
+      // Position at 92 so text ends at 128 (92 + 36 = 128)
+      // DUE TO SPACE LIMITATIONS, UNIT IS OMITTED
+      // display->setTextSize(1);
+      // display->setCursor(102, 10);  // Fixed position for units on right
+      // display->print("PSI");
+      
+      // Calculate position for value with 1 decimal (right-aligned next to units)
+      // Text size 2: each digit/decimal is ~12px wide, decimal point ~6px
+      display->setTextSize(3);
+      byte nDig = digits(psi);
+      // Account for decimal point and one decimal digit: add ~18px (1 digit + point)
+      int valueX = 78 - (nDig* 18);    
+      display->setCursor(valueX, 6);
+      display->print(psi, 1);
     }
     
     display->display();
@@ -1779,7 +1792,8 @@ unsigned int getDisplayUpdateInterval(byte displayMode, byte displayNum) {
   if (displayNum == 1) {
     switch (displayMode) {
       case 9:   // RPM
-      case 16:  // Boost gauge (12Hz, same as RPM)
+      case 16:  // Boost gauge with bar (12Hz, same as RPM)
+      case 17:  // Boost text display (12Hz, same as RPM)
         return 83;
       
       case 8:   // Speed
@@ -1811,7 +1825,8 @@ unsigned int getDisplayUpdateInterval(byte displayMode, byte displayNum) {
   else {
     switch (displayMode) {
       case 4:   // RPM
-      case 10:  // Boost gauge (12Hz, same as RPM)
+      case 10:  // Boost gauge with bar (12Hz, same as RPM)
+      case 11:  // Boost text display (12Hz, same as RPM)
         return 83;
       
       case 5:   // Speed
