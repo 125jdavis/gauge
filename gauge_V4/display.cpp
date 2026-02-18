@@ -12,6 +12,8 @@
 #include <EEPROM.h>
 
 void dispMenu() {
+  bool forceDisplayUpdate = false;  // Flag to force display update after returning from submenu
+  
   switch (dispArray1[0]) {  // Level 0 - Main menu selection
     
     case 1:  // Oil Pressure Display                 dispArray1 = {1, x, x, x}
@@ -84,7 +86,7 @@ void dispMenu() {
 			        odoTrip = 0;  // Clear trip odometer
 			        goToLevel0();  // Return to main menu
 			        dispArray1[0] = 7;  // Stay on trip odo screen
-			        dispArray1_prev[0] = 255;  // Force display update
+			        forceDisplayUpdate = true;  // Flag for force update after for loop
             } 
             break;
             
@@ -94,7 +96,7 @@ void dispMenu() {
                 // User cancelled reset
 				      goToLevel0();  // Return to main menu
 				      dispArray1[0] = 7;  // Stay on trip odo screen
-				      dispArray1_prev[0] = 255;  // Force display update
+				      forceDisplayUpdate = true;  // Flag for force update after for loop
 			      } 
           break;
 		    } 
@@ -440,6 +442,11 @@ void dispMenu() {
   // Update previous display mode for dirty tracking
   for (int i = 0; i < 4; i++) {
     dispArray1_prev[i] = dispArray1[i];
+  }
+  
+  // Apply force update if flagged (must be after for loop to prevent overwriting)
+  if (forceDisplayUpdate) {
+    dispArray1_prev[0] = 255;  // Force mode change detection
   }
 } // End dispMenu()
 
