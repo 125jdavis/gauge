@@ -82,7 +82,7 @@ extern uint8_t ODO_GEAR_TEETH;        // Number of teeth on odometer gear
 // These parameters determine which sensor/source to use for each signal
 // This allows flexible configuration of data sources
 
-// Speed source for both speedometer and odometer: 0=off, 1=CAN, 2=Hall sensor, 3=GPS
+// Speed source for both speedometer and odometer: 0=off, 1=CAN, 2=Hall sensor, 3=GPS, 4=Synthetic (debug), 5=Odometer test (1-mile profile)
 extern uint8_t SPEED_SOURCE;
 
 // Engine RPM source: 0=off, 1=CAN, 2=coil negative

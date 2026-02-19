@@ -114,6 +114,24 @@ float generateSyntheticFuelLevel(void);
 float generateSyntheticManifoldPressure(void);
 
 /**
+ * generateOdometerTestSpeed - Generate a deterministic 1-mile odometer accuracy test profile
+ * 
+ * Starts 5 seconds after device boot. Speed profile:
+ * - Phase 1 (5s-10s):  Linear ramp from 0 to 96.56 km/h (60 mph) over 5 seconds
+ * - Phase 2 (10s-65s): Hold constant at 96.56 km/h for 55 seconds
+ * - Phase 3 (65s-70s): Linear ramp from 96.56 km/h to 0 over 5 seconds
+ * Total distance = 1 mile, allowing accuracy comparison of the mechanical
+ * odometer (motor) and trip odometer (OLED display) against the expected value.
+ * 
+ * Returns 0 before the test starts (< 5 s) and after the test completes (> 70 s).
+ * 
+ * Returns: Speed in km/h * 100 format (e.g., 9656 = 96.56 km/h)
+ * 
+ * Called from: sigSelect() when SPEED_SOURCE == 5 (odometer test mode)
+ */
+int generateOdometerTestSpeed(void);
+
+/**
  * mapFloat - Map a float value from one range to another
  * 
  * Similar to Arduino's map() but for floating point values.

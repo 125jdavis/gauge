@@ -517,7 +517,7 @@ float curveLookup(float input, float brkpts[], float curve[], int curveLength){
  * sigSelect - Process and route sensor data
  */
 void sigSelect (void) {
-    // Select vehicle speed source: 0=off, 1=CAN, 2=Hall sensor, 3=GPS, 4=Synthetic (debug)
+    // Select vehicle speed source: 0=off, 1=CAN, 2=Hall sensor, 3=GPS, 4=Synthetic (debug), 5=Odometer test
     switch (SPEED_SOURCE) {
         case 0:  // Off
             spd = 0;
@@ -533,6 +533,9 @@ void sigSelect (void) {
             break;
         case 4:  // Synthetic speed source (for debugging)
             spd = generateSyntheticSpeed();  // Returns km/h * 100 format
+            break;
+        case 5:  // Odometer accuracy test: deterministic 1-mile profile
+            spd = generateOdometerTestSpeed();  // Returns km/h * 100 format
             break;
         default:  // Fallback to off
             spd = 0;
@@ -557,7 +560,7 @@ void sigSelect (void) {
     }
     
     // Update odometer for synthetic speed source (for debugging)
-    if (SPEED_SOURCE == 4 && lastSyntheticOdometerUpdateTime != 0) {
+    if ((SPEED_SOURCE == 4 || SPEED_SOURCE == 5) && lastSyntheticOdometerUpdateTime != 0) {
         unsigned long currentTime = millis();
         unsigned long timeIntervalMs = currentTime - lastSyntheticOdometerUpdateTime;
         // spd is in km/h * 100 format, convert to km/h for updateOdometer
@@ -567,7 +570,7 @@ void sigSelect (void) {
             moveOdometerMotor(distTraveled);
         }
         lastSyntheticOdometerUpdateTime = currentTime;
-    } else if (SPEED_SOURCE == 4 && lastSyntheticOdometerUpdateTime == 0) {
+    } else if ((SPEED_SOURCE == 4 || SPEED_SOURCE == 5) && lastSyntheticOdometerUpdateTime == 0) {
         // Initialize the timer on first run
         lastSyntheticOdometerUpdateTime = millis();
     }
