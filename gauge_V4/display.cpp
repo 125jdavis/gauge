@@ -1201,8 +1201,8 @@ void dispTripOdo (Adafruit_SSD1306 *display) {
       modeChanged = (dispArray2[0] != dispArray2_prev);
     }
     
-    // Threshold: 0.1 km/miles change
-    if (modeChanged || abs(odoTrip - odoTrip_prev) > 0.1) {
+    // Threshold: 0.001 km/miles — update on any meaningful odometer increment
+    if (modeChanged || abs(odoTrip - odoTrip_prev) > 0.001) {
       float odoDisp;
       display->setTextColor(WHITE); 
       display->clearDisplay();             //clear buffer

@@ -401,6 +401,11 @@ void loop() {
   // Update immediately on user input, or at scheduled interval
   unsigned int disp1Interval = getDisplayUpdateInterval(dispArray1[0], 1);
   if (needsImmediateUpdate || (millis() - timerDisp1Update > disp1Interval)) {
+    // Force a full redraw when the user scrolled to a new screen, so the display
+    // function always sees modeChanged=true and clears leftover content.
+    if (encoderMoved) {
+      dispArray1_prev[0] = 255;
+    }
     dispMenu();
     timerDisp1Update = millis();
     encoderMoved = false;  // Clear flag after update
@@ -413,6 +418,11 @@ void loop() {
   bool needsDisp2Update = disp2SelectionChanged || needsImmediateUpdate;
   unsigned int disp2Interval = getDisplayUpdateInterval(dispArray2[0], 2);
   if (needsDisp2Update || (millis() - timerDisp2Update > disp2Interval)) {
+    // Force a full redraw when the Display 2 selection changed, so the display
+    // function always sees modeChanged=true and clears leftover content.
+    if (disp2SelectionChanged) {
+      dispArray2_prev = 255;
+    }
     disp2();
     timerDisp2Update = millis();
   }
