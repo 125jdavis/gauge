@@ -8,6 +8,7 @@
 #include "globals.h"
 #include "display.h"
 #include "outputs.h"
+#include "image_data.h"
 #include <EEPROM.h>
 
 void shutdown (void){
@@ -25,10 +26,20 @@ void shutdown (void){
   EEPROM.put(odoTripAddress, odoTrip);
   EEPROM.put(fuelSensorRawAddress, fuelSensorRaw);  // Remember fuel level for restart
 
+  // Clear LED tachometer immediately
+  fill_solid(leds, NUM_LEDS, CRGB::Black);
+  FastLED.show();
 
-  // Display shutdown screens
-  dispFalconScript(&display1);
-  disp302CID(&display2);
+  // Display shutdown screens.
+  // Draw bitmaps directly rather than via dispFalconScript/disp302CID so that the
+  // staticContentDrawn dirty-tracking flags (which may be stale from a previous logo
+  // view) cannot block the draw.
+  display1.clearDisplay();
+  display1.drawBitmap(0, 0, IMG_FALCON_SCRIPT, SCREEN_W, SCREEN_H, 1);
+  display1.display();
+  display2.clearDisplay();
+  display2.drawBitmap(0, 0, IMG_302_CID, SCREEN_W, SCREEN_H, 1);
+  display2.display();
 
   // Return gauge needles to zero position
   motorZeroSynchronous();
@@ -40,6 +51,16 @@ void shutdown (void){
   if (vBatt > 1){
     return;  // Abort shutdown - voltage has returned
   }
+
+  // Clear both displays before cutting power.
+  // OLED modules have on-board capacitors that sustain power for up to ~60 seconds
+  // after the supply rail drops (hardware characteristic).  Sending a blank frame now
+  // ensures the pixels shown during that discharge window are black rather than stale
+  // content.
+  display1.clearDisplay();
+  display1.display();
+  display2.clearDisplay();
+  display2.display();
 
   // Cut power to Arduino by releasing power latch
   digitalWrite(PWR_PIN, LOW);  // This will power off the entire system
