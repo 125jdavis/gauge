@@ -47,7 +47,7 @@ unsigned int TACH_MAX = 6000;       // RPM at shift point
 unsigned int TACH_MIN = 3000;       // Minimum RPM to show
 
 // ===== ODOMETER MOTOR CALIBRATION =====
-uint16_t ODO_STEPS = 4096;             // Steps per revolution
+uint16_t ODO_STEPS = 4096;          // Steps per revolution: 4096 nominal, observed 0.333% error - when commanding 30 revolutions of mechanical odometer, 30.1 occur
 uint8_t ODO_MOTOR_TEETH = 16;       // Number of teeth on motor gear
 uint8_t ODO_GEAR_TEETH = 20;        // Number of teeth on odometer gear
 
