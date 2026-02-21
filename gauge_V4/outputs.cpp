@@ -46,21 +46,22 @@ static unsigned long motor1to4_updateInterval = ANGLE_UPDATE_RATE; // Measured i
 // ===== ODOMETER MOTOR STATE =====
 // 20BYJ-48 stepper motor timing and control
 // The 20BYJ-48 is a 5V 4-phase unipolar stepper motor with internal gearing
-// - Full step sequence: 4 steps per electrical revolution
-// - With internal 64:1 gearing: 4096 steps per output shaft revolution
+// - Wave drive sequence: 4 states per electrical cycle (one coil at a time)
+// - Wave drive is equivalent to full-step mode for step counting purposes
+// - With internal ~64:1 gearing: 2048 steps per output shaft revolution (full-step/wave-drive)
+//   (4096 steps/rev is the half-step specification — NOT used here)
 // - Maximum speed: ~15 RPM (limited by internal gearing and torque)
 // - Target speed: < 3 RPM for odometer application
 //
 // Step delay calculation for target speed:
-// - At 3 RPM: 3 rev/min * 4096 steps/rev = 12,288 steps/min = 204.8 steps/sec
-// - Delay per step: 1,000,000 us / 204.8 = 4,882 us (~5ms)
-// - Using 5000 us (5ms) gives ~200 steps/sec = 2.93 RPM (safe margin below 3 RPM)
-static const unsigned long ODO_STEP_DELAY_US = 5000;  // 5ms between steps = ~2.93 RPM
+// - At 3 RPM: 3 rev/min * 2048 steps/rev = 6,144 steps/min = 102.4 steps/sec
+// - Delay per step: 1,000,000 us / 102.4 = 9,766 us (~10ms)
+// - Using 5000 us (5ms) gives ~200 steps/sec = 5.86 RPM (well within stall limit)
+static const unsigned long ODO_STEP_DELAY_US = 5000;  // 5ms between steps ≈ 5.86 RPM (well within stall limit)
 
-// 4-phase stepper sequence for 20BYJ-48 (full step mode)
-// Using wave drive (one phase at a time) for lower power consumption
-// Sequence: A -> B -> C -> D -> A ...
-// Phase:    0    1    2    3
+// Wave-drive stepper sequence for 20BYJ-48 (one phase at a time)
+// Wave drive: A -> B -> C -> D -> A ...
+// Phase:      0    1    2    3
 static const uint8_t ODO_STEP_SEQUENCE[4][4] = {
   {HIGH, LOW,  LOW,  LOW},   // Step 0: Phase A (coil 1)
   {LOW,  HIGH, LOW,  LOW},   // Step 1: Phase B (coil 2)
@@ -668,13 +669,13 @@ void motorSweepSynchronous(void){
  * 4. Calculate motor steps: steps = motor_revs * ODO_STEPS
  * 5. Add to target position (accumulates fractional steps for precision)
  * 
- * Example with default calibration values (ODO_STEPS=4096, ODO_MOTOR_TEETH=16, ODO_GEAR_TEETH=20):
+ * Example with default calibration values (ODO_STEPS=2048, ODO_MOTOR_TEETH=16, ODO_GEAR_TEETH=20):
  * - For 1.60934 km (1 mile):
  *   - Distance in miles = 1.0
  *   - Odometer revs = 1.0
  *   - Gear ratio = 20/16 = 1.25
  *   - Motor revs = 1.0 * 1.25 = 1.25
- *   - Steps = 1.25 * 4096 = 5120 steps
+ *   - Steps = 1.25 * 2048 = 2560 steps
  */
 void moveOdometerMotor(float distanceKm) {
     // Convert distance from kilometers to miles
