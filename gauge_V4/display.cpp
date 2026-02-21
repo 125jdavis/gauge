@@ -14,6 +14,15 @@
 void dispMenu() {
   bool forceDisplayUpdate = false;  // Flag to force display update after returning from submenu
   
+  // Snapshot dispArray1[0] NOW, before the switch body runs.
+  // The rotate() ISR can fire mid-function (OLED SPI takes ~10-20 ms) and change
+  // dispArray1[0] to the *next* screen.  If we then write dispArray1_prev[0] with
+  // the new value, the next call sees modeChanged=false for the new screen while
+  // the hardware still shows old content — the "stuck screen" bug.
+  // By saving the value drawn here we ensure dispArray1_prev[0] always reflects
+  // what was actually rendered, not a later ISR update.
+  byte drawnScreen = dispArray1[0];
+  
   switch (dispArray1[0]) {  // Level 0 - Main menu selection
     
     case 1:  // Oil Pressure Display                 dispArray1 = {1, x, x, x}
@@ -439,10 +448,14 @@ void dispMenu() {
       } // End Settings submenu levels 1-3
   } // End switch dispArray1[0] - Main menu selection
   
-  // Update previous display mode for dirty tracking
-  for (int i = 0; i < 4; i++) {
+  // Update previous display mode for dirty tracking.
+  // Use dispArray1[1..3] live (submenu indices are unlikely to race).
+  // Use drawnScreen for [0] so _prev reflects what was actually drawn, not an
+  // ISR change that may have occurred during the slow OLED SPI operations.
+  for (int i = 1; i < 4; i++) {
     dispArray1_prev[i] = dispArray1[i];
   }
+  dispArray1_prev[0] = drawnScreen;
   
   // Apply force update if flagged (must be after for loop to prevent overwriting)
   if (forceDisplayUpdate) {
@@ -1193,64 +1206,53 @@ void dispFuelLvlGfx (Adafruit_SSD1306 *display) {
 }
 
 void dispTripOdo (Adafruit_SSD1306 *display) {
-    // Check if mode changed or odometer changed enough to warrant update
-    bool modeChanged = false;
-    if (display == &display1) {
-      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
-    } else {
-      modeChanged = (dispArray2[0] != dispArray2_prev);
+    // No dirty tracking — always redraw on every call (every 500 ms via display timer).
+    // Dirty tracking caused the display to freeze during driving because the odometer
+    // increments in steps too small to cross the threshold between timer ticks.
+    float odoDisp;
+    display->setTextColor(WHITE); 
+    display->clearDisplay();
+          
+    if (units == 0){    // Metric Units
+      odoDisp = odoTrip; 
+      display->setCursor(100,10);
+      display->setTextSize(2);
+      display->println("km");         
+    } 
+    else {              // 'Merican units
+      odoDisp = odoTrip * 0.6213712; //convert km to miles  
+      display->setCursor(100,10);
+      display->setTextSize(2);
+      display->println("mi");          
+    }
+
+    display->setCursor(35,10);
+    display->setTextSize(2); 
+    // right justify
+    if (odoDisp < 10) {
+      display->setTextColor(BLACK); 
+      display->print("00");
+    }
+    else if (odoDisp < 100){
+      display->setTextColor(BLACK); 
+      display->print("0");
     }
     
-    // Threshold: 0.001 km/miles — update on any meaningful odometer increment
-    if (modeChanged || abs(odoTrip - odoTrip_prev) > 0.001) {
-      float odoDisp;
-      display->setTextColor(WHITE); 
-      display->clearDisplay();             //clear buffer
-          
-      if (units == 0){    // Metric Units
-        odoDisp = odoTrip; 
-        display->setCursor(100,10);
-        display->setTextSize(2);
-        display->println("km");         
-      } 
-      else {              // 'Merican units
-        odoDisp = odoTrip * 0.6213712; //convert km to miles  
-        display->setCursor(100,10);
-        display->setTextSize(2);
-        display->println("mi");          
-      }
-
-      display->setCursor(35,10);
-      display->setTextSize(2); 
-      // right justify
-      if (odoDisp < 10) {
-        display->setTextColor(BLACK); 
-        display->print("00");
-      }
-      else if (odoDisp < 100){
-        display->setTextColor(BLACK); 
-        display->print("0");
-      }
-      
-      display->setTextColor(WHITE);
-      // remove tenths once 1000 is reached
-      if (odoDisp < 1000) { 
-        display->println(odoDisp, 1);
-      }
-      else {
-        display->println(odoDisp, 0);
-      }
-      
-      display->setTextSize(1);
-      display->setCursor(1,7);
-      display->println("Trip");
-      display->setCursor(1,17);
-      display->println("Odo:"); 
-      display->display();
-      
-      // Update previous value
-      odoTrip_prev = odoTrip;
+    display->setTextColor(WHITE);
+    // remove tenths once 1000 is reached
+    if (odoDisp < 1000) { 
+      display->println(odoDisp, 1);
     }
+    else {
+      display->println(odoDisp, 0);
+    }
+    
+    display->setTextSize(1);
+    display->setCursor(1,7);
+    display->println("Trip");
+    display->setCursor(1,17);
+    display->println("Odo:"); 
+    display->display();
 }
 
 void dispOdoResetYes(Adafruit_SSD1306 *display) {
