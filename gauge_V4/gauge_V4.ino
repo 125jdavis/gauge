@@ -353,11 +353,10 @@ void loop() {
   // angle updates, causing visible jitter/ticks in motor motion.
   if (millis() - timerAngleUpdate > ANGLE_UPDATE_RATE) {
     //Serial.println(millis() - timerAngleUpdate);
-    motor1.setPosition(fuelLvlAngle(M1_SWEEP));
-    motor2.setPosition(coolantTempAngle(M2_SWEEP));
-    motor3.setPosition(fuelLvlAngle(M3_SWEEP));  // Motor 3 now same config as motor1
-    motor4.setPosition(fuelLvlAngle(M4_SWEEP));
-    // Motor S uses smoothing: update target at 50Hz, interpolation happens below
+    // Motors 1-4 use smoothing: update targets at ANGLE_UPDATE_RATE, interpolation happens below
+    updateMotors1to4Target(fuelLvlAngle(M1_SWEEP), coolantTempAngle(M2_SWEEP),
+                           fuelLvlAngle(M3_SWEEP), fuelLvlAngle(M4_SWEEP));
+    // Motor S uses smoothing: update target at ANGLE_UPDATE_RATE, interpolation happens below
     updateMotorSTarget(MS_SWEEP);
     timerAngleUpdate = millis();
   }
@@ -368,6 +367,10 @@ void loop() {
   // that the Timer3 ISR can act upon. This creates smooth needle motion instead of
   // the jerky "move-stop-wait" behavior that occurs without interpolation.
   updateMotorSSmoothing();
+
+  // ===== MOTORS 1-4 POSITION SMOOTHING =====
+  // Same adaptive linear interpolation as motorS, applied to the fuel/temp gauge motors.
+  updateMotors1to4Smoothing();
 
   // ===== MOTOR STEP EXECUTION =====
   // Motor updates (stepping) are now handled by Timer3 ISR for deterministic timing

@@ -34,6 +34,16 @@ static int motorS_finalTarget = 0;        // Final target angle from speedometer
 static unsigned long motorS_lastUpdateTime = 0;  // Time of last angle update (millis)
 static unsigned long motorS_updateInterval = ANGLE_UPDATE_RATE;  // Actual time between last two updates (millis)
 
+// ===== MOTORS 1-4 SMOOTHING STATE =====
+// Position interpolation for smooth gauge needle motion (fuel, coolant temp, etc.)
+// Uses the same adaptive linear interpolation approach as motorS smoothing.
+// All 4 motors share one timestamp and interval since they are updated together.
+static int motor1to4_previousTarget[4] = {0, 0, 0, 0};  // Previous target angles (steps)
+static int motor1to4_finalTarget[4]    = {0, 0, 0, 0};  // Final target angles from angle functions
+static unsigned long motor1to4_lastUpdateTime = 0;       // Time of last target update (millis)
+static unsigned long motor1to4_updateInterval = ANGLE_UPDATE_RATE; // Measured interval between updates (millis)
+
+// ===== ODOMETER MOTOR STATE =====
 // 20BYJ-48 stepper motor timing and control
 // The 20BYJ-48 is a 5V 4-phase unipolar stepper motor with internal gearing
 // - Full step sequence: 4 steps per electrical revolution
@@ -300,6 +310,105 @@ void updateMotorSSmoothing(void) {
   
   // Set the interpolated position - motor will smoothly track this moving target
   motorS.setPosition(interpolatedPosition);
+}
+
+/**
+ * updateMotors1to4Target - Record new target angles for motors 1-4 and measure update interval
+ *
+ * Called at ANGLE_UPDATE_RATE from the main loop.  Saves the previous final targets,
+ * sets the new final targets, and measures the actual elapsed interval since the last
+ * call.  The measured interval is used by updateMotors1to4Smoothing() to spread motor
+ * movement evenly, eliminating the jerky "move fast → stop → wait" behaviour.
+ *
+ * @param t1 New target angle for motor 1 (steps, 1 to M1_SWEEP-1)
+ * @param t2 New target angle for motor 2
+ * @param t3 New target angle for motor 3
+ * @param t4 New target angle for motor 4
+ */
+void updateMotors1to4Target(int t1, int t2, int t3, int t4) {
+  unsigned long currentTime = millis();
+
+  // Measure actual interval since last update for adaptive interpolation
+  if (motor1to4_lastUpdateTime > 0 && currentTime >= motor1to4_lastUpdateTime) {
+    motor1to4_updateInterval = currentTime - motor1to4_lastUpdateTime;
+    if (motor1to4_updateInterval < 5)   motor1to4_updateInterval = 5;
+    if (motor1to4_updateInterval > 500) motor1to4_updateInterval = 500;
+  } else {
+    motor1to4_updateInterval = ANGLE_UPDATE_RATE;
+  }
+
+  // Shift final → previous, then store new finals
+  motor1to4_previousTarget[0] = motor1to4_finalTarget[0];
+  motor1to4_previousTarget[1] = motor1to4_finalTarget[1];
+  motor1to4_previousTarget[2] = motor1to4_finalTarget[2];
+  motor1to4_previousTarget[3] = motor1to4_finalTarget[3];
+  motor1to4_finalTarget[0] = t1;
+  motor1to4_finalTarget[1] = t2;
+  motor1to4_finalTarget[2] = t3;
+  motor1to4_finalTarget[3] = t4;
+  motor1to4_lastUpdateTime = currentTime;
+}
+
+/**
+ * updateMotors1to4Smoothing - Interpolate and set positions for motors 1-4
+ *
+ * Called every main loop iteration (>1 kHz) to smoothly interpolate each motor's
+ * position between the previous and final targets over the measured update interval.
+ * This is the same adaptive linear interpolation used by updateMotorSSmoothing().
+ *
+ * All arithmetic is integer-only to minimise overhead.
+ */
+void updateMotors1to4Smoothing(void) {
+  unsigned long currentTime = millis();
+
+  // Handle first call or millis() overflow
+  if (motor1to4_lastUpdateTime == 0 || currentTime < motor1to4_lastUpdateTime) {
+    motor1to4_previousTarget[0] = motor1.currentStep;
+    motor1to4_previousTarget[1] = motor2.currentStep;
+    motor1to4_previousTarget[2] = motor3.currentStep;
+    motor1to4_previousTarget[3] = motor4.currentStep;
+    motor1to4_finalTarget[0] = motor1.currentStep;
+    motor1to4_finalTarget[1] = motor2.currentStep;
+    motor1to4_finalTarget[2] = motor3.currentStep;
+    motor1to4_finalTarget[3] = motor4.currentStep;
+    motor1to4_updateInterval = ANGLE_UPDATE_RATE;
+    motor1.setPosition(motor1to4_finalTarget[0]);
+    motor2.setPosition(motor1to4_finalTarget[1]);
+    motor3.setPosition(motor1to4_finalTarget[2]);
+    motor4.setPosition(motor1to4_finalTarget[3]);
+    motor1to4_lastUpdateTime = currentTime;
+    return;
+  }
+
+  unsigned long elapsed = currentTime - motor1to4_lastUpdateTime;
+  if (elapsed > motor1to4_updateInterval) {
+    elapsed = motor1to4_updateInterval;
+  }
+
+  // Motor 1
+  {
+    int delta = motor1to4_finalTarget[0] - motor1to4_previousTarget[0];
+    long interp = ((long)delta * (long)elapsed) / (long)motor1to4_updateInterval;
+    motor1.setPosition(constrain(motor1to4_previousTarget[0] + (int)interp, 1, M1_SWEEP - 1));
+  }
+  // Motor 2
+  {
+    int delta = motor1to4_finalTarget[1] - motor1to4_previousTarget[1];
+    long interp = ((long)delta * (long)elapsed) / (long)motor1to4_updateInterval;
+    motor2.setPosition(constrain(motor1to4_previousTarget[1] + (int)interp, 1, M2_SWEEP - 1));
+  }
+  // Motor 3
+  {
+    int delta = motor1to4_finalTarget[2] - motor1to4_previousTarget[2];
+    long interp = ((long)delta * (long)elapsed) / (long)motor1to4_updateInterval;
+    motor3.setPosition(constrain(motor1to4_previousTarget[2] + (int)interp, 1, M3_SWEEP - 1));
+  }
+  // Motor 4
+  {
+    int delta = motor1to4_finalTarget[3] - motor1to4_previousTarget[3];
+    long interp = ((long)delta * (long)elapsed) / (long)motor1to4_updateInterval;
+    motor4.setPosition(constrain(motor1to4_previousTarget[3] + (int)interp, 1, M4_SWEEP - 1));
+  }
 }
 
 /**
