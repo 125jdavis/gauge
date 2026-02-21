@@ -82,7 +82,7 @@ extern uint8_t ODO_GEAR_TEETH;        // Number of teeth on odometer gear
 // These parameters determine which sensor/source to use for each signal
 // This allows flexible configuration of data sources
 
-// Speed source for both speedometer and odometer: 0=off, 1=CAN, 2=Hall sensor, 3=GPS
+// Speed source for both speedometer and odometer: 0=off, 1=CAN, 2=Hall sensor, 3=GPS, 4=Synthetic (debug), 5=Odometer test (1-mile profile)
 extern uint8_t SPEED_SOURCE;
 
 // Engine RPM source: 0=off, 1=CAN, 2=coil negative
@@ -105,6 +105,9 @@ extern uint8_t MAP_SOURCE;
 
 // Lambda/AFR source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
 extern uint8_t LAMBDA_SOURCE;
+
+// Fuel level source: 0=off, 1=analog sensor, 2=Synthetic (debug)
+extern uint8_t FUEL_LVL_SOURCE;
 
 // ===== TIME ZONE OFFSET =====
 // Hours to add to UTC time for local time zone (-12 to +12)

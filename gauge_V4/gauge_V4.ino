@@ -292,8 +292,6 @@ void loop() {
     vBatt = (float)vBattRaw * VBATT_SCALER;
     
     fuelSensorRaw = readSensor(FUEL_PIN, fuelSensorRaw, FILTER_FUEL);
-    float fuelSensor = (float)fuelSensorRaw*0.01;
-    fuelLvl = curveLookup(fuelSensor, fuelLvlTable_x, fuelLvlTable_l, fuelLvlTable_length);
     
     thermSensor = readThermSensor(THERM_PIN, thermSensor, FILTER_THERM);
     therm = curveLookup(thermSensor, thermTable_x, thermTable_l, thermTable_length);
@@ -355,11 +353,10 @@ void loop() {
   // angle updates, causing visible jitter/ticks in motor motion.
   if (millis() - timerAngleUpdate > ANGLE_UPDATE_RATE) {
     //Serial.println(millis() - timerAngleUpdate);
-    motor1.setPosition(fuelLvlAngle(M1_SWEEP));
-    motor2.setPosition(coolantTempAngle(M2_SWEEP));
-    motor3.setPosition(fuelLvlAngle(M3_SWEEP));  // Motor 3 now same config as motor1
-    motor4.setPosition(fuelLvlAngle(M4_SWEEP));
-    // Motor S uses smoothing: update target at 50Hz, interpolation happens below
+    // Motors 1-4 use smoothing: update targets at ANGLE_UPDATE_RATE, interpolation happens below
+    updateMotors1to4Target(fuelLvlAngle(M1_SWEEP), coolantTempAngle(M2_SWEEP),
+                           fuelLvlAngle(M3_SWEEP), fuelLvlAngle(M4_SWEEP));
+    // Motor S uses smoothing: update target at ANGLE_UPDATE_RATE, interpolation happens below
     updateMotorSTarget(MS_SWEEP);
     timerAngleUpdate = millis();
   }
@@ -370,6 +367,10 @@ void loop() {
   // that the Timer3 ISR can act upon. This creates smooth needle motion instead of
   // the jerky "move-stop-wait" behavior that occurs without interpolation.
   updateMotorSSmoothing();
+
+  // ===== MOTORS 1-4 POSITION SMOOTHING =====
+  // Same adaptive linear interpolation as motorS, applied to the fuel/temp gauge motors.
+  updateMotors1to4Smoothing();
 
   // ===== MOTOR STEP EXECUTION =====
   // Motor updates (stepping) are now handled by Timer3 ISR for deterministic timing
@@ -400,6 +401,11 @@ void loop() {
   // Update immediately on user input, or at scheduled interval
   unsigned int disp1Interval = getDisplayUpdateInterval(dispArray1[0], 1);
   if (needsImmediateUpdate || (millis() - timerDisp1Update > disp1Interval)) {
+    // Force a full redraw when the user scrolled to a new screen, so the display
+    // function always sees modeChanged=true and clears leftover content.
+    if (encoderMoved) {
+      dispArray1_prev[0] = 255;
+    }
     dispMenu();
     timerDisp1Update = millis();
     encoderMoved = false;  // Clear flag after update
@@ -412,6 +418,11 @@ void loop() {
   bool needsDisp2Update = disp2SelectionChanged || needsImmediateUpdate;
   unsigned int disp2Interval = getDisplayUpdateInterval(dispArray2[0], 2);
   if (needsDisp2Update || (millis() - timerDisp2Update > disp2Interval)) {
+    // Force a full redraw when the Display 2 selection changed, so the display
+    // function always sees modeChanged=true and clears leftover content.
+    if (disp2SelectionChanged) {
+      dispArray2_prev = 255;
+    }
     disp2();
     timerDisp2Update = millis();
   }

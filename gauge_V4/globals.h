@@ -182,7 +182,6 @@ extern int ignAngCAN_prev;          // Previous ignition angle for dirty trackin
 extern int injDutyCAN_prev;         // Previous injector duty for dirty tracking
 extern byte hour_prev;              // Previous hour for clock dirty tracking
 extern byte minute_prev;            // Previous minute for clock dirty tracking
-extern float odoTrip_prev;          // Previous trip odometer for dirty tracking
 extern byte dispArray1_prev[4];     // Previous display 1 menu state
 extern byte dispArray2_prev;        // Previous display 2 selection
 extern bool staticContentDrawn1;    // Flag: static content drawn on display1

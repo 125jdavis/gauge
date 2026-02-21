@@ -190,7 +190,6 @@ int ignAngCAN_prev = 0;          // Previous ignition angle for dirty tracking
 int injDutyCAN_prev = 0;         // Previous injector duty for dirty tracking
 byte hour_prev = 0;              // Previous hour for clock dirty tracking
 byte minute_prev = 0;            // Previous minute for clock dirty tracking
-float odoTrip_prev = 0;          // Previous trip odometer for dirty tracking
 byte dispArray1_prev[4] = {0, 0, 0, 0}; // Previous display 1 menu state
 byte dispArray2_prev = 0;        // Previous display 2 selection
 bool staticContentDrawn1 = false; // Flag: static content drawn on display1
