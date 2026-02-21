@@ -11,7 +11,7 @@ uint16_t M1_SWEEP = 58 * 12;        // Motor 1: 58 degrees * 3 steps/degree * 4 
 uint16_t M2_SWEEP = 58 * 12;        // Motor 2: 58 degrees * 3 steps/degree * 4 microsteps/step = 696 steps
 uint16_t M3_SWEEP = 58 * 12;        // Motor 3: 58 degrees * 3 steps/degree * 4 microsteps/step = 696 steps (same config as motor1)
 uint16_t M4_SWEEP = 58 * 12;        // Motor 4: 58 degrees * 3 steps/degree * 4 microsteps/step = 696 steps
-uint16_t MS_SWEEP = 4000;           // Motor S: (118° / 0.9°) * 32 microsteps = 4195.555 ≈ 4196 steps (speedometer)
+uint16_t MS_SWEEP = 3950;           // Motor S: (118° / 0.9°) * 32 microsteps = 4195.555 ≈ 4196 steps (speedometer)
 
 // ===== MOTOR SWEEP TIMING =====
 uint16_t MOTOR_SWEEP_TIME_MS = 400;  // Time in milliseconds for motors to sweep full range (calibratable)
@@ -52,7 +52,7 @@ uint8_t ODO_MOTOR_TEETH = 16;       // Number of teeth on motor gear
 uint8_t ODO_GEAR_TEETH = 20;        // Number of teeth on odometer gear
 
 // ===== SIGNAL SOURCE SELECTION =====
-uint8_t SPEED_SOURCE = 2;           // 0=off, 1=CAN, 2=Hall sensor, 3=GPS, 4=Synthetic (debug), 5=Odometer test (1-mile profile)
+uint8_t SPEED_SOURCE = 5;           // 0=off, 1=CAN, 2=Hall sensor, 3=GPS, 4=Synthetic (debug), 5=Odometer test (1-mile profile)
 uint8_t RPM_SOURCE = 3;             // 0=off, 1=CAN, 2=coil negative, 3=Synthetic (debug)
 uint8_t OIL_PRS_SOURCE = 5;         // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug)
 uint8_t FUEL_PRS_SOURCE = 5;        // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug)
@@ -60,7 +60,7 @@ uint8_t COOLANT_TEMP_SOURCE = 3;    // 0=off, 1=CAN, 2=therm, 3=Synthetic (debug
 uint8_t OIL_TEMP_SOURCE = 2;        // 0=off, 1=CAN, 2=therm (default to therm sensor)
 uint8_t MAP_SOURCE = 5;             // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug)
 uint8_t LAMBDA_SOURCE = 1;          // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
-uint8_t FUEL_LVL_SOURCE = 1;       // 0=off, 1=analog sensor, 2=Synthetic (debug)
+uint8_t FUEL_LVL_SOURCE = 2;       // 0=off, 1=analog sensor, 2=Synthetic (debug)
 
 // ===== TIME ZONE OFFSET =====
 byte clockOffset = 0;               // Hours to add to UTC time

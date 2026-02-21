@@ -64,9 +64,9 @@ int generateRPM(void){
     // Constants - calibratable parameters
     const int MIN_RPM = 900;                // Minimum RPM
     const int MAX_RPM = 7000;               // Maximum RPM
-    const int MAX_RPM_RATE = 3000;          // Maximum rate of change: 3000 RPM/second
+    const int MAX_RPM_RATE = 1800;          // Maximum rate of change: 3000 RPM/second
     const int RPM_UP_RATE = 2400;           // Ramp up rate: 2400 RPM/second (adjustable)
-    const int RPM_DOWN_RATE = 3200;         // Ramp down rate: 3200 RPM/second (adjustable)
+    const int RPM_DOWN_RATE = 3500;         // Ramp down rate: 3200 RPM/second (adjustable)
     
     // Initialize on first call
     if (lastUpdateTime == 0) {
@@ -360,10 +360,10 @@ float generateSyntheticCoolantTemp(void) {
     
     // Constants
     const float MIN_TEMP = -10.0;
-    const float MAX_TEMP = 230.0;
+    const float MAX_TEMP = 140.0;
     const float PREFERRED_MIN = 60.0;   // Spend 75% of time above this
-    const float PREFERRED_MAX = 210.0;  // Spend 75% of time below this
-    const float MAX_RATE = 20.0;        // 20°C/second max
+    const float PREFERRED_MAX = 110.0;  // Spend 75% of time below this
+    const float MAX_RATE = 18.0;        // 20°C/second max
     const float MIN_RATE = 2.0;         // 2°C/second min
     
     // Initialize on first call
