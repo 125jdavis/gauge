@@ -14,7 +14,7 @@ uint16_t M4_SWEEP = 58 * 12;        // Motor 4: 58 degrees * 3 steps/degree * 4 
 uint16_t MS_SWEEP = 3950;           // Motor S: (118° / 0.9°) * 32 microsteps = 4195.555 ≈ 4196 steps (speedometer)
 
 // ===== MOTOR SWEEP TIMING =====
-uint16_t MOTOR_SWEEP_TIME_MS = 400;  // Time in milliseconds for motors to sweep full range (calibratable)
+uint16_t MOTOR_SWEEP_TIME_MS = 1000;  // Time in milliseconds for motors to sweep full range during startup test
 
 // ===== ANALOG SENSOR FILTER COEFFICIENTS =====
 uint8_t FILTER_VBATT = 8;           // 8/64 = light filtering

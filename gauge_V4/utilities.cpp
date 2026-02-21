@@ -41,8 +41,10 @@ void shutdown (void){
   display2.drawBitmap(0, 0, IMG_302_CID, SCREEN_W, SCREEN_H, 1);
   display2.display();
 
-  // Return gauge needles to zero position
-  motorZeroSynchronous();
+  // Return gauge needles to zero position with synchronized timed stepping.
+  // motorZeroTimed() disables the Timer3 ISR so the 10 kHz interrupt cannot
+  // override the per-motor pacing; all needles reach zero simultaneously.
+  motorZeroTimed();
 
   // Wait for gauges to settle
   delay(2000);

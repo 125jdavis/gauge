@@ -25,7 +25,8 @@ int fuelLvlAngle(int sweep);                  // Fuel level to gauge angle
 int coolantTempAngle(int sweep);              // Coolant temp to gauge angle
 
 // Stepper motor control functions
-void motorZeroSynchronous(void);              // Return all motors to zero
+void motorZeroSynchronous(void);              // Return all motors to zero (fast, for startup calibration)
+void motorZeroTimed(void);                    // Return all motors to zero with synchronized timed stepping (for shutdown)
 void motorSweepSynchronous(void);             // Full sweep test for all motors
 
 // LED tachometer control

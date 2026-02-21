@@ -490,6 +490,86 @@ void motorZeroSynchronous(void){
 }
 
 /**
+ * sweepDelay - Calculate per-motor update delay for a timed sweep
+ *
+ * Returns the number of microseconds between update() calls so that a motor
+ * with `sweep` steps completes its full range in MOTOR_SWEEP_TIME_MS ms.
+ * All motors share the same MOTOR_SWEEP_TIME_MS but get individually-scaled
+ * delays so they all finish at exactly the same moment.
+ *
+ * @param sweep - Total steps in the motor's range
+ * @return Delay in microseconds (minimum 10 µs)
+ */
+static unsigned long sweepDelay(uint16_t sweep) {
+  const unsigned long MIN_DELAY_US = 10;
+  if (sweep == 0 || MOTOR_SWEEP_TIME_MS == 0) return MIN_DELAY_US;
+  unsigned long d = (unsigned long)MOTOR_SWEEP_TIME_MS * 1000UL / sweep;
+  return (d < MIN_DELAY_US) ? MIN_DELAY_US : d;
+}
+
+/**
+ * motorZeroTimed - Return all motors to zero with synchronized timed stepping
+ *
+ * Identical to motorZeroSynchronous but uses per-motor delays so that every
+ * motor completes its full return sweep in MOTOR_SWEEP_TIME_MS milliseconds
+ * simultaneously.
+ *
+ * The Timer3 ISR is disabled for the duration so that the 10 kHz interrupt
+ * cannot override the per-motor pacing.  The ISR is re-enabled on exit.
+ * Safe to call during shutdown (where the ISR is active).
+ */
+void motorZeroTimed(void) {
+  // Disable Timer3 ISR — without this, the 10 kHz interrupt drives all motors at
+  // maximum library speed, completely overriding the per-motor delay calculation.
+  TIMSK3 &= ~(1 << OCIE3A);
+
+  // Tell the library each motor is at its maximum so it steps all the way back to zero.
+  motor1.currentStep = M1_SWEEP;
+  motor2.currentStep = M2_SWEEP;
+  motor3.currentStep = M3_SWEEP;
+  motor4.currentStep = M4_SWEEP;
+  motorS.currentStep = MS_SWEEP;
+
+  motor1.setPosition(0);
+  motor2.setPosition(0);
+  motor3.setPosition(0);
+  motor4.setPosition(0);
+  motorS.setPosition(0);
+
+  // Per-motor delays: each motor steps at a rate that fills exactly MOTOR_SWEEP_TIME_MS
+  unsigned long d[5] = {
+    sweepDelay(M1_SWEEP),
+    sweepDelay(M2_SWEEP),
+    sweepDelay(M3_SWEEP),
+    sweepDelay(M4_SWEEP),
+    sweepDelay(MS_SWEEP)
+  };
+
+  unsigned long t0 = micros();
+  unsigned long last[5] = {t0, t0, t0, t0, t0};
+
+  while (motor1.currentStep > 0 || motor2.currentStep > 0 ||
+         motor3.currentStep > 0 || motor4.currentStep > 0 || motorS.currentStep > 0) {
+    unsigned long now = micros();
+    if (now - last[0] >= d[0]) { motor1.update(); last[0] = now; }
+    if (now - last[1] >= d[1]) { motor2.update(); last[1] = now; }
+    if (now - last[2] >= d[2]) { motor3.update(); last[2] = now; }
+    if (now - last[3] >= d[3]) { motor4.update(); last[3] = now; }
+    if (now - last[4] >= d[4]) { motorS.update(); last[4] = now; }
+    yield();
+  }
+
+  motor1.currentStep = 0;
+  motor2.currentStep = 0;
+  motor3.currentStep = 0;
+  motor4.currentStep = 0;
+  motorS.currentStep = 0;
+
+  // Re-enable Timer3 ISR
+  TIMSK3 |= (1 << OCIE3A);
+}
+
+/**
  * motorSweepSynchronous - Perform timed startup sweep test of all motors
  * 
  * Sweeps all motors from zero to maximum and back to zero with configurable timing.
@@ -497,104 +577,76 @@ void motorZeroSynchronous(void){
  * 
  * Timing:
  * - Each direction (0→max, max→0) takes MOTOR_SWEEP_TIME_MS milliseconds
- * - Default: 200ms per direction (400ms total for full sweep test)
+ * - Default: 1000ms per direction (2000ms total for full sweep test)
  * - Configurable via MOTOR_SWEEP_TIME_MS in config_calibration.cpp
  * 
  * Implementation:
- * - Calculates delay between update() calls based on longest motor sweep
- * - Dynamically finds the motor with the longest sweep range
- * - All motors complete their sweeps within the same timeframe
- * - Uses micros() for precise timing control
+ * - Each motor gets an independent per-motor delay calibrated to its sweep range:
+ *   delay = MOTOR_SWEEP_TIME_MS * 1000 / M?_SWEEP  (microseconds between update() calls)
+ * - All motors therefore complete their sweep in the same MOTOR_SWEEP_TIME_MS window
+ * - Uses micros() for precise per-motor timing control
  * 
- * Note: This is a blocking function - normal operation resumes after sweep completes
+ * Note: Called before initMotorUpdateTimer() so the Timer3 ISR is not yet active;
+ *       no ISR management is needed here.
  */
 void motorSweepSynchronous(void){
-  // Minimum delay between motor updates (prevents tight loop issues)
-  static const unsigned long MIN_MOTOR_DELAY_US = 10;
-  
-  // Start by zeroing all motors
+  // Start by zeroing all motors (fast, establish known position)
   motorZeroSynchronous();
   Serial.println("zeroed");
-  
-  // Command all motors to maximum position
+
+  // Per-motor delays: each motor steps at a rate that fills exactly MOTOR_SWEEP_TIME_MS
+  unsigned long d[5] = {
+    sweepDelay(M1_SWEEP),
+    sweepDelay(M2_SWEEP),
+    sweepDelay(M3_SWEEP),
+    sweepDelay(M4_SWEEP),
+    sweepDelay(MS_SWEEP)
+  };
+
+  // ── Sweep up: command all motors to maximum position ──────────────────────
   motor1.setPosition(M1_SWEEP);
   motor2.setPosition(M2_SWEEP);
   motor3.setPosition(M3_SWEEP);
   motor4.setPosition(M4_SWEEP);
   motorS.setPosition(MS_SWEEP);
-  
-  // Calculate delay between updates to achieve target sweep time
-  // Find the motor with the longest sweep
-  uint16_t maxSweep = M1_SWEEP;
-  if (M2_SWEEP > maxSweep) maxSweep = M2_SWEEP;
-  if (M3_SWEEP > maxSweep) maxSweep = M3_SWEEP;
-  if (M4_SWEEP > maxSweep) maxSweep = M4_SWEEP;
-  if (MS_SWEEP > maxSweep) maxSweep = MS_SWEEP;
-  
-  // Calculate microseconds per update call to achieve MOTOR_SWEEP_TIME_MS
-  // Use 64-bit arithmetic to prevent overflow with large MOTOR_SWEEP_TIME_MS values
-  unsigned long delayMicros = 0;
-  if (maxSweep > 0 && MOTOR_SWEEP_TIME_MS > 0) {
-    unsigned long long temp = (unsigned long long)MOTOR_SWEEP_TIME_MS * 1000ULL;
-    delayMicros = (unsigned long)(temp / maxSweep);
-    // Ensure minimum delay to prevent tight loop issues
-    if (delayMicros < MIN_MOTOR_DELAY_US) delayMicros = MIN_MOTOR_DELAY_US;
-  } else {
-    // If MOTOR_SWEEP_TIME_MS is 0, use minimum delay (fast sweep)
-    delayMicros = MIN_MOTOR_DELAY_US;
-  }
-  
-  // Wait for all motors to reach maximum with timed delays
-  unsigned long lastUpdateMicros = micros();
-  while (motor1.currentStep < M1_SWEEP-1  || motor2.currentStep < M2_SWEEP-1 || 
-         motor3.currentStep < M3_SWEEP-1  || motor4.currentStep < M4_SWEEP-1 || 
-         motorS.currentStep < MS_SWEEP-1)
-  {
-      // Check if enough time has passed for next update
-      // Unsigned arithmetic handles micros() overflow correctly
-      unsigned long currentMicros = micros();
-      unsigned long elapsed = currentMicros - lastUpdateMicros;
-      if (elapsed >= delayMicros) {
-        motor1.update();  // Step each motor toward target
-        motor2.update();
-        motor3.update();
-        motor4.update();
-        motorS.update();
-        lastUpdateMicros = currentMicros;
-      }
-      // Allow other system tasks to run (prevents watchdog issues)
-      yield();
+
+  unsigned long t0 = micros();
+  unsigned long last[5] = {t0, t0, t0, t0, t0};
+
+  while (motor1.currentStep < M1_SWEEP - 1 || motor2.currentStep < M2_SWEEP - 1 ||
+         motor3.currentStep < M3_SWEEP - 1 || motor4.currentStep < M4_SWEEP - 1 ||
+         motorS.currentStep < MS_SWEEP - 1) {
+    unsigned long now = micros();
+    if (now - last[0] >= d[0]) { motor1.update(); last[0] = now; }
+    if (now - last[1] >= d[1]) { motor2.update(); last[1] = now; }
+    if (now - last[2] >= d[2]) { motor3.update(); last[2] = now; }
+    if (now - last[3] >= d[3]) { motor4.update(); last[3] = now; }
+    if (now - last[4] >= d[4]) { motorS.update(); last[4] = now; }
+    yield();
   }
 
   Serial.println("full sweep");
-  
-  // Command all motors back to zero
+
+  // ── Sweep down: command all motors back to zero ───────────────────────────
   motor1.setPosition(0);
   motor2.setPosition(0);
   motor3.setPosition(0);
   motor4.setPosition(0);
   motorS.setPosition(0);
-  
-  // Wait for all motors to return to zero with timed delays
-  lastUpdateMicros = micros();
-  while (motor1.currentStep > 0 || motor2.currentStep > 0 || 
-         motor3.currentStep > 0 || motor4.currentStep > 0 || 
-         motorS.currentStep > 0)
-  {
-      // Check if enough time has passed for next update
-      // Unsigned arithmetic handles micros() overflow correctly
-      unsigned long currentMicros = micros();
-      unsigned long elapsed = currentMicros - lastUpdateMicros;
-      if (elapsed >= delayMicros) {
-        motor1.update();
-        motor2.update();
-        motor3.update();
-        motor4.update();
-        motorS.update();
-        lastUpdateMicros = currentMicros;
-      }
-      // Allow other system tasks to run (prevents watchdog issues)
-      yield();
+
+  t0 = micros();
+  unsigned long lastReturn[5] = {t0, t0, t0, t0, t0};
+
+  while (motor1.currentStep > 0 || motor2.currentStep > 0 ||
+         motor3.currentStep > 0 || motor4.currentStep > 0 ||
+         motorS.currentStep > 0) {
+    unsigned long now = micros();
+    if (now - lastReturn[0] >= d[0]) { motor1.update(); lastReturn[0] = now; }
+    if (now - lastReturn[1] >= d[1]) { motor2.update(); lastReturn[1] = now; }
+    if (now - lastReturn[2] >= d[2]) { motor3.update(); lastReturn[2] = now; }
+    if (now - lastReturn[3] >= d[3]) { motor4.update(); lastReturn[3] = now; }
+    if (now - lastReturn[4] >= d[4]) { motorS.update(); lastReturn[4] = now; }
+    yield();
   }
 }
 
