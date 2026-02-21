@@ -60,6 +60,7 @@ uint8_t COOLANT_TEMP_SOURCE = 3;    // 0=off, 1=CAN, 2=therm, 3=Synthetic (debug
 uint8_t OIL_TEMP_SOURCE = 2;        // 0=off, 1=CAN, 2=therm (default to therm sensor)
 uint8_t MAP_SOURCE = 5;             // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug)
 uint8_t LAMBDA_SOURCE = 1;          // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+uint8_t FUEL_LVL_SOURCE = 1;       // 0=off, 1=analog sensor, 2=Synthetic (debug)
 
 // ===== TIME ZONE OFFSET =====
 byte clockOffset = 0;               // Hours to add to UTC time

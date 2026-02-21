@@ -106,6 +106,9 @@ extern uint8_t MAP_SOURCE;
 // Lambda/AFR source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
 extern uint8_t LAMBDA_SOURCE;
 
+// Fuel level source: 0=off, 1=analog sensor, 2=Synthetic (debug)
+extern uint8_t FUEL_LVL_SOURCE;
+
 // ===== TIME ZONE OFFSET =====
 // Hours to add to UTC time for local time zone (-12 to +12)
 // Note: This is also saved/loaded from EEPROM

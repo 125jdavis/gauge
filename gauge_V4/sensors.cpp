@@ -728,6 +728,26 @@ void sigSelect (void) {
     
     // These remain unchanged as they don't have alternate sources
     fuelComp = fuelCompCAN/10.0;  // Fuel composition - divide by 10 (e.g., 850 becomes 85%)
+
+    // Select fuel level source: 0=off, 1=analog sensor, 2=Synthetic (debug)
+    switch (FUEL_LVL_SOURCE) {
+        case 0:  // Off
+            fuelLvl = 0;
+            break;
+        case 1:  // Analog fuel level sensor
+            {
+                float fuelSensor = (float)fuelSensorRaw * 0.01;
+                fuelLvl = curveLookup(fuelSensor, fuelLvlTable_x, fuelLvlTable_l, fuelLvlTable_length);
+            }
+            break;
+        case 2:  // Synthetic fuel level (debug)
+            fuelLvl = (generateSyntheticFuelLevel() / 100.0) * fuelCapacity;
+            break;
+        default:  // Fallback to off
+            fuelLvl = 0;
+            break;
+    }
+
     fuelLvlCAN = (int)((fuelLvl/fuelCapacity)*100);  // Calculate fuel level percentage for CAN transmission
 
     // Set boost pressure to manifold absolute pressure for display

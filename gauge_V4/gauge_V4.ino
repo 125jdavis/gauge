@@ -292,8 +292,6 @@ void loop() {
     vBatt = (float)vBattRaw * VBATT_SCALER;
     
     fuelSensorRaw = readSensor(FUEL_PIN, fuelSensorRaw, FILTER_FUEL);
-    float fuelSensor = (float)fuelSensorRaw*0.01;
-    fuelLvl = curveLookup(fuelSensor, fuelLvlTable_x, fuelLvlTable_l, fuelLvlTable_length);
     
     thermSensor = readThermSensor(THERM_PIN, thermSensor, FILTER_THERM);
     therm = curveLookup(thermSensor, thermTable_x, thermTable_l, thermTable_length);
