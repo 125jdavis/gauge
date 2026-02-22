@@ -211,7 +211,7 @@ void setup() {
   display1.begin(SSD1306_SWITCHCAPVCC, 0, true, true);
   display2.begin(SSD1306_SWITCHCAPVCC, 0, true, true);
   dispFalconScript(&display1);
-  disp302CID(&display2);
+  disp2300turbo(&display2);
   
   // ===== STEPPER MOTOR INITIALIZATION =====
   pinMode(MOTOR_RST, OUTPUT);

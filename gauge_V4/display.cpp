@@ -946,6 +946,42 @@ void disp302CID(Adafruit_SSD1306 *display) {
 }
 
 /**
+ * disp2300turbo - Display 2300 turbo engine badge
+ * Shows "2300 turbo" 
+ * Optimized: Only draws once, then skips updates for static content
+ */
+void disp2300turbo(Adafruit_SSD1306 *display) {
+    // Check if display mode changed (need to redraw)
+    bool modeChanged = false;
+    if (display == &display1) {
+      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
+      if (modeChanged) {
+        staticContentDrawn1 = false;
+      }
+    } else {
+      modeChanged = (dispArray2[0] != dispArray2_prev);
+      if (modeChanged) {
+        staticContentDrawn2 = false;
+      }
+    }
+    
+    // Only draw if not already drawn (static content optimization)
+    if ((display == &display1 && !staticContentDrawn1) || 
+        (display == &display2 && !staticContentDrawn2)) {
+      display->clearDisplay();
+      display->drawBitmap(0, 0, IMG_2300_TURBO, SCREEN_W, SCREEN_H, 1);
+      display->display();
+      
+      // Mark static content as drawn
+      if (display == &display1) {
+        staticContentDrawn1 = true;
+      } else {
+        staticContentDrawn2 = true;
+      }
+    }
+}
+
+/**
  * disp302V - Display 302 V8 engine badge
  * Shows "302V" (V8) logo with graphic
  * Optimized: Only draws once, then skips updates for static content

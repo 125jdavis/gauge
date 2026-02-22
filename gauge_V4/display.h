@@ -50,6 +50,7 @@ void dispFuelLvlGfx(Adafruit_SSD1306 *display);     // Fuel level with icon
 void dispFalconScript(Adafruit_SSD1306 *display);   // Falcon logo
 void disp302CID(Adafruit_SSD1306 *display);         // 302 CID logo
 void disp302V(Adafruit_SSD1306 *display);           // 302V logo
+void disp2300turbo(Adafruit_SSD1306 *display);      // 2300 Turbo Logo
 
 // Odometer reset confirmation screens
 void dispOdoResetYes(Adafruit_SSD1306 *display);    // "YES" confirmation
