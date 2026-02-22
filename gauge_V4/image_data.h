@@ -17,6 +17,7 @@
 extern const unsigned char IMG_FALCON_SCRIPT[] PROGMEM;  // 128x32px - Falcon logo
 extern const unsigned char IMG_302_CID[] PROGMEM;        // 128x32px - Engine displacement
 extern const unsigned char IMG_302V[] PROGMEM;           // 128x32px - 302 with V8 symbol
+extern const unsigned char IMG_2300_TURBO[] PROGMEM;     // 128x32px - 2300 turbo
 
 // Sensor icons for displays
 extern const unsigned char IMG_OIL_PRS[] PROGMEM;        // 40x32px - Oil can icon
