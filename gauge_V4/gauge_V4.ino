@@ -186,25 +186,8 @@ void setup() {
   // Initialize serial communication for debugging
   Serial.begin(115200);
 
-  // Keep power enabled after ignition switch turns off.
-  // First, check if ignition voltage is actually present before latching.
-  // When shutdown() releases the power latch, a brownout-triggered reset can
-  // cause setup() to run again and immediately re-latch power, creating an
-  // infinite shutdown loop. Guard against this by reading the battery voltage
-  // before committing to latch: if it is absent, keep the latch off and spin
-  // until the residual capacitor charge is exhausted and the hardware dies.
+  // Keep power enabled after ignition switch turns off
   pinMode(PWR_PIN, OUTPUT);
-  {
-    // map() mirrors readSensor(): raw ADC (0-1023) → 0-500 range, then
-    // multiplied by VBATT_SCALER (calibrated for the 0-500 range) → volts.
-    int rawVBatt = map(analogRead(VBATT_PIN), 0, 1023, 0, 500);
-    if ((float)rawVBatt * VBATT_SCALER < 1.0f) {
-      // No ignition voltage - spurious reboot during shutdown sequence.
-      // Hold the latch low so the power cut can complete.
-      digitalWrite(PWR_PIN, LOW);
-      while (true) { delay(100); }  // Wait for power to die
-    }
-  }
   digitalWrite(PWR_PIN, HIGH);
 
   // ===== GPS INITIALIZATION =====
