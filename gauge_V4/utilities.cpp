@@ -66,6 +66,12 @@ void shutdown (void){
 
   // Cut power to Arduino by releasing power latch
   digitalWrite(PWR_PIN, LOW);  // This will power off the entire system
+
+  // Spin here so execution never returns to loop().
+  // Without this, residual capacitor charge keeps the MCU running long enough
+  // for loop() to re-trigger shutdown(), causing repeated splash-screen flashes
+  // before power finally dies.
+  while (true) { delay(100); }
 }
 /**
  * generateRPM - Generate simulated RPM for demo mode
