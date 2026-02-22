@@ -8,6 +8,7 @@
 #include "globals.h"
 #include "display.h"
 #include "outputs.h"
+#include "image_data.h"
 #include <EEPROM.h>
 
 void shutdown (void){
@@ -25,13 +26,25 @@ void shutdown (void){
   EEPROM.put(odoTripAddress, odoTrip);
   EEPROM.put(fuelSensorRawAddress, fuelSensorRaw);  // Remember fuel level for restart
 
+  // Clear LED tachometer immediately
+  fill_solid(leds, NUM_LEDS, CRGB::Black);
+  FastLED.show();
 
-  // Display shutdown screens
-  dispFalconScript(&display1);
-  disp302CID(&display2);
+  // Display shutdown screens.
+  // Draw bitmaps directly rather than via dispFalconScript/disp302CID so that the
+  // staticContentDrawn dirty-tracking flags (which may be stale from a previous logo
+  // view) cannot block the draw.
+  display1.clearDisplay();
+  display1.drawBitmap(0, 0, IMG_FALCON_SCRIPT, SCREEN_W, SCREEN_H, 1);
+  display1.display();
+  display2.clearDisplay();
+  display2.drawBitmap(0, 0, IMG_302_CID, SCREEN_W, SCREEN_H, 1);
+  display2.display();
 
-  // Return gauge needles to zero position
-  motorZeroSynchronous();
+  // Return gauge needles to zero position with synchronized timed stepping.
+  // motorZeroTimed() disables the Timer3 ISR so the 10 kHz interrupt cannot
+  // override the per-motor pacing; all needles reach zero simultaneously.
+  motorZeroTimed();
 
   // Wait for gauges to settle
   delay(2000);
@@ -40,6 +53,16 @@ void shutdown (void){
   if (vBatt > 1){
     return;  // Abort shutdown - voltage has returned
   }
+
+  // Clear both displays before cutting power.
+  // OLED modules have on-board capacitors that sustain power for up to ~60 seconds
+  // after the supply rail drops (hardware characteristic).  Sending a blank frame now
+  // ensures the pixels shown during that discharge window are black rather than stale
+  // content.
+  display1.clearDisplay();
+  display1.display();
+  display2.clearDisplay();
+  display2.display();
 
   // Cut power to Arduino by releasing power latch
   digitalWrite(PWR_PIN, LOW);  // This will power off the entire system
@@ -64,9 +87,9 @@ int generateRPM(void){
     // Constants - calibratable parameters
     const int MIN_RPM = 900;                // Minimum RPM
     const int MAX_RPM = 7000;               // Maximum RPM
-    const int MAX_RPM_RATE = 3000;          // Maximum rate of change: 3000 RPM/second
+    const int MAX_RPM_RATE = 1800;          // Maximum rate of change: 3000 RPM/second
     const int RPM_UP_RATE = 2400;           // Ramp up rate: 2400 RPM/second (adjustable)
-    const int RPM_DOWN_RATE = 3200;         // Ramp down rate: 3200 RPM/second (adjustable)
+    const int RPM_DOWN_RATE = 3500;         // Ramp down rate: 3200 RPM/second (adjustable)
     
     // Initialize on first call
     if (lastUpdateTime == 0) {
@@ -360,10 +383,10 @@ float generateSyntheticCoolantTemp(void) {
     
     // Constants
     const float MIN_TEMP = -10.0;
-    const float MAX_TEMP = 230.0;
+    const float MAX_TEMP = 140.0;
     const float PREFERRED_MIN = 60.0;   // Spend 75% of time above this
-    const float PREFERRED_MAX = 210.0;  // Spend 75% of time below this
-    const float MAX_RATE = 20.0;        // 20°C/second max
+    const float PREFERRED_MAX = 110.0;  // Spend 75% of time below this
+    const float MAX_RATE = 18.0;        // 20°C/second max
     const float MIN_RATE = 2.0;         // 2°C/second min
     
     // Initialize on first call
@@ -694,6 +717,57 @@ float generateSyntheticManifoldPressure(void) {
     }
     
     return currentPressure;
+}
+
+/**
+ * generateOdometerTestSpeed - Generate a deterministic 1-mile odometer accuracy test profile
+ * 
+ * Starts 5 seconds after device boot. Speed profile:
+ * - Phase 1 (5s-10s):  Linear ramp from 0 to 96.56 km/h (60 mph) over 5 seconds
+ * - Phase 2 (10s-65s): Hold constant at 96.56 km/h for 55 seconds
+ * - Phase 3 (65s-70s): Linear ramp from 96.56 km/h to 0 over 5 seconds
+ * Total distance = 1 mile, allowing accuracy comparison of the mechanical
+ * odometer (motor) and trip odometer (OLED display) against the expected value.
+ * 
+ * Returns 0 before the test starts and after it completes.
+ * 
+ * Returns: Speed in km/h * 100 format (e.g., 9656 = 96.56 km/h)
+ */
+int generateOdometerTestSpeed(void) {
+    const unsigned long TEST_START_MS = 5000UL;   // 5 seconds after boot
+    const unsigned long RAMP_UP_MS    = 5000UL;   // 5-second ramp up (0 → 96.56 km/h)
+    const unsigned long HOLD_MS       = 55000UL;  // 55-second hold at 96.56 km/h
+    const unsigned long RAMP_DOWN_MS  = 5000UL;   // 5-second ramp down (96.56 km/h → 0)
+    const int           MAX_SPEED     = 9656;     // 96.56 km/h * 100
+
+    unsigned long currentTime = millis();
+
+    // Before test starts, return 0
+    if (currentTime < TEST_START_MS) {
+        return 0;
+    }
+
+    unsigned long elapsed = currentTime - TEST_START_MS;
+
+    // Phase 1: Ramp up
+    if (elapsed < RAMP_UP_MS) {
+        return (int)((long)MAX_SPEED * (long)elapsed / (long)RAMP_UP_MS);
+    }
+
+    // Phase 2: Hold constant speed
+    if (elapsed < RAMP_UP_MS + HOLD_MS) {
+        return MAX_SPEED;
+    }
+
+    // Phase 3: Ramp down
+    unsigned long rampDownStart = RAMP_UP_MS + HOLD_MS;
+    if (elapsed < rampDownStart + RAMP_DOWN_MS) {
+        unsigned long rampDownElapsed = elapsed - rampDownStart;
+        return (int)((long)MAX_SPEED * (long)(RAMP_DOWN_MS - rampDownElapsed) / (long)RAMP_DOWN_MS);
+    }
+
+    // Test complete
+    return 0;
 }
 
 /**

@@ -34,23 +34,34 @@ static int motorS_finalTarget = 0;        // Final target angle from speedometer
 static unsigned long motorS_lastUpdateTime = 0;  // Time of last angle update (millis)
 static unsigned long motorS_updateInterval = ANGLE_UPDATE_RATE;  // Actual time between last two updates (millis)
 
+// ===== MOTORS 1-4 SMOOTHING STATE =====
+// Position interpolation for smooth gauge needle motion (fuel, coolant temp, etc.)
+// Uses the same adaptive linear interpolation approach as motorS smoothing.
+// All 4 motors share one timestamp and interval since they are updated together.
+static int motor1to4_previousTarget[4] = {0, 0, 0, 0};  // Previous target angles (steps)
+static int motor1to4_finalTarget[4]    = {0, 0, 0, 0};  // Final target angles from angle functions
+static unsigned long motor1to4_lastUpdateTime = 0;       // Time of last target update (millis)
+static unsigned long motor1to4_updateInterval = ANGLE_UPDATE_RATE; // Measured interval between updates (millis)
+
+// ===== ODOMETER MOTOR STATE =====
 // 20BYJ-48 stepper motor timing and control
 // The 20BYJ-48 is a 5V 4-phase unipolar stepper motor with internal gearing
-// - Full step sequence: 4 steps per electrical revolution
-// - With internal 64:1 gearing: 4096 steps per output shaft revolution
+// - Wave drive sequence: 4 states per electrical cycle (one coil at a time)
+// - Wave drive is equivalent to full-step mode for step counting purposes
+// - With internal ~64:1 gearing: 2048 steps per output shaft revolution (full-step/wave-drive)
+//   (4096 steps/rev is the half-step specification — NOT used here)
 // - Maximum speed: ~15 RPM (limited by internal gearing and torque)
 // - Target speed: < 3 RPM for odometer application
 //
 // Step delay calculation for target speed:
-// - At 3 RPM: 3 rev/min * 4096 steps/rev = 12,288 steps/min = 204.8 steps/sec
-// - Delay per step: 1,000,000 us / 204.8 = 4,882 us (~5ms)
-// - Using 5000 us (5ms) gives ~200 steps/sec = 2.93 RPM (safe margin below 3 RPM)
-static const unsigned long ODO_STEP_DELAY_US = 5000;  // 5ms between steps = ~2.93 RPM
+// - At 3 RPM: 3 rev/min * 2048 steps/rev = 6,144 steps/min = 102.4 steps/sec
+// - Delay per step: 1,000,000 us / 102.4 = 9,766 us (~10ms)
+// - Using 5000 us (5ms) gives ~200 steps/sec = 5.86 RPM (well within stall limit)
+static const unsigned long ODO_STEP_DELAY_US = 5000;  // 5ms between steps ≈ 5.86 RPM (well within stall limit)
 
-// 4-phase stepper sequence for 20BYJ-48 (full step mode)
-// Using wave drive (one phase at a time) for lower power consumption
-// Sequence: A -> B -> C -> D -> A ...
-// Phase:    0    1    2    3
+// Wave-drive stepper sequence for 20BYJ-48 (one phase at a time)
+// Wave drive: A -> B -> C -> D -> A ...
+// Phase:      0    1    2    3
 static const uint8_t ODO_STEP_SEQUENCE[4][4] = {
   {HIGH, LOW,  LOW,  LOW},   // Step 0: Phase A (coil 1)
   {LOW,  HIGH, LOW,  LOW},   // Step 1: Phase B (coil 2)
@@ -303,6 +314,105 @@ void updateMotorSSmoothing(void) {
 }
 
 /**
+ * updateMotors1to4Target - Record new target angles for motors 1-4 and measure update interval
+ *
+ * Called at ANGLE_UPDATE_RATE from the main loop.  Saves the previous final targets,
+ * sets the new final targets, and measures the actual elapsed interval since the last
+ * call.  The measured interval is used by updateMotors1to4Smoothing() to spread motor
+ * movement evenly, eliminating the jerky "move fast → stop → wait" behaviour.
+ *
+ * @param t1 New target angle for motor 1 (steps, 1 to M1_SWEEP-1)
+ * @param t2 New target angle for motor 2
+ * @param t3 New target angle for motor 3
+ * @param t4 New target angle for motor 4
+ */
+void updateMotors1to4Target(int t1, int t2, int t3, int t4) {
+  unsigned long currentTime = millis();
+
+  // Measure actual interval since last update for adaptive interpolation
+  if (motor1to4_lastUpdateTime > 0 && currentTime >= motor1to4_lastUpdateTime) {
+    motor1to4_updateInterval = currentTime - motor1to4_lastUpdateTime;
+    if (motor1to4_updateInterval < 5)   motor1to4_updateInterval = 5;
+    if (motor1to4_updateInterval > 500) motor1to4_updateInterval = 500;
+  } else {
+    motor1to4_updateInterval = ANGLE_UPDATE_RATE;
+  }
+
+  // Shift final → previous, then store new finals
+  motor1to4_previousTarget[0] = motor1to4_finalTarget[0];
+  motor1to4_previousTarget[1] = motor1to4_finalTarget[1];
+  motor1to4_previousTarget[2] = motor1to4_finalTarget[2];
+  motor1to4_previousTarget[3] = motor1to4_finalTarget[3];
+  motor1to4_finalTarget[0] = t1;
+  motor1to4_finalTarget[1] = t2;
+  motor1to4_finalTarget[2] = t3;
+  motor1to4_finalTarget[3] = t4;
+  motor1to4_lastUpdateTime = currentTime;
+}
+
+/**
+ * updateMotors1to4Smoothing - Interpolate and set positions for motors 1-4
+ *
+ * Called every main loop iteration (>1 kHz) to smoothly interpolate each motor's
+ * position between the previous and final targets over the measured update interval.
+ * This is the same adaptive linear interpolation used by updateMotorSSmoothing().
+ *
+ * All arithmetic is integer-only to minimise overhead.
+ */
+void updateMotors1to4Smoothing(void) {
+  unsigned long currentTime = millis();
+
+  // Handle first call or millis() overflow
+  if (motor1to4_lastUpdateTime == 0 || currentTime < motor1to4_lastUpdateTime) {
+    motor1to4_previousTarget[0] = motor1.currentStep;
+    motor1to4_previousTarget[1] = motor2.currentStep;
+    motor1to4_previousTarget[2] = motor3.currentStep;
+    motor1to4_previousTarget[3] = motor4.currentStep;
+    motor1to4_finalTarget[0] = motor1.currentStep;
+    motor1to4_finalTarget[1] = motor2.currentStep;
+    motor1to4_finalTarget[2] = motor3.currentStep;
+    motor1to4_finalTarget[3] = motor4.currentStep;
+    motor1to4_updateInterval = ANGLE_UPDATE_RATE;
+    motor1.setPosition(motor1to4_finalTarget[0]);
+    motor2.setPosition(motor1to4_finalTarget[1]);
+    motor3.setPosition(motor1to4_finalTarget[2]);
+    motor4.setPosition(motor1to4_finalTarget[3]);
+    motor1to4_lastUpdateTime = currentTime;
+    return;
+  }
+
+  unsigned long elapsed = currentTime - motor1to4_lastUpdateTime;
+  if (elapsed > motor1to4_updateInterval) {
+    elapsed = motor1to4_updateInterval;
+  }
+
+  // Motor 1
+  {
+    int delta = motor1to4_finalTarget[0] - motor1to4_previousTarget[0];
+    long interp = ((long)delta * (long)elapsed) / (long)motor1to4_updateInterval;
+    motor1.setPosition(constrain(motor1to4_previousTarget[0] + (int)interp, 1, M1_SWEEP - 1));
+  }
+  // Motor 2
+  {
+    int delta = motor1to4_finalTarget[1] - motor1to4_previousTarget[1];
+    long interp = ((long)delta * (long)elapsed) / (long)motor1to4_updateInterval;
+    motor2.setPosition(constrain(motor1to4_previousTarget[1] + (int)interp, 1, M2_SWEEP - 1));
+  }
+  // Motor 3
+  {
+    int delta = motor1to4_finalTarget[2] - motor1to4_previousTarget[2];
+    long interp = ((long)delta * (long)elapsed) / (long)motor1to4_updateInterval;
+    motor3.setPosition(constrain(motor1to4_previousTarget[2] + (int)interp, 1, M3_SWEEP - 1));
+  }
+  // Motor 4
+  {
+    int delta = motor1to4_finalTarget[3] - motor1to4_previousTarget[3];
+    long interp = ((long)delta * (long)elapsed) / (long)motor1to4_updateInterval;
+    motor4.setPosition(constrain(motor1to4_previousTarget[3] + (int)interp, 1, M4_SWEEP - 1));
+  }
+}
+
+/**
  * fuelLvlAngle - Calculate fuel gauge needle angle from fuel level
  * 
  * Converts fuel level in gallons/liters to motor angle.
@@ -381,6 +491,86 @@ void motorZeroSynchronous(void){
 }
 
 /**
+ * sweepDelay - Calculate per-motor update delay for a timed sweep
+ *
+ * Returns the number of microseconds between update() calls so that a motor
+ * with `sweep` steps completes its full range in MOTOR_SWEEP_TIME_MS ms.
+ * All motors share the same MOTOR_SWEEP_TIME_MS but get individually-scaled
+ * delays so they all finish at exactly the same moment.
+ *
+ * @param sweep - Total steps in the motor's range
+ * @return Delay in microseconds (minimum 10 µs)
+ */
+static unsigned long sweepDelay(uint16_t sweep) {
+  const unsigned long MIN_DELAY_US = 10;
+  if (sweep == 0 || MOTOR_SWEEP_TIME_MS == 0) return MIN_DELAY_US;
+  unsigned long d = (unsigned long)MOTOR_SWEEP_TIME_MS * 1000UL / sweep;
+  return (d < MIN_DELAY_US) ? MIN_DELAY_US : d;
+}
+
+/**
+ * motorZeroTimed - Return all motors to zero with synchronized timed stepping
+ *
+ * Identical to motorZeroSynchronous but uses per-motor delays so that every
+ * motor completes its full return sweep in MOTOR_SWEEP_TIME_MS milliseconds
+ * simultaneously.
+ *
+ * The Timer3 ISR is disabled for the duration so that the 10 kHz interrupt
+ * cannot override the per-motor pacing.  The ISR is re-enabled on exit.
+ * Safe to call during shutdown (where the ISR is active).
+ */
+void motorZeroTimed(void) {
+  // Disable Timer3 ISR — without this, the 10 kHz interrupt drives all motors at
+  // maximum library speed, completely overriding the per-motor delay calculation.
+  TIMSK3 &= ~(1 << OCIE3A);
+
+  // Tell the library each motor is at its maximum so it steps all the way back to zero.
+  motor1.currentStep = M1_SWEEP;
+  motor2.currentStep = M2_SWEEP;
+  motor3.currentStep = M3_SWEEP;
+  motor4.currentStep = M4_SWEEP;
+  motorS.currentStep = MS_SWEEP;
+
+  motor1.setPosition(0);
+  motor2.setPosition(0);
+  motor3.setPosition(0);
+  motor4.setPosition(0);
+  motorS.setPosition(0);
+
+  // Per-motor delays: each motor steps at a rate that fills exactly MOTOR_SWEEP_TIME_MS
+  unsigned long d[5] = {
+    sweepDelay(M1_SWEEP),
+    sweepDelay(M2_SWEEP),
+    sweepDelay(M3_SWEEP),
+    sweepDelay(M4_SWEEP),
+    sweepDelay(MS_SWEEP)
+  };
+
+  unsigned long t0 = micros();
+  unsigned long last[5] = {t0, t0, t0, t0, t0};
+
+  while (motor1.currentStep > 0 || motor2.currentStep > 0 ||
+         motor3.currentStep > 0 || motor4.currentStep > 0 || motorS.currentStep > 0) {
+    unsigned long now = micros();
+    if (now - last[0] >= d[0]) { motor1.update(); last[0] = now; }
+    if (now - last[1] >= d[1]) { motor2.update(); last[1] = now; }
+    if (now - last[2] >= d[2]) { motor3.update(); last[2] = now; }
+    if (now - last[3] >= d[3]) { motor4.update(); last[3] = now; }
+    if (now - last[4] >= d[4]) { motorS.update(); last[4] = now; }
+    yield();
+  }
+
+  motor1.currentStep = 0;
+  motor2.currentStep = 0;
+  motor3.currentStep = 0;
+  motor4.currentStep = 0;
+  motorS.currentStep = 0;
+
+  // Re-enable Timer3 ISR
+  TIMSK3 |= (1 << OCIE3A);
+}
+
+/**
  * motorSweepSynchronous - Perform timed startup sweep test of all motors
  * 
  * Sweeps all motors from zero to maximum and back to zero with configurable timing.
@@ -388,104 +578,76 @@ void motorZeroSynchronous(void){
  * 
  * Timing:
  * - Each direction (0→max, max→0) takes MOTOR_SWEEP_TIME_MS milliseconds
- * - Default: 200ms per direction (400ms total for full sweep test)
+ * - Default: 1000ms per direction (2000ms total for full sweep test)
  * - Configurable via MOTOR_SWEEP_TIME_MS in config_calibration.cpp
  * 
  * Implementation:
- * - Calculates delay between update() calls based on longest motor sweep
- * - Dynamically finds the motor with the longest sweep range
- * - All motors complete their sweeps within the same timeframe
- * - Uses micros() for precise timing control
+ * - Each motor gets an independent per-motor delay calibrated to its sweep range:
+ *   delay = MOTOR_SWEEP_TIME_MS * 1000 / M?_SWEEP  (microseconds between update() calls)
+ * - All motors therefore complete their sweep in the same MOTOR_SWEEP_TIME_MS window
+ * - Uses micros() for precise per-motor timing control
  * 
- * Note: This is a blocking function - normal operation resumes after sweep completes
+ * Note: Called before initMotorUpdateTimer() so the Timer3 ISR is not yet active;
+ *       no ISR management is needed here.
  */
 void motorSweepSynchronous(void){
-  // Minimum delay between motor updates (prevents tight loop issues)
-  static const unsigned long MIN_MOTOR_DELAY_US = 10;
-  
-  // Start by zeroing all motors
+  // Start by zeroing all motors (fast, establish known position)
   motorZeroSynchronous();
   Serial.println("zeroed");
-  
-  // Command all motors to maximum position
+
+  // Per-motor delays: each motor steps at a rate that fills exactly MOTOR_SWEEP_TIME_MS
+  unsigned long d[5] = {
+    sweepDelay(M1_SWEEP),
+    sweepDelay(M2_SWEEP),
+    sweepDelay(M3_SWEEP),
+    sweepDelay(M4_SWEEP),
+    sweepDelay(MS_SWEEP)
+  };
+
+  // ── Sweep up: command all motors to maximum position ──────────────────────
   motor1.setPosition(M1_SWEEP);
   motor2.setPosition(M2_SWEEP);
   motor3.setPosition(M3_SWEEP);
   motor4.setPosition(M4_SWEEP);
   motorS.setPosition(MS_SWEEP);
-  
-  // Calculate delay between updates to achieve target sweep time
-  // Find the motor with the longest sweep
-  uint16_t maxSweep = M1_SWEEP;
-  if (M2_SWEEP > maxSweep) maxSweep = M2_SWEEP;
-  if (M3_SWEEP > maxSweep) maxSweep = M3_SWEEP;
-  if (M4_SWEEP > maxSweep) maxSweep = M4_SWEEP;
-  if (MS_SWEEP > maxSweep) maxSweep = MS_SWEEP;
-  
-  // Calculate microseconds per update call to achieve MOTOR_SWEEP_TIME_MS
-  // Use 64-bit arithmetic to prevent overflow with large MOTOR_SWEEP_TIME_MS values
-  unsigned long delayMicros = 0;
-  if (maxSweep > 0 && MOTOR_SWEEP_TIME_MS > 0) {
-    unsigned long long temp = (unsigned long long)MOTOR_SWEEP_TIME_MS * 1000ULL;
-    delayMicros = (unsigned long)(temp / maxSweep);
-    // Ensure minimum delay to prevent tight loop issues
-    if (delayMicros < MIN_MOTOR_DELAY_US) delayMicros = MIN_MOTOR_DELAY_US;
-  } else {
-    // If MOTOR_SWEEP_TIME_MS is 0, use minimum delay (fast sweep)
-    delayMicros = MIN_MOTOR_DELAY_US;
-  }
-  
-  // Wait for all motors to reach maximum with timed delays
-  unsigned long lastUpdateMicros = micros();
-  while (motor1.currentStep < M1_SWEEP-1  || motor2.currentStep < M2_SWEEP-1 || 
-         motor3.currentStep < M3_SWEEP-1  || motor4.currentStep < M4_SWEEP-1 || 
-         motorS.currentStep < MS_SWEEP-1)
-  {
-      // Check if enough time has passed for next update
-      // Unsigned arithmetic handles micros() overflow correctly
-      unsigned long currentMicros = micros();
-      unsigned long elapsed = currentMicros - lastUpdateMicros;
-      if (elapsed >= delayMicros) {
-        motor1.update();  // Step each motor toward target
-        motor2.update();
-        motor3.update();
-        motor4.update();
-        motorS.update();
-        lastUpdateMicros = currentMicros;
-      }
-      // Allow other system tasks to run (prevents watchdog issues)
-      yield();
+
+  unsigned long t0 = micros();
+  unsigned long last[5] = {t0, t0, t0, t0, t0};
+
+  while (motor1.currentStep < M1_SWEEP - 1 || motor2.currentStep < M2_SWEEP - 1 ||
+         motor3.currentStep < M3_SWEEP - 1 || motor4.currentStep < M4_SWEEP - 1 ||
+         motorS.currentStep < MS_SWEEP - 1) {
+    unsigned long now = micros();
+    if (now - last[0] >= d[0]) { motor1.update(); last[0] = now; }
+    if (now - last[1] >= d[1]) { motor2.update(); last[1] = now; }
+    if (now - last[2] >= d[2]) { motor3.update(); last[2] = now; }
+    if (now - last[3] >= d[3]) { motor4.update(); last[3] = now; }
+    if (now - last[4] >= d[4]) { motorS.update(); last[4] = now; }
+    yield();
   }
 
   Serial.println("full sweep");
-  
-  // Command all motors back to zero
+
+  // ── Sweep down: command all motors back to zero ───────────────────────────
   motor1.setPosition(0);
   motor2.setPosition(0);
   motor3.setPosition(0);
   motor4.setPosition(0);
   motorS.setPosition(0);
-  
-  // Wait for all motors to return to zero with timed delays
-  lastUpdateMicros = micros();
-  while (motor1.currentStep > 0 || motor2.currentStep > 0 || 
-         motor3.currentStep > 0 || motor4.currentStep > 0 || 
-         motorS.currentStep > 0)
-  {
-      // Check if enough time has passed for next update
-      // Unsigned arithmetic handles micros() overflow correctly
-      unsigned long currentMicros = micros();
-      unsigned long elapsed = currentMicros - lastUpdateMicros;
-      if (elapsed >= delayMicros) {
-        motor1.update();
-        motor2.update();
-        motor3.update();
-        motor4.update();
-        motorS.update();
-        lastUpdateMicros = currentMicros;
-      }
-      // Allow other system tasks to run (prevents watchdog issues)
-      yield();
+
+  t0 = micros();
+  unsigned long lastReturn[5] = {t0, t0, t0, t0, t0};
+
+  while (motor1.currentStep > 0 || motor2.currentStep > 0 ||
+         motor3.currentStep > 0 || motor4.currentStep > 0 ||
+         motorS.currentStep > 0) {
+    unsigned long now = micros();
+    if (now - lastReturn[0] >= d[0]) { motor1.update(); lastReturn[0] = now; }
+    if (now - lastReturn[1] >= d[1]) { motor2.update(); lastReturn[1] = now; }
+    if (now - lastReturn[2] >= d[2]) { motor3.update(); lastReturn[2] = now; }
+    if (now - lastReturn[3] >= d[3]) { motor4.update(); lastReturn[3] = now; }
+    if (now - lastReturn[4] >= d[4]) { motorS.update(); lastReturn[4] = now; }
+    yield();
   }
 }
 
@@ -507,13 +669,13 @@ void motorSweepSynchronous(void){
  * 4. Calculate motor steps: steps = motor_revs * ODO_STEPS
  * 5. Add to target position (accumulates fractional steps for precision)
  * 
- * Example with default calibration values (ODO_STEPS=4096, ODO_MOTOR_TEETH=16, ODO_GEAR_TEETH=20):
+ * Example with default calibration values (ODO_STEPS=2048, ODO_MOTOR_TEETH=16, ODO_GEAR_TEETH=20):
  * - For 1.60934 km (1 mile):
  *   - Distance in miles = 1.0
  *   - Odometer revs = 1.0
  *   - Gear ratio = 20/16 = 1.25
  *   - Motor revs = 1.0 * 1.25 = 1.25
- *   - Steps = 1.25 * 4096 = 5120 steps
+ *   - Steps = 1.25 * 2048 = 2560 steps
  */
 void moveOdometerMotor(float distanceKm) {
     // Convert distance from kilometers to miles
