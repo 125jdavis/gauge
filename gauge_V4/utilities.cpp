@@ -6,6 +6,7 @@
 
 #include "utilities.h"
 #include "globals.h"
+#include "config_hardware.h"
 #include "display.h"
 #include "outputs.h"
 #include "image_data.h"
@@ -63,6 +64,27 @@ void shutdown (void){
   display1.display();
   display2.clearDisplay();
   display2.display();
+
+  // ===== DE-ENERGIZE ALL OUTPUTS BEFORE RELEASING LATCH =====
+  // The ULN2003 odometer driver COM pin is connected to +12V_SW.  While the
+  // Timer3 ISR fires at 10 kHz and updateOdometerMotor() steps through the
+  // 4-phase wave-drive sequence, each coil transition (HIGH→LOW) produces an
+  // inductive flyback pulse that flows back through the ULN2003's internal
+  // protection diodes to the COM / +12V_SW terminal.  At ~0.6 V (one diode
+  // drop), this backfeed is exactly the Vbe threshold of the S8050 NPN
+  // transistors in the power-latch circuit.  The result: Q2 partially
+  // re-latches Q1 (the P-channel power MOSFET), keeping +12V_CONST alive
+  // and the MCU running indefinitely after PWR_PIN is set LOW.
+  //
+  // Fix: disable Timer3 ISR and pull all ULN2003 inputs LOW before releasing
+  // the latch, eliminating the flyback backfeed path entirely.  Also pull
+  // MOTOR_RST LOW to tri-state the gauge motor driver outputs.
+  TIMSK3 &= ~(1 << OCIE3A);       // Disable Timer3 motor-update ISR permanently
+  digitalWrite(ODO_PIN1, LOW);    // De-energize ODO motor coil 1
+  digitalWrite(ODO_PIN2, LOW);    // De-energize ODO motor coil 2
+  digitalWrite(ODO_PIN3, LOW);    // De-energize ODO motor coil 3
+  digitalWrite(ODO_PIN4, LOW);    // De-energize ODO motor coil 4
+  digitalWrite(MOTOR_RST, LOW);   // Put gauge motor driver in reset (tri-states all outputs)
 
   // Cut power to Arduino by releasing power latch
   digitalWrite(PWR_PIN, LOW);  // This will power off the entire system
