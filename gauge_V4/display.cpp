@@ -29,7 +29,6 @@ void dispMenu() {
       if (menuLevel == 0 && button == 1) {
         button = 0; // Clear button flag (no action - this is a display screen only)
       }
-      // Serial.println("Oil Pressure");  // Debug output
       dispOilPrsGfx(&display1);  // Show oil pressure with icon
       break;
     
@@ -37,43 +36,94 @@ void dispMenu() {
       if (menuLevel == 0 && button == 1) {
         button = 0; // Clear button flag
       }
-      // Serial.println("Coolant Temp");  // Debug output
       dispCoolantTempGfx(&display1);  // Show coolant temp with thermometer icon
       break;
     
-    case 3:  // Oil Temperature Display                dispArray1 = {3, x, x, x}
-      if (menuLevel == 0 && button == 1) {
-        button = 0; // Clear button flag   
-      }
-      // Serial.println("Oil Temp");  // Debug output
-      dispOilTempGfx(&display1);  // Show oil temp with oil can/thermometer icon
-      break;
-    
-    case 4:  // Fuel Level Display                     dispArray1 = {4, x, x, x}
+    case 3:  // Fuel Level Display                    dispArray1 = {3, x, x, x}
       if (menuLevel == 0 && button == 1) {
         button = 0; // Clear button flag
       }
-      // Serial.println("Fuel Level");  // Debug output
       dispFuelLvlGfx(&display1);  // Show fuel level in gallons/liters with icon
       break;
     
-    case 5:  // Battery Voltage Display                dispArray1 = {5, x, x, x}
+    case 4:  // Battery Voltage Display               dispArray1 = {4, x, x, x}
       if (menuLevel == 0 && button == 1) {
         button = 0; // Clear button flag
       }
-      // Serial.println("batt voltage");  // Debug output
       dispBattVoltGfx(&display1);  // Show battery voltage with battery icon
       break;
 
-    case 6:  // Clock Display                          dispArray1 = {6, x, x, x}
+    case 5:  // RPM Display                           dispArray1 = {5, x, x, x}
       if (menuLevel == 0 && button == 1) {
         button = 0; // Clear button flag
       }
-      // Serial.println("Clock");  // Debug output
-      dispClock(&display1);  // Show time from GPS with local offset
-      break;  
+      dispRPM(&display1);  // Show engine RPM
+      break;
 
-    case 7:  // Trip Odometer with Reset Option        dispArray1 = {7, x, x, x}
+    case 6:  // Speed Display                         dispArray1 = {6, x, x, x}
+      if (menuLevel == 0 && button == 1) {
+        button = 0; // Clear button flag
+      }
+      dispSpd(&display1);  // Show speed in km/h or mph based on units setting
+      break;
+
+    case 7:  // Air/Fuel Ratio Display                dispArray1 = {7, x, x, x}
+      if (menuLevel == 0 && button == 1) {
+        button = 0; // Clear button flag
+      }
+      dispAFR(&display1);  // Show AFR (e.g., 14.7)
+      break;
+
+    case 8:  // Fuel Pressure Display                 dispArray1 = {8, x, x, x}
+      if (menuLevel == 0 && button == 1) {
+        button = 0; // Clear button flag
+      }
+      dispFuelPrs(&display1);  // Show fuel pressure in PSI or bar
+      break;
+
+    case 9:  // Boost Gauge Display (with bar)        dispArray1 = {9, x, x, x}
+      if (menuLevel == 0 && button == 1) {
+        button = 0; // Clear button flag
+      }
+      dispBoostGfx(&display1);  // Show boost with turbo icon and bar gauge
+      break;
+
+    case 10:  // Boost Display (text only)            dispArray1 = {10, x, x, x}
+      if (menuLevel == 0 && button == 1) {
+        button = 0; // Clear button flag
+      }
+      dispBoost(&display1);  // Show boost with turbo icon, text only
+      break;
+
+    case 11:  // Oil Temperature Display              dispArray1 = {11, x, x, x}
+      if (menuLevel == 0 && button == 1) {
+        button = 0; // Clear button flag
+      }
+      dispOilTempGfx(&display1);  // Show oil temp with oil can/thermometer icon
+      break;
+
+    case 12:  // Fuel Composition Display             dispArray1 = {12, x, x, x}
+      if (menuLevel == 0 && button == 1) {
+        button = 0; // Clear button flag
+      }
+      dispFuelComp(&display1);  // Show ethanol percentage (E85 flex fuel)
+      break;
+
+    case 13:  // Injector Duty Cycle Display          dispArray1 = {13, x, x, x}
+      if (menuLevel == 0 && button == 1) {
+        button = 0; // Clear button flag
+      }
+      dispInjDuty(&display1);  // Show injector duty cycle percentage
+      break;
+
+    case 14:  // Ignition Timing Display              dispArray1 = {14, x, x, x}
+      if (menuLevel == 0 && button == 1) {
+        button = 0; // Clear button flag
+      }
+      dispIgnAng(&display1);  // Show ignition advance in degrees BTDC
+      break;
+
+    case 15:  // Trip Odometer with Reset Option      dispArray1 = {15, x, x, x}
 	  if (menuLevel == 0 && button == 1) {
         // Button pressed - enter submenu to confirm reset
         button = 0;
@@ -83,123 +133,53 @@ void dispMenu() {
       else if (menuLevel == 0) {
         // No button - just display trip odometer value
         dispTripOdo(&display1);
-        // Serial.println("Trip Odo");  // Debug output
       } 
       else {
         // In submenu - handle Yes/No selection for reset
         switch (dispArray1[1]) {
-          case 0:  // Reset Trip Odo: YES              dispArray1 = {7, 0, x, x}
+          case 0:  // Reset Trip Odo: YES              dispArray1 = {15, 0, x, x}
             dispOdoResetYes(&display1);  // Show confirmation screen with YES highlighted
 			      if (button == 1) {
                 // User confirmed reset
 			        odoTrip = 0;  // Clear trip odometer
 			        goToLevel0();  // Return to main menu
-			        dispArray1[0] = 7;  // Stay on trip odo screen
+			        dispArray1[0] = 15;  // Stay on trip odo screen
 			        forceDisplayUpdate = true;  // Flag for force update after for loop
             } 
             break;
             
-		      case 1:  // Reset Trip Odo: NO               dispArray1 = {7, 1, x, x}
+		      case 1:  // Reset Trip Odo: NO               dispArray1 = {15, 1, x, x}
 			      dispOdoResetNo(&display1);  // Show confirmation screen with NO highlighted
 			      if (button == 1) {
                 // User cancelled reset
 				      goToLevel0();  // Return to main menu
-				      dispArray1[0] = 7;  // Stay on trip odo screen
+				      dispArray1[0] = 15;  // Stay on trip odo screen
 				      forceDisplayUpdate = true;  // Flag for force update after for loop
 			      } 
           break;
 		    } 
 	    }
-      break;    
-    
-    case 8:  // Speed Display                          dispArray1 = {8, x, x, x}
-      if (menuLevel == 0 && button == 1) {
-        button = 0; // Clear button flag
-      }
-      // Serial.println("Speed");  // Debug output
-      dispSpd(&display1);  // Show speed in km/h or mph based on units setting
-      break;  
-    
-    case 9:  // RPM Display                            dispArray1 = {9, x, x, x}
-      if (menuLevel == 0 && button == 1) {
-        button = 0; // Clear button flag
-      }
-      // Serial.println("RPM");  // Debug output
-      dispRPM(&display1);  // Show engine RPM
-      break;  
-    
-    case 10:  // Ignition Timing Display               dispArray1 = {10, x, x, x}
-      if (menuLevel == 0 && button == 1) {
-        button = 0; // Clear button flag
-      }
-      // Serial.println("ignition timing");  // Debug output
-      dispIgnAng(&display1);  // Show ignition advance in degrees BTDC
       break;
-    
-    case 11:  // Air/Fuel Ratio Display                dispArray1 = {11, x, x, x}
-      if (menuLevel == 0 && button == 1) {
-        button = 0; // Clear button flag
-      }
-      // Serial.println("AFR");  // Debug output
-      dispAFR(&display1);  // Show AFR (e.g., 14.7)
-      break;  
-    
-    case 12:  // Fuel Pressure Display                 dispArray1 = {12, x, x, x}
-      if (menuLevel == 0 && button == 1) {
-        button = 0; // Clear button flag
-      }
-      // Serial.println("Fuel Pressure");  // Debug output
-      dispFuelPrs(&display1);  // Show fuel pressure in PSI or bar
-      break;  
 
-    case 13:  // Fuel Composition Display              dispArray1 = {13, x, x, x}
+    case 16:  // Clock Display                        dispArray1 = {16, x, x, x}
       if (menuLevel == 0 && button == 1) {
         button = 0; // Clear button flag
       }
-      // Serial.println("ethanol %");  // Debug output
-      dispFuelComp(&display1);  // Show ethanol percentage (E85 flex fuel)
-      break;  
-
-    case 14:  // Injector Duty Cycle Display           dispArray1 = {14, x, x, x}
-      if (menuLevel == 0 && button == 1) {
-        button = 0; // Clear button flag
-      }
-      // Serial.println("Inj Duty");  // Debug output
-      dispInjDuty(&display1);  // Show injector duty cycle percentage
+      dispClock(&display1);  // Show time from GPS with local offset
       break;
-      
-    case 15:  // Falcon Script Logo                    dispArray1 = {15, x, x, x}
+
+    case 17:  // Falcon Script Logo                   dispArray1 = {17, x, x, x}
       if (menuLevel == 0 && button == 1) {
         // No action on button press - just a splash screen
-        //goToLevel0();
       }
-      // Serial.println("falcon Script");  // Debug output
       dispFalconScript(&display1);  // Display Falcon logo
-      break;  
-
-    case 16:  // Boost Gauge Display (with bar)        dispArray1 = {16, x, x, x}
-      if (menuLevel == 0 && button == 1) {
-        button = 0; // Clear button flag
-      }
-      // Serial.println("Boost GFX");  // Debug output
-      dispBoostGfx(&display1);  // Show boost with turbo icon and bar gauge
-      break;
-
-    case 17:  // Boost Display (text only)             dispArray1 = {17, x, x, x}
-      if (menuLevel == 0 && button == 1) {
-        button = 0; // Clear button flag
-      }
-      // Serial.println("Boost Text");  // Debug output
-      dispBoost(&display1);  // Show boost with turbo icon, text only
       break;
 
     case 0:  // SETTINGS MENU - Always last screen for easy wrapping access
-             // This is a complex multi-level menu for system configuration
-             // Structure: Settings -> [Display 2 Select | Units | Clock Offset | Fuel Sensor Cal]
-             //   -> Display 2: 9 screen options (Oil Prs, Coolant, Batt, Fuel, AFR, Speed, RPM, 302V, 302CID)
+             // Structure: Settings -> [Display 2 Select | Units | Clock Offset]
+             //   -> Display 2: 10 screen options (0-9)
              //   -> Units: Metric or Imperial
-             //   -> Clock Offset: -12 to +12 hours from UTC
-             //   -> Fuel Cal: Adjust fuel sender calibration
+             //   -> Clock Offset: adjust hours from UTC
              
       if (menuLevel == 0 && button == 1) {  
         // Button pressed - enter Settings submenu
@@ -222,9 +202,9 @@ void dispMenu() {
               // Enter Display 2 selection submenu
               button = 0;
               menuLevel = 2;   // Go to level 2
-              nMenuLevel = 11;  // 12 display options (0-indexed): 0-11 now includes both boost options
+              nMenuLevel = 9;  // 10 display options (0-indexed): 0-9
               // Validate dispArray1[2] is in valid range (prevent EEPROM corruption issues)
-              if (dispArray1[2] > 11) {
+              if (dispArray1[2] > 9) {
                 dispArray1[2] = 0;  // Reset to first option if out of range
               }
               // Force mode change detection so display updates immediately
@@ -240,7 +220,6 @@ void dispMenu() {
               switch (dispArray1[2]) {
                 
                 case 0:  // Oil Pressure on Display 2    dispArray1 = {0, 0, 0, x}
-                  //Serial.println("Disp2: Oil Pressure");  // Debug output
                   dispArray2[0] = 0;  // Set display 2 to oil pressure
                   if (button == 1) {
                     goToLevel0();  // Save and return to main menu
@@ -248,88 +227,63 @@ void dispMenu() {
                   break;
                   
                 case 1:  // Coolant Temp on Display 2    dispArray1 = {0, 0, 1, x}
-                  //Serial.println("Disp2: Coolant Temp");  // Debug output
                   dispArray2[0] = 1;  // Set display 2 to coolant temp
                   if (button == 1) {
                     goToLevel0();  // Save and return to main menu
                   }
                   break;
                   
-                case 2:  // Battery Voltage on Display 2  dispArray1 = {0, 0, 2, x}
-                  //Serial.println("Disp2: Battery Voltage");  // Debug output
-                  dispArray2[0] = 2;  // Set display 2 to battery voltage
+                case 2:  // Fuel Level on Display 2      dispArray1 = {0, 0, 2, x}
+                  dispArray2[0] = 2;  // Set display 2 to fuel level
                   if (button == 1) {
                     goToLevel0();  // Save and return to main menu
                   }
                   break;
                   
-                case 3:  // Fuel Level on Display 2       dispArray1 = {0, 0, 3, x}
-                  //Serial.println("Disp2: Fuel Level");  // Debug output
-                  dispArray2[0] = 3;  // Set display 2 to fuel level
+                case 3:  // Battery Voltage on Display 2 dispArray1 = {0, 0, 3, x}
+                  dispArray2[0] = 3;  // Set display 2 to battery voltage
                   if (button == 1) {
-                    goToLevel0();  // Save and return to main menu;
+                    goToLevel0();  // Save and return to main menu
                   }
                   break;
                   
-                case 4:  // RPM on Display 2              dispArray1 = {0, 0, 4, x}
-                  //Serial.println("Disp2: RPM");  // Debug output
+                case 4:  // RPM on Display 2             dispArray1 = {0, 0, 4, x}
                   dispArray2[0] = 4;  // Set display 2 to RPM
                   if (button == 1) {
                     goToLevel0();  // Save and return to main menu
                   }
                   break;
                   
-                case 5:  // Speed on Display 2            dispArray1 = {0, 0, 5, x}
-                  //Serial.println("Disp2: Speed");  // Debug output
+                case 5:  // Speed on Display 2           dispArray1 = {0, 0, 5, x}
                   dispArray2[0] = 5;  // Set display 2 to speed
                   if (button == 1) {
                     goToLevel0();  // Save and return to main menu
                   }
                   break;
 
-                case 6:  // Clock on Display 2            dispArray1 = {0, 0, 6, x}
-                  //Serial.println("Clock");  // Debug output
-                  dispArray2[0] = 6;  // Set display 2 to clock
+                case 6:  // Boost Gauge on Display 2 (with bar)  dispArray1 = {0, 0, 6, x}
+                  dispArray2[0] = 6;  // Set display 2 to boost gauge with bar
                   if (button == 1) {
                     goToLevel0();  // Save and return to main menu
                   }
                   break;
 
-                case 7:  // 302CID Logo on Display 2      dispArray1 = {0, 0, 7, x}
-                  //Serial.println("Disp2: 302CID");  // Debug output
-                  dispArray2[0] = 7;  // Set display 2 to 302 CID logo
+                case 7:  // Boost Display on Display 2 (text)    dispArray1 = {0, 0, 7, x}
+                  dispArray2[0] = 7;  // Set display 2 to boost text display
+                  if (button == 1) {
+                    goToLevel0();  // Save and return to main menu
+                  }
+                  break;
+
+                case 8:  // Clock on Display 2           dispArray1 = {0, 0, 8, x}
+                  dispArray2[0] = 8;  // Set display 2 to clock
                   if (button == 1) {
                     goToLevel0();  // Save and return to main menu
                   }
                   break;
                   
-                case 8:  // 302V Logo on Display 2        dispArray1 = {0, 0, 8, x}
-                  //Serial.println("Disp2: 302V");  // Debug output
-                  dispArray2[0] = 8;  // Set display 2 to 302V logo
-                  if (button == 1) {
-                    goToLevel0();  // Save and return to main menu
-                  }
-                  break;
-                  
-                case 9:  // Falcon Script on Display 2    dispArray1 = {0, 0, 9, x}
-                  //Serial.println("Disp2: Falcon Script");  // Debug output
+                case 9:  // Falcon Script on Display 2   dispArray1 = {0, 0, 9, x}
                   dispArray2[0] = 9;  // Set display 2 to Falcon logo
-                  if (button == 1) {
-                    goToLevel0();  // Save and return to main menu
-                  }
-                  break;
-                  
-                case 10:  // Boost Gauge on Display 2 (with bar)  dispArray1 = {0, 0, 10, x}
-                  //Serial.println("Disp2: Boost GFX");  // Debug output
-                  dispArray2[0] = 10;  // Set display 2 to boost gauge with bar
-                  if (button == 1) {
-                    goToLevel0();  // Save and return to main menu
-                  }
-                  break;
-
-                case 11:  // Boost Display on Display 2 (text)  dispArray1 = {0, 0, 11, x}
-                  //Serial.println("Disp2: Boost Text");  // Debug output
-                  dispArray2[0] = 11;  // Set display 2 to boost text display
                   if (button == 1) {
                     goToLevel0();  // Save and return to main menu
                   }
@@ -472,16 +426,14 @@ void dispMenu() {
  * Display options:
  * 0 - Oil Pressure
  * 1 - Coolant Temperature
- * 2 - Battery Voltage
- * 3 - Fuel Level
+ * 2 - Fuel Level
+ * 3 - Battery Voltage
  * 4 - RPM
  * 5 - Speed
- * 6 - Clock
- * 7 - 302CID logo
- * 8 - 302V logo
+ * 6 - Boost Gauge (with bar)
+ * 7 - Boost Display (text only)
+ * 8 - Clock
  * 9 - Falcon Script logo
- * 10 - Boost Gauge (with bar)
- * 11 - Boost Display (text only)
  */
 void disp2(void){
   switch (dispArray2[0]){
@@ -494,12 +446,12 @@ void disp2(void){
       dispCoolantTempGfx(&display2);
       break;
 
-    case 2: // Battery Voltage
-      dispBattVoltGfx(&display2);
+    case 2: // Fuel Level
+      dispFuelLvlGfx(&display2);
       break;
 
-    case 3: // Fuel Level
-      dispFuelLvlGfx(&display2);
+    case 3: // Battery Voltage
+      dispBattVoltGfx(&display2);
       break;
 
     case 4: // RPM
@@ -510,28 +462,20 @@ void disp2(void){
       dispSpd(&display2);
       break;
 
-    case 6: // Clock
-      dispClock(&display2);
-      break;
-    
-    case 7: // 302CID Logo
-      disp302CID(&display2);
+    case 6: // Boost Gauge (with bar)
+      dispBoostGfx(&display2);  // Show boost with turbo icon and bar gauge
       break;
 
-    case 8: // 302V Logo
-      disp302V(&display2);
+    case 7: // Boost Display (text only)
+      dispBoost(&display2);  // Show boost with turbo icon, text only
+      break;
+
+    case 8: // Clock
+      dispClock(&display2);
       break;
 
     case 9: // Falcon Script Logo
       dispFalconScript(&display2);
-      break;
-
-    case 10: // Boost Gauge (with bar)
-      dispBoostGfx(&display2);  // Show boost with turbo icon and bar gauge
-      break;
-
-    case 11: // Boost Display (text only)
-      dispBoost(&display2);  // Show boost with turbo icon, text only
       break;
   }
   
@@ -1829,30 +1773,30 @@ unsigned int getDisplayUpdateInterval(byte displayMode, byte displayNum) {
   // Display 1 refresh rates
   if (displayNum == 1) {
     switch (displayMode) {
-      case 9:   // RPM
-      case 16:  // Boost gauge with bar (12Hz, same as RPM)
-      case 17:  // Boost text display (12Hz, same as RPM)
+      case 5:   // RPM
+      case 9:   // Boost gauge with bar (12Hz, same as RPM)
+      case 10:  // Boost text display (12Hz, same as RPM)
         return 83;
       
-      case 8:   // Speed
-      case 10:  // Ignition angle
-      case 11:  // AFR
-      case 12:  // Fuel pressure
-      case 14:  // Injector duty
+      case 6:   // Speed
+      case 7:   // AFR
+      case 8:   // Fuel Pressure
+      case 13:  // Injector Duty
+      case 14:  // Ignition Timing
         return 143;
       
       case 0:   // Settings menu
       case 1:   // Oil Pressure
       case 2:   // Coolant Temp
-      case 3:   // Oil Temp
-      case 4:   // Fuel Level
-      case 5:   // Battery Voltage
-      case 6:   // Clock
-      case 7:   // Trip Odometer
-      case 13:  // Fuel composition
+      case 3:   // Fuel Level
+      case 4:   // Battery Voltage
+      case 11:  // Oil Temp
+      case 12:  // Fuel Composition
+      case 15:  // Trip Odometer
+      case 16:  // Clock
         return 500;
       
-      case 15:  // Falcon Script logo
+      case 17:  // Falcon Script logo
         return 1000;
       
       default:
@@ -1863,8 +1807,8 @@ unsigned int getDisplayUpdateInterval(byte displayMode, byte displayNum) {
   else {
     switch (displayMode) {
       case 4:   // RPM
-      case 10:  // Boost gauge with bar (12Hz, same as RPM)
-      case 11:  // Boost text display (12Hz, same as RPM)
+      case 6:   // Boost gauge with bar (12Hz, same as RPM)
+      case 7:   // Boost text display (12Hz, same as RPM)
         return 83;
       
       case 5:   // Speed
@@ -1872,13 +1816,11 @@ unsigned int getDisplayUpdateInterval(byte displayMode, byte displayNum) {
       
       case 0:   // Oil Pressure
       case 1:   // Coolant Temp
-      case 2:   // Battery Voltage
-      case 3:   // Fuel Level
-      case 6:   // Clock
+      case 2:   // Fuel Level
+      case 3:   // Battery Voltage
+      case 8:   // Clock
         return 500;
       
-      case 7:   // 302CID logo
-      case 8:   // 302V logo
       case 9:   // Falcon Script logo
         return 1000;
       
