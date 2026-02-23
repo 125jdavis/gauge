@@ -36,7 +36,7 @@ void shutdown (void){
   display1.drawBitmap(0, 0, IMG_FALCON_SCRIPT, SCREEN_W, SCREEN_H, 1);
   display1.display();
   display2.clearDisplay();
-  display2.drawBitmap(0, 0, IMG_302_CID, SCREEN_W, SCREEN_H, 1);
+  display2.drawBitmap(0, 0, IMG_2300_TURBO, SCREEN_W, SCREEN_H, 1);
   display2.display();
 
   // Return gauge needles to zero position with synchronized timed stepping.
