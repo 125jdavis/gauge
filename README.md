@@ -6,15 +6,14 @@ Arduino-based instrument panel controller for retrofitting vintage vehicles with
 
 ## Features
 
-**Outputs**
-- 5× SwitecX12 stepper motors — speedometer, fuel level, coolant temp, and two auxiliary gauges
+**Analog Gauges**
+- 5× stepper motors — 4x Switec X27.168 type, 1x NEMA14 for maximum control when using extra long gauge needles
 - Mechanical odometer motor (non-blocking, interrupt-driven)
-- 2× 128×32 SSD1306 OLED displays (SPI), each independently configurable
+
+**Display screens** 2× 128×32 SSD1306 OLED displays (SPI), each independently configurable. Display screens inclued oil pressure, coolant temp, fuel level, battery voltage, RPM, speed, AFR, fuel pressure, boost (bar graph), boost (digital readout), oil temp, ethanol %, injector duty cycle, ignition timing, trip odometer, clock, logo, and a settings menu.
+
+**LED Shift Light Tachometer**
 - WS2812 LED tachometer strip with configurable warning and shift-light zones
-
-**Display 1 screens** (scroll with rotary encoder): oil pressure, coolant temp, fuel level, battery voltage, RPM, speed, AFR, fuel pressure, boost (bar graph), boost (digital readout), oil temp, ethanol %, injector duty cycle, ignition timing, trip odometer, clock, logo, and a settings menu.
-
-**Display 2** shows one persistent screen chosen from: oil pressure, coolant temp, fuel level, battery voltage, RPM, speed, boost (bar or text), clock, or logo.
 
 **Inputs**
 - CAN bus (MCP2515, 500 kbps) — supports Haltech v2, Megasquirt, AiM, and OBDII polling
@@ -36,7 +35,6 @@ Arduino-based instrument panel controller for retrofitting vintage vehicles with
 ## Limitations
 
 - **Hardware-specific** — requires Arduino Mega 2560, SwitecX12 stepper motors, and SSD1306 SPI displays. Porting to other hardware requires pin and library changes.
-- **Mechanical odometer** — partially implemented; stepping logic is present but the feature is not fully functional.
 - **Single CAN protocol** — only one ECU protocol can be active at a time; switching requires a firmware reflash.
 - **OBDII polling** — update rate is lower (~1–10 Hz per parameter) compared to broadcast protocols (10–100 Hz).
 - **No runtime calibration UI** — calibration parameters (sweep ranges, sensor curves, LED counts, etc.) are set in `config_calibration.cpp` and require recompilation.
