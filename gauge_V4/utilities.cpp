@@ -32,9 +32,6 @@ void shutdown (void){
   FastLED.show();
 
   // Display shutdown screens.
-  // Draw bitmaps directly rather than via dispFalconScript/disp302CID so that the
-  // staticContentDrawn dirty-tracking flags (which may be stale from a previous logo
-  // view) cannot block the draw.
   display1.clearDisplay();
   display1.drawBitmap(0, 0, IMG_FALCON_SCRIPT, SCREEN_W, SCREEN_H, 1);
   display1.display();
@@ -47,38 +44,23 @@ void shutdown (void){
   // override the per-motor pacing; all needles reach zero simultaneously.
   motorZeroTimed();
 
-  // Wait for gauges to settle
+  // Show splash screens
   delay(2000);
 
-  // Double-check that key is still off (in case user turned it back on)
-  if (vBatt > 1){
-    return;  // Abort shutdown - voltage has returned
-  }
-
   // Clear both displays before cutting power.
-  // OLED modules have on-board capacitors that sustain power for up to ~60 seconds
-  // after the supply rail drops (hardware characteristic).  Sending a blank frame now
-  // ensures the pixels shown during that discharge window are black rather than stale
-  // content.
   display1.clearDisplay();
   display1.display();
   display2.clearDisplay();
   display2.display();
 
+  // Double-check that key is still off (in case user turned it back on)
+  if (vBatt > 1){
+    return;  // Abort shutdown - voltage has returned
+  }
   // ===== DE-ENERGIZE ALL OUTPUTS BEFORE RELEASING LATCH =====
-  // The ULN2003 odometer driver COM pin is connected to +12V_SW.  While the
-  // Timer3 ISR fires at 10 kHz and updateOdometerMotor() steps through the
-  // 4-phase wave-drive sequence, each coil transition (HIGH→LOW) produces an
-  // inductive flyback pulse that flows back through the ULN2003's internal
-  // protection diodes to the COM / +12V_SW terminal.  At ~0.6 V (one diode
-  // drop), this backfeed is exactly the Vbe threshold of the S8050 NPN
-  // transistors in the power-latch circuit.  The result: Q2 partially
-  // re-latches Q1 (the P-channel power MOSFET), keeping +12V_CONST alive
-  // and the MCU running indefinitely after PWR_PIN is set LOW.
-  //
-  // Fix: disable Timer3 ISR and pull all ULN2003 inputs LOW before releasing
-  // the latch, eliminating the flyback backfeed path entirely.  Also pull
-  // MOTOR_RST LOW to tri-state the gauge motor driver outputs.
+  // If motors are not de-energized, +12V switched can be back-fed and prevent 
+  // device shutdown from compleeing. 
+
   TIMSK3 &= ~(1 << OCIE3A);       // Disable Timer3 motor-update ISR permanently
   digitalWrite(ODO_PIN1, LOW);    // De-energize ODO motor coil 1
   digitalWrite(ODO_PIN2, LOW);    // De-energize ODO motor coil 2
