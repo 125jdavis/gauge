@@ -6,6 +6,7 @@
 
 #include "utilities.h"
 #include "globals.h"
+#include "config_hardware.h"
 #include "display.h"
 #include "outputs.h"
 #include "image_data.h"
@@ -31,9 +32,6 @@ void shutdown (void){
   FastLED.show();
 
   // Display shutdown screens.
-  // Draw bitmaps directly rather than via dispFalconScript/disp302CID so that the
-  // staticContentDrawn dirty-tracking flags (which may be stale from a previous logo
-  // view) cannot block the draw.
   display1.clearDisplay();
   display1.drawBitmap(0, 0, IMG_FALCON_SCRIPT, SCREEN_W, SCREEN_H, 1);
   display1.display();
@@ -46,26 +44,38 @@ void shutdown (void){
   // override the per-motor pacing; all needles reach zero simultaneously.
   motorZeroTimed();
 
-  // Wait for gauges to settle
+  // Show splash screens
   delay(2000);
 
-  // Double-check that key is still off (in case user turned it back on)
-  if (vBatt > 1){
-    return;  // Abort shutdown - voltage has returned
-  }
-
   // Clear both displays before cutting power.
-  // OLED modules have on-board capacitors that sustain power for up to ~60 seconds
-  // after the supply rail drops (hardware characteristic).  Sending a blank frame now
-  // ensures the pixels shown during that discharge window are black rather than stale
-  // content.
   display1.clearDisplay();
   display1.display();
   display2.clearDisplay();
   display2.display();
 
+  // Double-check that key is still off (in case user turned it back on)
+  if (vBatt > 1){
+    return;  // Abort shutdown - voltage has returned
+  }
+  // ===== DE-ENERGIZE ALL OUTPUTS BEFORE RELEASING LATCH =====
+  // If motors are not de-energized, +12V switched can be back-fed and prevent 
+  // device shutdown from compleeing. 
+
+  TIMSK3 &= ~(1 << OCIE3A);       // Disable Timer3 motor-update ISR permanently
+  digitalWrite(ODO_PIN1, LOW);    // De-energize ODO motor coil 1
+  digitalWrite(ODO_PIN2, LOW);    // De-energize ODO motor coil 2
+  digitalWrite(ODO_PIN3, LOW);    // De-energize ODO motor coil 3
+  digitalWrite(ODO_PIN4, LOW);    // De-energize ODO motor coil 4
+  digitalWrite(MOTOR_RST, LOW);   // Put gauge motor driver in reset (tri-states all outputs)
+
   // Cut power to Arduino by releasing power latch
   digitalWrite(PWR_PIN, LOW);  // This will power off the entire system
+
+  // Spin here so execution never returns to loop().
+  // Without this, residual capacitor charge keeps the MCU running long enough
+  // for loop() to re-trigger shutdown(), causing repeated splash-screen flashes
+  // before power finally dies.
+  while (true) { delay(100); }
 }
 /**
  * generateRPM - Generate simulated RPM for demo mode
