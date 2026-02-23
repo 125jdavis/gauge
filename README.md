@@ -10,7 +10,7 @@ Arduino-based instrument panel controller for retrofitting vintage vehicles with
 - 5× stepper motors — 4x Switec X27.168 type, 1x NEMA14 for maximum control when using extra long gauge needles
 - Mechanical odometer motor (non-blocking, interrupt-driven)
 
-**Display screens** 
+**Display Screens** 
 2× 128×32 SSD1306 OLED displays (SPI), each independently configurable. Display screens include:
 - oil pressure
 - coolant temp
