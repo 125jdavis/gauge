@@ -10,7 +10,25 @@ Arduino-based instrument panel controller for retrofitting vintage vehicles with
 - 5× stepper motors — 4x Switec X27.168 type, 1x NEMA14 for maximum control when using extra long gauge needles
 - Mechanical odometer motor (non-blocking, interrupt-driven)
 
-**Display screens** 2× 128×32 SSD1306 OLED displays (SPI), each independently configurable. Display screens inclued oil pressure, coolant temp, fuel level, battery voltage, RPM, speed, AFR, fuel pressure, boost (bar graph), boost (digital readout), oil temp, ethanol %, injector duty cycle, ignition timing, trip odometer, clock, logo, and a settings menu.
+**Display screens** 
+2× 128×32 SSD1306 OLED displays (SPI), each independently configurable. Display screens include:
+- oil pressure
+- coolant temp
+- fuel level
+- battery voltage
+- RPM, speed
+- AFR
+- fuel pressure
+- boost (bar graph)
+- boost (digital readout)
+- oil temp
+- ethanol %
+- injector duty cycle
+- ignition timing
+- trip odometer
+- clock
+- logo
+- settings menu.
 
 **LED Shift Light Tachometer**
 - WS2812 LED tachometer strip with configurable warning and shift-light zones
