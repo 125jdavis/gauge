@@ -79,51 +79,72 @@ void ledShiftLight(int ledRPM){
       leds[i] = CRGB::Black;
     }
   } else {
-    int midPoint = NUM_LEDS/2;
-    int blackout_val = map(ledRPM, TACH_MIN, TACH_MAX, midPoint, 0);
-   
-    //tach normal range 
-    for (int i = 0;i <= midPoint - WARN_LEDS; i++){
-      leds[i] = CRGB(30, 15 , 0);
-    }
-    for (int i = midPoint + WARN_LEDS + 1; i < NUM_LEDS; i++){
-      leds[i] = CRGB(30, 15 , 0);
+    // ===== PAIR-BASED TACH RENDERING =====
+    // Works correctly for any NUM_LEDS (even or odd).
+    // Each LED at index p (from the left) is paired with its mirror at index
+    // NUM_LEDS-1-p (from the right).  For odd strip counts there is one
+    // unpaired center LED at index halfLeds which is always in the shift zone.
+    //
+    // Zone assignment uses distFromCenter (0 = innermost pair):
+    //   distFromCenter <= SHIFT_LEDS               → shift  (red)
+    //   SHIFT_LEDS < distFromCenter <= WARN_LEDS   → warning (orange)
+    //   distFromCenter > WARN_LEDS                 → normal  (amber)
+    //
+    // This produces the same LED layout as the original algorithm for even N
+    // and a perfectly symmetric layout for odd N.
+
+    int halfLeds = NUM_LEDS / 2;  // Number of symmetric pairs
+    int blackoutPairs = map(ledRPM, TACH_MIN, TACH_MAX, halfLeds, 0);
+
+    // 1. Assign zone colors to every paired LED
+    for (int p = 0; p < halfLeds; p++){
+      int leftIdx  = p;
+      int rightIdx = NUM_LEDS - 1 - p;
+      int distFromCenter = halfLeds - 1 - p;  // 0 = innermost, halfLeds-1 = outermost
+
+      CRGB color;
+      if      (distFromCenter <= SHIFT_LEDS) color = CRGB( 80,  0, 0);  // shift  (red)
+      else if (distFromCenter <= WARN_LEDS)  color = CRGB( 80, 10, 0);  // warning (orange)
+      else                                   color = CRGB( 30, 15, 0);  // normal  (amber)
+
+      leds[leftIdx]  = color;
+      leds[rightIdx] = color;
     }
 
-    // tach warning range
-    for (int i = midPoint - WARN_LEDS - 1;i <= midPoint - SHIFT_LEDS; i++){
-      leds[i] = CRGB(80, 10 , 0);
-    }
-    for (int i = midPoint + SHIFT_LEDS + 1; i <= midPoint + WARN_LEDS; i++){
-      leds[i] = CRGB(80, 10 , 0);
+    // 2. Center LED for odd strip counts is always in the shift zone
+    if (NUM_LEDS % 2 == 1){
+      leds[halfLeds] = CRGB(80, 0, 0);
     }
 
-    // tach shift light range
-    for (int i = midPoint - SHIFT_LEDS - 1;i <= midPoint; i++){
-      leds[i] = CRGB(80, 0 , 0);
-    }
-    for (int i = midPoint; i <= midPoint + SHIFT_LEDS; i++){
-      leds[i] = CRGB(80, 0 , 0);
-    }
-      
-    // black out unused range  
-    for (int i = midPoint - blackout_val; i <= midPoint + blackout_val-1; i++){
-      leds[i] = CRGB::Black;
+    // 3. Black out innermost pairs to reflect current RPM
+    //    Pair p=0 in this loop targets the INNERMOST pair; as blackoutPairs
+    //    decreases (RPM rises), outer pairs are progressively revealed first.
+    for (int p = 0; p < blackoutPairs; p++){
+      leds[halfLeds - 1 - p]       = CRGB::Black;  // innermost left  → outward
+      leds[NUM_LEDS - halfLeds + p] = CRGB::Black;  // innermost right → outward
     }
 
-    // Flash LEDs when shift point is exceeded
-    if (RPM > TACH_MAX ){
+    // 4. Center LED for odd N: black out whenever any pairs are blacked out
+    if ((NUM_LEDS % 2 == 1) && blackoutPairs > 0){
+      leds[halfLeds] = CRGB::Black;
+    }
+
+    // 5. Flash shift zone pairs when shift point is exceeded
+    if (RPM > TACH_MAX){
       if (millis() - timerTachFlash > TACH_FLASH_RATE){
-        
-        //Black out the shift LEDs if they are on
-        if(tachFlashState == 0){
-          for (int i = midPoint - SHIFT_LEDS - 1; i <= midPoint + SHIFT_LEDS; i++){
-            leds[i] = CRGB::Black;
+        if (tachFlashState == 0){
+          // Black out the SHIFT_LEDS+1 innermost pairs (the shift zone)
+          for (int p = 0; p <= SHIFT_LEDS; p++){
+            leds[halfLeds - 1 - p]       = CRGB::Black;
+            leds[NUM_LEDS - halfLeds + p] = CRGB::Black;
+          }
+          if (NUM_LEDS % 2 == 1){
+            leds[halfLeds] = CRGB::Black;  // center LED for odd N
           }
         }
-        
-        timerTachFlash =  millis();             //reset the timer
-        tachFlashState = 1 - tachFlashState;    //change the state
+
+        timerTachFlash = millis();
+        tachFlashState = 1 - tachFlashState;
       }
     }
   }
