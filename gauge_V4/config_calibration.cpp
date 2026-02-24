@@ -73,6 +73,7 @@ float OIL_PRS_WARN_THRESHOLD      = 60.0;   // Oil pressure warning: flash below
 float COOLANT_TEMP_WARN_THRESHOLD = 110.0;  // Coolant temperature warning: flash above 110 °C while engine running
 float BATT_VOLT_WARN_THRESHOLD    = 11.0;   // Battery voltage warning: flash below 11 V
 int   ENGINE_RUNNING_RPM_MIN      = 400;    // Engine considered running above 400 RPM
+uint8_t FUEL_LVL_WARN_THRESHOLD_PCT = 5;   // Low fuel warning: flash below 5% fuel level
 
 // ===== TIME ZONE OFFSET =====
 byte clockOffset = 0;               // Hours to add to UTC time

@@ -150,23 +150,19 @@ void ledShiftLight(int ledRPM){
   }
 
   // ===== FAULT INDICATOR LED =====
-  // Override leds[0] with a flashing fault color when a fault condition is active.
+  // Override leds[0] with a flashing fault color when a confirmed (debounced) fault is active.
   // This takes priority over the normal RPM display for the first LED.
-  // Colors: oil pressure = orange, coolant temp = blue, battery voltage = green.
+  // Colors: oil pressure = orange, coolant temp = blue, battery voltage = green, fuel level = purple.
   // Multiple active faults: cycle through each fault color on successive flash-on periods.
   // Flash timing follows the same faultFlashState toggle used by the OLED fault flash.
   {
-    bool engineRunning = (RPM >= ENGINE_RUNNING_RPM_MIN);
-    bool oilPrsFault  = engineRunning && (oilPrs < OIL_PRS_WARN_THRESHOLD);
-    bool coolantFault = engineRunning && (coolantTemp > COOLANT_TEMP_WARN_THRESHOLD);
-    bool battFault    = (vBatt > BATT_VOLT_MIN_VALID) && (vBatt < BATT_VOLT_WARN_THRESHOLD);
-
-    // Collect active fault colors in priority order
-    CRGB activeFaultColors[3];
+    // Collect active fault colors in priority order (use debounced globals set by main loop)
+    CRGB activeFaultColors[4];
     uint8_t numFaults = 0;
-    if (oilPrsFault)  activeFaultColors[numFaults++] = CRGB(255, 60,   0);  // Orange - oil pressure
-    if (coolantFault) activeFaultColors[numFaults++] = CRGB(  0,  0, 255);  // Blue   - coolant temp
-    if (battFault)    activeFaultColors[numFaults++] = CRGB(  0, 200,   0); // Green  - battery voltage
+    if (oilFaultActive)     activeFaultColors[numFaults++] = CRGB(255,  60,   0);  // Orange - oil pressure
+    if (coolantFaultActive) activeFaultColors[numFaults++] = CRGB(  0,   0, 255);  // Blue   - coolant temp
+    if (battFaultActive)    activeFaultColors[numFaults++] = CRGB(  0, 200,   0);  // Green  - battery voltage
+    if (fuelFaultActive)    activeFaultColors[numFaults++] = CRGB(180,   0, 200);  // Purple - fuel level
 
     // Static state: persists across calls, reset when no faults are active
     static uint8_t faultLedColorIdx = 0;

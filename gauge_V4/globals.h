@@ -195,4 +195,14 @@ extern unsigned long timerDisp2Update;  // Timer for display 2 updates
 extern unsigned long timerFaultFlash;   // Timer for fault display flash toggle
 extern bool faultFlashState;            // Current inversion state for fault flash (true = inverted)
 
+// ===== FAULT DEBOUNCE STATE =====
+extern unsigned long timerOilFaultDebounce;
+extern unsigned long timerCoolantFaultDebounce;
+extern unsigned long timerBattFaultDebounce;
+extern unsigned long timerFuelFaultDebounce;
+extern bool oilFaultActive;      // Debounced oil pressure fault
+extern bool coolantFaultActive;  // Debounced coolant temperature fault
+extern bool battFaultActive;     // Debounced battery voltage fault
+extern bool fuelFaultActive;     // Debounced low fuel fault
+
 #endif // GLOBALS_H

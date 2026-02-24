@@ -115,6 +115,7 @@ extern float OIL_PRS_WARN_THRESHOLD;      // Oil pressure warning (kPa gauge) - 
 extern float COOLANT_TEMP_WARN_THRESHOLD; // Coolant temperature warning (°C) - flash when above this while engine running
 extern float BATT_VOLT_WARN_THRESHOLD;    // Battery voltage warning (V) - flash when below this
 extern int   ENGINE_RUNNING_RPM_MIN;      // Minimum RPM to consider the engine running (RPM)
+extern uint8_t FUEL_LVL_WARN_THRESHOLD_PCT; // Low fuel warning (%) - flash when fuel level drops below this
 
 // ===== TIME ZONE OFFSET =====
 // Hours to add to UTC time for local time zone (-12 to +12)

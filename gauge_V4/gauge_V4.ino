@@ -427,27 +427,43 @@ void loop() {
     timerDisp2Update = millis();
   }
 
-  // ===== FAULT FLASH =====
-  // Invert OLED display colors every FAULT_FLASH_INTERVAL_MS to alert the driver
-  // when a fault condition is active on the currently displayed screen.
+  // ===== FAULT DEBOUNCE + FLASH =====
+  // Raw fault conditions are debounced: each must persist continuously for
+  // FAULT_DEBOUNCE_MS before the warning (OLED invert + LED) activates.
+  // Clearing the condition immediately resets the debounce timer.
   //
   // Fault conditions:
   //   - Oil pressure below OIL_PRS_WARN_THRESHOLD (kPa gauge) while engine is running
   //   - Coolant temperature above COOLANT_TEMP_WARN_THRESHOLD (°C) while engine is running
   //   - Battery voltage below BATT_VOLT_WARN_THRESHOLD (V) (engine-state independent)
+  //   - Fuel level below FUEL_LVL_WARN_THRESHOLD_PCT (%) when fuel source is active
   {
     bool engineRunning = (RPM >= ENGINE_RUNNING_RPM_MIN);
-    bool oilPrsFault   = engineRunning && (oilPrs < OIL_PRS_WARN_THRESHOLD);
-    bool coolantFault  = engineRunning && (coolantTemp > COOLANT_TEMP_WARN_THRESHOLD);
-    bool battFault     = (vBatt > BATT_VOLT_MIN_VALID) && (vBatt < BATT_VOLT_WARN_THRESHOLD);
+    bool oilPrsRaw  = engineRunning && (oilPrs < OIL_PRS_WARN_THRESHOLD);
+    bool coolantRaw = engineRunning && (coolantTemp > COOLANT_TEMP_WARN_THRESHOLD);
+    bool battRaw    = (vBatt > BATT_VOLT_MIN_VALID) && (vBatt < BATT_VOLT_WARN_THRESHOLD);
+    bool fuelRaw    = (FUEL_LVL_SOURCE != 0) && (fuelLvlCAN < FUEL_LVL_WARN_THRESHOLD_PCT);
+
+    // Debounce: reset timer while condition is false; activate after FAULT_DEBOUNCE_MS
+    unsigned long now = millis();
+    if (!oilPrsRaw)  { timerOilFaultDebounce     = now; oilFaultActive     = false; }
+    else if (now - timerOilFaultDebounce     >= FAULT_DEBOUNCE_MS) oilFaultActive     = true;
+    if (!coolantRaw) { timerCoolantFaultDebounce  = now; coolantFaultActive = false; }
+    else if (now - timerCoolantFaultDebounce >= FAULT_DEBOUNCE_MS) coolantFaultActive = true;
+    if (!battRaw)    { timerBattFaultDebounce     = now; battFaultActive    = false; }
+    else if (now - timerBattFaultDebounce    >= FAULT_DEBOUNCE_MS) battFaultActive    = true;
+    if (!fuelRaw)    { timerFuelFaultDebounce     = now; fuelFaultActive    = false; }
+    else if (now - timerFuelFaultDebounce    >= FAULT_DEBOUNCE_MS) fuelFaultActive    = true;
 
     // Determine which displays are showing a faulted reading
-    bool disp1Fault = (oilPrsFault  && (dispArray1[0] == 1)) ||
-                      (coolantFault && (dispArray1[0] == 2)) ||
-                      (battFault    && (dispArray1[0] == 4));
-    bool disp2Fault = (oilPrsFault  && (dispArray2[0] == 0)) ||
-                      (coolantFault && (dispArray2[0] == 1)) ||
-                      (battFault    && (dispArray2[0] == 3));
+    bool disp1Fault = (oilFaultActive     && (dispArray1[0] == 1)) ||
+                      (coolantFaultActive && (dispArray1[0] == 2)) ||
+                      (fuelFaultActive    && (dispArray1[0] == 3)) ||
+                      (battFaultActive    && (dispArray1[0] == 4));
+    bool disp2Fault = (oilFaultActive     && (dispArray2[0] == 0)) ||
+                      (coolantFaultActive && (dispArray2[0] == 1)) ||
+                      (fuelFaultActive    && (dispArray2[0] == 2)) ||
+                      (battFaultActive    && (dispArray2[0] == 3));
 
     // Toggle flash state every FAULT_FLASH_INTERVAL_MS
     if (millis() - timerFaultFlash >= FAULT_FLASH_INTERVAL_MS) {
