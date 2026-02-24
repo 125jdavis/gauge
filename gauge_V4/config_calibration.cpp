@@ -40,7 +40,7 @@ uint8_t ENGINE_RPM_MIN = 100;       // Minimum reportable RPM
 uint16_t SPEEDO_MAX = 100 * 100;    // Maximum speedometer reading
 
 // ===== LED TACHOMETER CONFIGURATION =====
-uint8_t NUM_LEDS = 26;              // Total number of LEDs
+uint8_t NUM_LEDS = 27;              // Total number of LEDs
 uint8_t WARN_LEDS = 6;              // Warning zone LEDs
 uint8_t SHIFT_LEDS = 2;             // Shift light LEDs
 unsigned int TACH_MAX = 6000;       // RPM at shift point
