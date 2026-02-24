@@ -191,4 +191,8 @@ extern bool staticContentDrawn2;    // Flag: static content drawn on display2
 extern unsigned long timerDisp1Update;  // Timer for display 1 updates
 extern unsigned long timerDisp2Update;  // Timer for display 2 updates
 
+// ===== FAULT FLASH STATE =====
+extern unsigned long timerFaultFlash;   // Timer for fault display flash toggle
+extern bool faultFlashState;            // Current inversion state for fault flash (true = inverted)
+
 #endif // GLOBALS_H

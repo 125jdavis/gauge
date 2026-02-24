@@ -427,6 +427,49 @@ void loop() {
     timerDisp2Update = millis();
   }
 
+  // ===== FAULT FLASH =====
+  // Invert OLED display colors every FAULT_FLASH_INTERVAL_MS to alert the driver
+  // when a fault condition is active on the currently displayed screen.
+  //
+  // Fault conditions:
+  //   - Oil pressure below OIL_PRS_WARN_THRESHOLD (kPa gauge) while engine is running
+  //   - Coolant temperature above COOLANT_TEMP_WARN_THRESHOLD (°C) while engine is running
+  //   - Battery voltage below BATT_VOLT_WARN_THRESHOLD (V) (engine-state independent)
+  {
+    bool engineRunning = (RPM >= ENGINE_RUNNING_RPM_MIN);
+    bool oilPrsFault   = engineRunning && (oilPrs < OIL_PRS_WARN_THRESHOLD);
+    bool coolantFault  = engineRunning && (coolantTemp > COOLANT_TEMP_WARN_THRESHOLD);
+    bool battFault     = (vBatt > BATT_VOLT_MIN_VALID) && (vBatt < BATT_VOLT_WARN_THRESHOLD);
+
+    // Determine which displays are showing a faulted reading
+    bool disp1Fault = (oilPrsFault  && (dispArray1[0] == 1)) ||
+                      (coolantFault && (dispArray1[0] == 2)) ||
+                      (battFault    && (dispArray1[0] == 4));
+    bool disp2Fault = (oilPrsFault  && (dispArray2[0] == 0)) ||
+                      (coolantFault && (dispArray2[0] == 1)) ||
+                      (battFault    && (dispArray2[0] == 3));
+
+    // Toggle flash state every FAULT_FLASH_INTERVAL_MS
+    if (millis() - timerFaultFlash >= FAULT_FLASH_INTERVAL_MS) {
+      faultFlashState = !faultFlashState;
+      timerFaultFlash = millis();
+    }
+
+    // Apply hardware inversion only when the desired state changes, to minimize SPI traffic
+    static bool disp1InvertPrev = false;
+    static bool disp2InvertPrev = false;
+    bool disp1Invert = disp1Fault && faultFlashState;
+    bool disp2Invert = disp2Fault && faultFlashState;
+    if (disp1Invert != disp1InvertPrev) {
+      display1.invertDisplay(disp1Invert);
+      disp1InvertPrev = disp1Invert;
+    }
+    if (disp2Invert != disp2InvertPrev) {
+      display2.invertDisplay(disp2Invert);
+      disp2InvertPrev = disp2Invert;
+    }
+  }
+
   // ===== CAN BUS TRANSMISSION =====
   if (millis() - timerCANsend > CAN_SEND_RATE) {  
     //sendCAN_BE(0x200, 0, spdCAN, 0, 0);

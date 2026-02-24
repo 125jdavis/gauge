@@ -68,6 +68,12 @@ uint8_t MAP_SOURCE = 5;             // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2,
 uint8_t LAMBDA_SOURCE = 1;          // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
 uint8_t FUEL_LVL_SOURCE = 2;       // 0=off, 1=analog sensor, 2=Synthetic (debug)
 
+// ===== FAULT WARNING THRESHOLDS =====
+float OIL_PRS_WARN_THRESHOLD      = 60.0;   // Oil pressure warning: flash below 60 kPa (gauge) while engine running
+float COOLANT_TEMP_WARN_THRESHOLD = 110.0;  // Coolant temperature warning: flash above 110 °C while engine running
+float BATT_VOLT_WARN_THRESHOLD    = 11.0;   // Battery voltage warning: flash below 11 V
+int   ENGINE_RUNNING_RPM_MIN      = 400;    // Engine considered running above 400 RPM
+
 // ===== TIME ZONE OFFSET =====
 byte clockOffset = 0;               // Hours to add to UTC time
 byte clockOffset_prev = 0;          // Previous clock offset for dirty tracking

@@ -199,3 +199,7 @@ bool staticContentDrawn2 = false; // Flag: static content drawn on display2
 unsigned long timerDisp1Update = 0;  // Timer for display 1 updates
 unsigned long timerDisp2Update = 0;  // Timer for display 2 updates
 
+// ===== FAULT FLASH STATE =====
+unsigned long timerFaultFlash = 0;   // Timer for fault display flash toggle
+bool faultFlashState = false;        // Current inversion state for fault flash (true = inverted)
+

@@ -124,6 +124,8 @@ constexpr unsigned int ANGLE_UPDATE_RATE = 150;    // Update motor angles every 
 constexpr unsigned int SPLASH_TIME = 1500;        // Duration of startup splash screens (milliseconds)
 constexpr unsigned int HALL_UPDATE_RATE = 20;     // Recalculate Hall sensor speed every 20ms (50Hz)
 constexpr unsigned int ENGINE_RPM_UPDATE_RATE = 20; // Check engine RPM timeout every 20ms (50Hz)
+constexpr unsigned int FAULT_FLASH_INTERVAL_MS = 500; // Fault flash toggle interval: invert display every 500ms
+constexpr float BATT_VOLT_MIN_VALID = 1.0f;          // Battery voltage below this means system is powered off (ignore for fault detection)
 
 // ===== MOTOR UPDATE TIMER CONFIGURATION =====
 // Timer-based motor stepping for smooth, deterministic motion
