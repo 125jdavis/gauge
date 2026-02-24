@@ -761,8 +761,8 @@ void dispFuelComp (Adafruit_SSD1306 *display) {
       modeChanged = (dispArray2[0] != dispArray2_prev);
     }
     
-    // Threshold: 1% change in ethanol content
-    if (modeChanged || abs(fuelComp - fuelComp_prev) > 1.0) {
+    // Redraw when the displayed value (0 decimal places) has changed
+    if (modeChanged || (int)roundf(fuelComp) != (int)roundf(fuelComp_prev)) {
       byte nDig = digits (fuelComp);
       byte center = 79;
       display->setTextColor(WHITE); 
@@ -800,8 +800,8 @@ void dispAFR (Adafruit_SSD1306 *display) {
       modeChanged = (dispArray2[0] != dispArray2_prev);
     }
     
-    // AFR uses same threshold as temperature (>1.0 change)
-    if (modeChanged || abs(afr - afr_prev) > 0.1) {  // 0.1 AFR change threshold
+    // Redraw when the displayed value (1 decimal place) has changed
+    if (modeChanged || (int)roundf(afr * 10.0f) != (int)roundf(afr_prev * 10.0f)) {
       display->setTextColor(WHITE); 
       display->clearDisplay();
       display->setCursor(8,6);
@@ -1149,8 +1149,10 @@ void dispFuelLvlGfx (Adafruit_SSD1306 *display) {
       modeChanged = (dispArray2[0] != dispArray2_prev);
     }
     
-    // Threshold: 0.5 gallons/liters change
-    if (modeChanged || abs(fuelLvl - fuelLvl_prev) > 0.5) {
+    // Redraw when the displayed value has changed (metric: 0dp liters; imperial: 1dp gallons)
+    if (modeChanged || (units == 0
+          ? (int)roundf(fuelLvl * 3.785f) != (int)roundf(fuelLvl_prev * 3.785f)
+          : (int)roundf(fuelLvl * 10.0f)  != (int)roundf(fuelLvl_prev * 10.0f))) {
       float fuelLvlDisp;
       display->setTextColor(WHITE); 
       display->clearDisplay();             //clear buffer
@@ -1276,8 +1278,8 @@ void dispIgnAng (Adafruit_SSD1306 *display) {
       modeChanged = (dispArray2[0] != dispArray2_prev);
     }
     
-    // Threshold: 10 units (1 degree, since stored as degrees * 10)
-    if (modeChanged || abs(ignAngCAN - ignAngCAN_prev) > 10) {
+    // Redraw when the displayed integer value (ignAngCAN/10) has changed
+    if (modeChanged || ignAngCAN/10 != ignAngCAN_prev/10) {
       display->setTextColor(WHITE); 
       display->clearDisplay();             //clear buffer
       display->setTextSize(2);             // text size
@@ -1306,8 +1308,8 @@ void dispInjDuty (Adafruit_SSD1306 *display) {
       modeChanged = (dispArray2[0] != dispArray2_prev);
     }
     
-    // Threshold: 10 units (1%, since stored as % * 10)
-    if (modeChanged || abs(injDutyCAN - injDutyCAN_prev) > 10) {
+    // Redraw when the displayed integer value (injDutyCAN/10) has changed
+    if (modeChanged || injDutyCAN/10 != injDutyCAN_prev/10) {
       display->setTextColor(WHITE); 
       display->clearDisplay();             //clear buffer
       display->setTextSize(2);             // text size
@@ -1650,76 +1652,97 @@ byte digits(float val){
  */
 
 /**
- * needsUpdate_Temperature - Check if temperature changed enough to warrant update
+ * needsUpdate_Temperature - Check if the displayed temperature value changed
  * 
- * Temperature must change more than 1 degree (F or C) to trigger update
+ * Compares the rounded integer value that will actually be rendered (0 dp).
+ * Unit conversion is applied before comparison so a 0.6°C change that
+ * crosses an integer Fahrenheit boundary will trigger a redraw.
+ * References the global `units` variable (0=metric/°C, 1=imperial/°F).
  * 
- * @param current - Current temperature value
- * @param previous - Previous temperature value
- * @return true if update needed, false otherwise
+ * @param current - Current raw temperature in °C
+ * @param previous - Previous raw temperature in °C
+ * @return true if the displayed integer value would change
  */
 bool needsUpdate_Temperature(float current, float previous) {
-  return (abs(current - previous) > 1.0);
+  float dispCurrent  = (units == 0) ? current  : current  * 1.8f + 32.0f;
+  float dispPrevious = (units == 0) ? previous : previous * 1.8f + 32.0f;
+  return (int)roundf(dispCurrent) != (int)roundf(dispPrevious);
 }
 
 /**
- * needsUpdate_Pressure - Check if pressure changed enough to warrant update
+ * needsUpdate_Pressure - Check if the displayed pressure value changed
  * 
- * Pressure change must be:
- * - > 10 kPa (metric units), or
- * - > 1 PSI (imperial units, ~6.89 kPa)
+ * Compares the rounded value that will actually be rendered:
+ *   - Metric: bar with 1 decimal place. 1 display step = 0.1 bar = 10 kPa.
+ *     Dividing kPa by 10 gives the 1dp bar value × 10; rounding to int detects the step.
+ *   - Imperial: PSI displayed with 0 decimal places (1 PSI ≈ 6.89 kPa resolution)
  * 
  * @param current - Current pressure in kPa
  * @param previous - Previous pressure in kPa
- * @param units - 0=metric, 1=imperial
- * @return true if update needed, false otherwise
+ * @param units - 0=metric (bar), 1=imperial (PSI)
+ * @return true if the displayed value would change
  */
 bool needsUpdate_Pressure(float current, float previous, byte units) {
-  float threshold = (units == 0) ? 10.0 : 6.89;  // 10 kPa or 1 PSI
-  return (abs(current - previous) > threshold);
+  if (units == 0) {  // bar, 1 dp: 1 display step = 0.1 bar = 10 kPa → compare kPa/10
+    return (int)roundf(current / 10.0f) != (int)roundf(previous / 10.0f);
+  } else {           // PSI, 0 dp
+    return (int)roundf(current * 0.1450377f) != (int)roundf(previous * 0.1450377f);
+  }
 }
 
 /**
- * needsUpdate_Speed - Check if speed changed enough to warrant update
+ * needsUpdate_Speed - Check if the displayed speed value changed
  * 
- * Speed change must be > 1 mph or km/h
+ * Compares the rounded integer value that will actually be rendered (0 dp).
+ * Unit conversion is applied before comparison.
+ * References the global `units` variable (0=metric/km/h, 1=imperial/mph).
  * 
  * @param current - Current speed (km/h * 100)
  * @param previous - Previous speed (km/h * 100)
- * @return true if update needed, false otherwise
+ * @return true if the displayed integer value would change
  */
 bool needsUpdate_Speed(int current, int previous) {
-  return (abs(current - previous) > 100);  // >1 km/h (stored as km/h * 100)
+  if (units == 0) {  // Metric km/h, 0 dp (spd stored as km/h × 100, so divide by 100)
+    return (int)roundf(current / 100.0f) != (int)roundf(previous / 100.0f);
+  } else {           // Imperial mph, 0 dp (factor = 0.6213711922 ÷ 100 to convert km/h×100 → mph)
+    return (int)roundf(current * 0.006213711922f) != (int)roundf(previous * 0.006213711922f);
+  }
 }
 
 /**
- * needsUpdate_RPM - Check if RPM changed enough to warrant update
+ * needsUpdate_RPM - Check if the displayed RPM value changed
  * 
- * RPM change must be > 20 rpm
+ * RPM is printed as a plain integer so any change in the integer value
+ * is a visible change.
  * 
  * @param current - Current RPM
  * @param previous - Previous RPM
- * @return true if update needed, false otherwise
+ * @return true if the displayed value would change
  */
 bool needsUpdate_RPM(int current, int previous) {
-  return (abs(current - previous) > 20);
+  return current != previous;
 }
 
 /**
- * needsUpdate_Boost - Check if boost pressure changed enough to warrant update
+ * needsUpdate_Boost - Check if the displayed boost/MAP value changed
  * 
- * Boost pressure change must be:
- * - > 2 kPa (metric units), or
- * - > 0.3 PSI (imperial units, ~2.07 kPa)
- * 
+ * Compares the rounded value that will actually be rendered:
+ *   - Metric: kPa displayed as integer (truncated)
+ *   - Imperial: PSI gauge pressure displayed with 1 decimal place
+ *
  * @param current - Current boost/MAP pressure in kPa
  * @param previous - Previous boost/MAP pressure in kPa
- * @param units - 0=metric, 1=imperial
- * @return true if update needed, false otherwise
+ * @param units - 0=metric (integer kPa), 1=imperial (1dp PSI gauge)
+ * @return true if the displayed value would change
  */
 bool needsUpdate_Boost(float current, float previous, byte units) {
-  float threshold = (units == 0) ? 2.0 : 2.07;  // 2 kPa or 0.3 PSI
-  return (abs(current - previous) > threshold);
+  if (units == 0) {  // kPa, displayed as integer (truncated cast)
+    return (int)current != (int)previous;
+  } else {           // PSI gauge, 1 dp
+    float psiCurrent  = current  * 0.1450377f - 14.7f;
+    float psiPrevious = previous * 0.1450377f - 14.7f;
+    return (int)roundf(psiCurrent * 10.0f) != (int)roundf(psiPrevious * 10.0f);
+  }
 }
 
 /**

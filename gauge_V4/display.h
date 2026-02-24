@@ -60,11 +60,11 @@ void dispOdoResetNo(Adafruit_SSD1306 *display);     // "NO" confirmation
 byte digits(float val);                              // Count digits in number for centering
 
 // Display optimization functions
-bool needsUpdate_Temperature(float current, float previous);  // Check if temp changed > 1 degree
-bool needsUpdate_Pressure(float current, float previous, byte units);  // Check if pressure changed > threshold
-bool needsUpdate_Speed(int current, int previous);   // Check if speed changed > 1 unit
-bool needsUpdate_RPM(int current, int previous);     // Check if RPM changed > 20
-bool needsUpdate_Boost(float current, float previous, byte units);  // Check if boost changed > threshold
+bool needsUpdate_Temperature(float current, float previous);  // Redraw when displayed integer (0dp, unit-converted) changes
+bool needsUpdate_Pressure(float current, float previous, byte units);  // Redraw when displayed value (1dp bar / 0dp PSI) changes
+bool needsUpdate_Speed(int current, int previous);   // Redraw when displayed integer (0dp, unit-converted) changes
+bool needsUpdate_RPM(int current, int previous);     // Redraw when integer RPM changes
+bool needsUpdate_Boost(float current, float previous, byte units);  // Redraw when displayed value (int kPa / 1dp PSI) changes
 bool needsUpdate_Time(byte hour_curr, byte minute_curr, byte hour_prev, byte minute_prev);  // Check if time changed
 bool needsUpdate_ModeChange(byte* current, byte* previous, int size);  // Check if display mode changed
 unsigned int getDisplayUpdateInterval(byte displayMode, byte displayNum);  // Get refresh rate for display mode (displayNum: 1 or 2)
