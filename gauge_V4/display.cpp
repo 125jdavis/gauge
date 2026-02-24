@@ -1122,8 +1122,8 @@ void dispBattVoltGfx (Adafruit_SSD1306 *display) {
       modeChanged = (dispArray2[0] != dispArray2_prev);
     }
     
-    // Threshold: 0.1V change
-    if (modeChanged || abs(vBatt - vBatt_prev) > 0.1) {
+    // Redraw when the displayed value (1 decimal place) has changed
+    if (modeChanged || (int)roundf(vBatt * 10) != (int)roundf(vBatt_prev * 10)) {
       display->setTextColor(WHITE); 
       display->clearDisplay();             //clear buffer
       display->drawBitmap(0, 0, IMG_BATT_VOLT, 35, 32, 1);
