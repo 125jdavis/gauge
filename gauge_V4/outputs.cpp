@@ -78,12 +78,11 @@ void ledShiftLight(int ledRPM){
     for (int i = 0; i < NUM_LEDS; i++){
       leds[i] = CRGB::Black;
     }
-    return;
-  }
-  int midPoint = NUM_LEDS/2;
-  int blackout_val = map(ledRPM, TACH_MIN, TACH_MAX, midPoint, 0);
- 
-  //tach normal range 
+  } else {
+    int midPoint = NUM_LEDS/2;
+    int blackout_val = map(ledRPM, TACH_MIN, TACH_MAX, midPoint, 0);
+   
+    //tach normal range 
     for (int i = 0;i <= midPoint - WARN_LEDS; i++){
       leds[i] = CRGB(30, 15 , 0);
     }
@@ -91,8 +90,7 @@ void ledShiftLight(int ledRPM){
       leds[i] = CRGB(30, 15 , 0);
     }
 
-
-  // tach warning range
+    // tach warning range
     for (int i = midPoint - WARN_LEDS - 1;i <= midPoint - SHIFT_LEDS; i++){
       leds[i] = CRGB(80, 10 , 0);
     }
@@ -100,15 +98,15 @@ void ledShiftLight(int ledRPM){
       leds[i] = CRGB(80, 10 , 0);
     }
 
-  // tach shift light range
+    // tach shift light range
     for (int i = midPoint - SHIFT_LEDS - 1;i <= midPoint; i++){
       leds[i] = CRGB(80, 0 , 0);
     }
     for (int i = midPoint; i <= midPoint + SHIFT_LEDS; i++){
       leds[i] = CRGB(80, 0 , 0);
     }
-    
-  // black out unused range  
+      
+    // black out unused range  
     for (int i = midPoint - blackout_val; i <= midPoint + blackout_val-1; i++){
       leds[i] = CRGB::Black;
     }
@@ -128,6 +126,47 @@ void ledShiftLight(int ledRPM){
         tachFlashState = 1 - tachFlashState;    //change the state
       }
     }
+  }
+
+  // ===== FAULT INDICATOR LED =====
+  // Override leds[0] with a flashing fault color when a fault condition is active.
+  // This takes priority over the normal RPM display for the first LED.
+  // Colors: oil pressure = orange, coolant temp = blue, battery voltage = green.
+  // Multiple active faults: cycle through each fault color on successive flash-on periods.
+  // Flash timing follows the same faultFlashState toggle used by the OLED fault flash.
+  {
+    bool engineRunning = (RPM >= ENGINE_RUNNING_RPM_MIN);
+    bool oilPrsFault  = engineRunning && (oilPrs < OIL_PRS_WARN_THRESHOLD);
+    bool coolantFault = engineRunning && (coolantTemp > COOLANT_TEMP_WARN_THRESHOLD);
+    bool battFault    = (vBatt > BATT_VOLT_MIN_VALID) && (vBatt < BATT_VOLT_WARN_THRESHOLD);
+
+    // Collect active fault colors in priority order
+    CRGB activeFaultColors[3];
+    uint8_t numFaults = 0;
+    if (oilPrsFault)  activeFaultColors[numFaults++] = CRGB(255, 60,   0);  // Orange - oil pressure
+    if (coolantFault) activeFaultColors[numFaults++] = CRGB(  0,  0, 255);  // Blue   - coolant temp
+    if (battFault)    activeFaultColors[numFaults++] = CRGB(  0, 200,   0); // Green  - battery voltage
+
+    // Static state: persists across calls, reset when no faults are active
+    static uint8_t faultLedColorIdx = 0;
+    static bool prevFaultFlashState = false;
+
+    if (numFaults > 0) {
+      // Advance color index on each rising edge of faultFlashState (flash-on transition)
+      if (faultFlashState && !prevFaultFlashState) {
+        faultLedColorIdx++;
+      }
+      prevFaultFlashState = faultFlashState;
+
+      // Flash: show fault color on flash-on period, off on flash-off period
+      leds[0] = faultFlashState ? activeFaultColors[faultLedColorIdx % numFaults] : CRGB::Black;
+    } else {
+      // No active faults: reset state so next fault cycle starts fresh
+      faultLedColorIdx = 0;
+      prevFaultFlashState = false;
+    }
+  }
+
   FastLED.show();
 }
 int speedometerAngle(int sweep) {
