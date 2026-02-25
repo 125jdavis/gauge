@@ -503,13 +503,13 @@ int fuelLvlAngle(int sweep) {
  */
 int coolantTempAngle(int sweep) {
   int angle;
-  if (coolantTemp < 95){
-    // Normal operating range: 60-95°C maps to first half of gauge
-    angle = map((long)coolantTemp, 60, 98, 1, sweep/2);
+  if (coolantTemp < 90){
+    // Normal operating range: 50-90°C maps to first half of gauge
+    angle = map((long)coolantTemp, 50, 90, 1, sweep/2);
   }
   else {
-    // Warning range: 95-115°C maps to second half of gauge (more sensitive)
-    angle = map((long)coolantTemp, 98, 115, sweep/2, sweep-1);
+    // Warning range: 90-115°C maps to second half of gauge (more sensitive)
+    angle = map((long)coolantTemp, 90, 115, sweep/2, sweep-1);
   }
   angle = constrain(angle, 1, sweep-1);
   return angle;
