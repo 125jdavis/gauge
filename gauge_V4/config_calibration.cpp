@@ -40,7 +40,7 @@ uint8_t ENGINE_RPM_MIN = 100;       // Minimum reportable RPM
 uint16_t SPEEDO_MAX = 100 * 100;    // Maximum speedometer reading
 
 // ===== LED TACHOMETER CONFIGURATION =====
-uint8_t NUM_LEDS = 26;              // Total number of LEDs
+uint8_t NUM_LEDS = 27;              // Total number of LEDs
 uint8_t WARN_LEDS = 6;              // Warning zone LEDs
 uint8_t SHIFT_LEDS = 2;             // Shift light LEDs
 unsigned int TACH_MAX = 6000;       // RPM at shift point
@@ -67,6 +67,13 @@ uint8_t OIL_TEMP_SOURCE = 2;        // 0=off, 1=CAN, 2=therm (default to therm s
 uint8_t MAP_SOURCE = 5;             // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug)
 uint8_t LAMBDA_SOURCE = 1;          // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
 uint8_t FUEL_LVL_SOURCE = 2;       // 0=off, 1=analog sensor, 2=Synthetic (debug)
+
+// ===== FAULT WARNING THRESHOLDS =====
+float OIL_PRS_WARN_THRESHOLD      = 60.0;   // Oil pressure warning: flash below 60 kPa (gauge) while engine running
+float COOLANT_TEMP_WARN_THRESHOLD = 110.0;  // Coolant temperature warning: flash above 110 °C while engine running
+float BATT_VOLT_WARN_THRESHOLD    = 11.0;   // Battery voltage warning: flash below 11 V
+int   ENGINE_RUNNING_RPM_MIN      = 400;    // Engine considered running above 400 RPM
+uint8_t FUEL_LVL_WARN_THRESHOLD_PCT = 5;   // Low fuel warning: flash below 5% fuel level
 
 // ===== TIME ZONE OFFSET =====
 byte clockOffset = 0;               // Hours to add to UTC time

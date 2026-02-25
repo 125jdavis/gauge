@@ -199,3 +199,20 @@ bool staticContentDrawn2 = false; // Flag: static content drawn on display2
 unsigned long timerDisp1Update = 0;  // Timer for display 1 updates
 unsigned long timerDisp2Update = 0;  // Timer for display 2 updates
 
+// ===== FAULT FLASH STATE =====
+unsigned long timerFaultFlash = 0;   // Timer for fault display flash toggle
+bool faultFlashState = false;        // Current inversion state for fault flash (true = inverted)
+
+// ===== FAULT DEBOUNCE STATE =====
+// Each fault timer is reset to millis() while the raw condition is false.
+// The confirmed flag becomes true only after the raw condition has been
+// continuously true for FAULT_DEBOUNCE_MS.
+unsigned long timerOilFaultDebounce     = 0;
+unsigned long timerCoolantFaultDebounce = 0;
+unsigned long timerBattFaultDebounce    = 0;
+unsigned long timerFuelFaultDebounce    = 0;
+bool oilFaultActive     = false;  // Debounced oil pressure fault
+bool coolantFaultActive = false;  // Debounced coolant temperature fault
+bool battFaultActive    = false;  // Debounced battery voltage fault
+bool fuelFaultActive    = false;  // Debounced low fuel fault
+

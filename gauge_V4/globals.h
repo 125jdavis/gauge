@@ -191,4 +191,18 @@ extern bool staticContentDrawn2;    // Flag: static content drawn on display2
 extern unsigned long timerDisp1Update;  // Timer for display 1 updates
 extern unsigned long timerDisp2Update;  // Timer for display 2 updates
 
+// ===== FAULT FLASH STATE =====
+extern unsigned long timerFaultFlash;   // Timer for fault display flash toggle
+extern bool faultFlashState;            // Current inversion state for fault flash (true = inverted)
+
+// ===== FAULT DEBOUNCE STATE =====
+extern unsigned long timerOilFaultDebounce;
+extern unsigned long timerCoolantFaultDebounce;
+extern unsigned long timerBattFaultDebounce;
+extern unsigned long timerFuelFaultDebounce;
+extern bool oilFaultActive;      // Debounced oil pressure fault
+extern bool coolantFaultActive;  // Debounced coolant temperature fault
+extern bool battFaultActive;     // Debounced battery voltage fault
+extern bool fuelFaultActive;     // Debounced low fuel fault
+
 #endif // GLOBALS_H

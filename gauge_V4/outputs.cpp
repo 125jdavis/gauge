@@ -78,56 +78,112 @@ void ledShiftLight(int ledRPM){
     for (int i = 0; i < NUM_LEDS; i++){
       leds[i] = CRGB::Black;
     }
-    return;
-  }
-  int midPoint = NUM_LEDS/2;
-  int blackout_val = map(ledRPM, TACH_MIN, TACH_MAX, midPoint, 0);
- 
-  //tach normal range 
-    for (int i = 0;i <= midPoint - WARN_LEDS; i++){
-      leds[i] = CRGB(30, 15 , 0);
-    }
-    for (int i = midPoint + WARN_LEDS + 1; i < NUM_LEDS; i++){
-      leds[i] = CRGB(30, 15 , 0);
+  } else {
+    // ===== PAIR-BASED TACH RENDERING =====
+    // Works correctly for any NUM_LEDS (even or odd).
+    // Each LED at index p (from the left) is paired with its mirror at index
+    // NUM_LEDS-1-p (from the right).  For odd strip counts there is one
+    // unpaired center LED at index halfLeds which is always in the shift zone.
+    //
+    // Zone assignment uses distFromCenter (0 = innermost pair):
+    //   distFromCenter <= SHIFT_LEDS               → shift  (red)
+    //   SHIFT_LEDS < distFromCenter <= WARN_LEDS   → warning (orange)
+    //   distFromCenter > WARN_LEDS                 → normal  (amber)
+    //
+    // This produces the same LED layout as the original algorithm for even N
+    // and a perfectly symmetric layout for odd N.
+
+    int halfLeds = NUM_LEDS / 2;  // Number of symmetric pairs
+    int blackoutPairs = map(ledRPM, TACH_MIN, TACH_MAX, halfLeds, 0);
+
+    // 1. Assign zone colors to every paired LED
+    for (int p = 0; p < halfLeds; p++){
+      int leftIdx  = p;
+      int rightIdx = NUM_LEDS - 1 - p;
+      int distFromCenter = halfLeds - 1 - p;  // 0 = innermost, halfLeds-1 = outermost
+
+      CRGB color;
+      if      (distFromCenter <= SHIFT_LEDS) color = CRGB( 80,  0, 0);  // shift  (red)
+      else if (distFromCenter <= WARN_LEDS)  color = CRGB( 80, 10, 0);  // warning (orange)
+      else                                   color = CRGB( 30, 15, 0);  // normal  (amber)
+
+      leds[leftIdx]  = color;
+      leds[rightIdx] = color;
     }
 
-
-  // tach warning range
-    for (int i = midPoint - WARN_LEDS - 1;i <= midPoint - SHIFT_LEDS; i++){
-      leds[i] = CRGB(80, 10 , 0);
-    }
-    for (int i = midPoint + SHIFT_LEDS + 1; i <= midPoint + WARN_LEDS; i++){
-      leds[i] = CRGB(80, 10 , 0);
+    // 2. Center LED for odd strip counts is always in the shift zone
+    if (NUM_LEDS % 2 == 1){
+      leds[halfLeds] = CRGB(80, 0, 0);
     }
 
-  // tach shift light range
-    for (int i = midPoint - SHIFT_LEDS - 1;i <= midPoint; i++){
-      leds[i] = CRGB(80, 0 , 0);
-    }
-    for (int i = midPoint; i <= midPoint + SHIFT_LEDS; i++){
-      leds[i] = CRGB(80, 0 , 0);
-    }
-    
-  // black out unused range  
-    for (int i = midPoint - blackout_val; i <= midPoint + blackout_val-1; i++){
-      leds[i] = CRGB::Black;
+    // 3. Black out innermost pairs to reflect current RPM
+    //    Pair p=0 in this loop targets the INNERMOST pair; as blackoutPairs
+    //    decreases (RPM rises), outer pairs are progressively revealed first.
+    for (int p = 0; p < blackoutPairs; p++){
+      leds[halfLeds - 1 - p]       = CRGB::Black;  // innermost left  → outward
+      leds[NUM_LEDS - halfLeds + p] = CRGB::Black;  // innermost right → outward
     }
 
-    // Flash LEDs when shift point is exceeded
-    if (RPM > TACH_MAX ){
+    // 4. Center LED for odd N: black out whenever any pairs are blacked out
+    if ((NUM_LEDS % 2 == 1) && blackoutPairs > 0){
+      leds[halfLeds] = CRGB::Black;
+    }
+
+    // 5. Flash shift zone pairs when shift point is exceeded
+    if (RPM > TACH_MAX){
       if (millis() - timerTachFlash > TACH_FLASH_RATE){
-        
-        //Black out the shift LEDs if they are on
-        if(tachFlashState == 0){
-          for (int i = midPoint - SHIFT_LEDS - 1; i <= midPoint + SHIFT_LEDS; i++){
-            leds[i] = CRGB::Black;
+        if (tachFlashState == 0){
+          // Black out the SHIFT_LEDS+1 innermost pairs (the shift zone)
+          for (int p = 0; p <= SHIFT_LEDS; p++){
+            leds[halfLeds - 1 - p]       = CRGB::Black;
+            leds[NUM_LEDS - halfLeds + p] = CRGB::Black;
+          }
+          if (NUM_LEDS % 2 == 1){
+            leds[halfLeds] = CRGB::Black;  // center LED for odd N
           }
         }
-        
-        timerTachFlash =  millis();             //reset the timer
-        tachFlashState = 1 - tachFlashState;    //change the state
+
+        timerTachFlash = millis();
+        tachFlashState = 1 - tachFlashState;
       }
     }
+  }
+
+  // ===== FAULT INDICATOR LED =====
+  // Override leds[0] with a flashing fault color when a confirmed (debounced) fault is active.
+  // This takes priority over the normal RPM display for the first LED.
+  // Colors: oil pressure = orange, coolant temp = blue, battery voltage = green, fuel level = purple.
+  // Multiple active faults: cycle through each fault color on successive flash-on periods.
+  // Flash timing follows the same faultFlashState toggle used by the OLED fault flash.
+  {
+    // Collect active fault colors in priority order (use debounced globals set by main loop)
+    CRGB activeFaultColors[4];
+    uint8_t numFaults = 0;
+    if (oilFaultActive)     activeFaultColors[numFaults++] = CRGB(255,  60,   0);  // Orange - oil pressure
+    if (coolantFaultActive) activeFaultColors[numFaults++] = CRGB(  0,   0, 255);  // Blue   - coolant temp
+    if (battFaultActive)    activeFaultColors[numFaults++] = CRGB(  0, 200,   0);  // Green  - battery voltage
+    if (fuelFaultActive)    activeFaultColors[numFaults++] = CRGB(180,   0, 200);  // Purple - fuel level
+
+    // Static state: persists across calls, reset when no faults are active
+    static uint8_t faultLedColorIdx = 0;
+    static bool prevFaultFlashState = false;
+
+    if (numFaults > 0) {
+      // Advance color index on each rising edge of faultFlashState (flash-on transition)
+      if (faultFlashState && !prevFaultFlashState) {
+        faultLedColorIdx++;
+      }
+      prevFaultFlashState = faultFlashState;
+
+      // Flash: show fault color on flash-on period, off on flash-off period
+      leds[0] = faultFlashState ? activeFaultColors[faultLedColorIdx % numFaults] : CRGB::Black;
+    } else {
+      // No active faults: reset state so next fault cycle starts fresh
+      faultLedColorIdx = 0;
+      prevFaultFlashState = false;
+    }
+  }
+
   FastLED.show();
 }
 int speedometerAngle(int sweep) {
@@ -447,13 +503,13 @@ int fuelLvlAngle(int sweep) {
  */
 int coolantTempAngle(int sweep) {
   int angle;
-  if (coolantTemp < 95){
-    // Normal operating range: 60-95°C maps to first half of gauge
-    angle = map((long)coolantTemp, 60, 98, 1, sweep/2);
+  if (coolantTemp < 90){
+    // Normal operating range: 50-90°C maps to first half of gauge
+    angle = map((long)coolantTemp, 50, 90, 1, sweep/2);
   }
   else {
-    // Warning range: 95-115°C maps to second half of gauge (more sensitive)
-    angle = map((long)coolantTemp, 98, 115, sweep/2, sweep-1);
+    // Warning range: 90-115°C maps to second half of gauge (more sensitive)
+    angle = map((long)coolantTemp, 90, 115, sweep/2, sweep-1);
   }
   angle = constrain(angle, 1, sweep-1);
   return angle;
