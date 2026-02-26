@@ -31,7 +31,6 @@
  * - CAN bus at 500kbps (Haltech ECU protocol)
  * - GPS at 9600 baud, NMEA RMC messages at 5Hz
  * - SPI for displays and CAN controller
- * - I2C available for future expansion
  * 
  * ========================================
  */
