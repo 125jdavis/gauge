@@ -7,7 +7,6 @@
  * 
  * Author: Jesse Davis
  * Date: 8/24/2024
- * Status: Fully functional except mechanical ODO
  * 
  * OVERVIEW:
  * This system receives inputs from GPS, analog sensors, and CAN bus, then outputs to:
