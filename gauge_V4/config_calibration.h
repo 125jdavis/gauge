@@ -24,6 +24,12 @@ extern uint16_t M3_SWEEP;        // Motor 3: 58 degrees * 12 = 696 steps (same c
 extern uint16_t M4_SWEEP;        // Motor 4: 58 degrees * 12 = 696 steps (typically coolant temp)
 extern uint16_t MS_SWEEP;        // Motor S: 118 degrees (speedometer - 16 microsteps, 400 steps/rev, 0.9°/step)
 
+// ===== MOTOR S (NEMA14 / TMC2209) ZEROING PARAMETERS =====
+// motorS uses a different driver (TMC2209) and motor (NEMA14) than motors 1-4 (AX1201728SG / Switec X25.168).
+// These parameters control zeroing in motorZeroSynchronous() to avoid vibration on the NEMA14.
+extern uint16_t MS_ZERO_STEP_DELAY_US;  // Step delay (µs) for motorS during zeroing; bypasses SwitecX12 accel table
+extern float    MS_ZERO_SWEEP_FACTOR;   // Fraction of MS_SWEEP used for motorS zeroing (0.0–1.0); reduces vibration time
+
 // ===== MOTOR SWEEP TIMING =====
 extern uint16_t MOTOR_SWEEP_TIME_MS;  // Time in milliseconds for motors to sweep full range during startup test
 

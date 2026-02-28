@@ -515,29 +515,47 @@ int coolantTempAngle(int sweep) {
   return angle;
 }
 void motorZeroSynchronous(void){
-  // Set current position to maximum for all motors
+  // motorS (NEMA14/TMC2209) uses a partial sweep and fixed step rate to reduce zeroing vibration.
+  // MS_ZERO_SWEEP_FACTOR limits how far back motorS sweeps (e.g. 0.5 = 50% of full range).
+  // MS_ZERO_STEP_DELAY_US sets a fixed inter-step delay, bypassing the SwitecX12 accel table.
+  // This allows both slower-than-table (smoother) and faster-than-table step rates.
+  uint16_t msZeroSteps = (uint16_t)((float)MS_SWEEP * MS_ZERO_SWEEP_FACTOR);
+  if (msZeroSteps < 1) msZeroSteps = 1;
+
+  // Set current positions: full sweep for Switec motors, partial for motorS
   motor1.currentStep = M1_SWEEP;
   motor2.currentStep = M2_SWEEP;
   motor3.currentStep = M3_SWEEP;
   motor4.currentStep = M4_SWEEP;
-  motorS.currentStep = MS_SWEEP;
-  
+  motorS.currentStep = msZeroSteps;
+
   // Command all motors to position 0
   motor1.setPosition(0);
   motor2.setPosition(0);
   motor3.setPosition(0);
   motor4.setPosition(0);
   motorS.setPosition(0);
-  
-  // Wait for all motors to reach zero (blocking loop)
+
+  // Seed motorS delay before the loop.  setPosition() sets microDelay=0 (immediate first step);
+  // overriding it here ensures the first step also waits MS_ZERO_STEP_DELAY_US.
+  motorS.microDelay = MS_ZERO_STEP_DELAY_US;
+
+  // Loop until all motors reach zero.
+  // motorS may finish before motors 1-4 (partial sweep); the loop keeps running
+  // so motorS implicitly waits for the Switec motors before returning.
   while (motor1.currentStep > 0 || motor2.currentStep > 0 || motor3.currentStep > 0 || motor4.currentStep > 0 || motorS.currentStep > 0)
   {
-      motor1.update();  // Step motor 1 if needed
-      motor2.update();  // Step motor 2 if needed
-      motor3.update();
-      motor4.update();
+    motor1.update();
+    motor2.update();
+    motor3.update();
+    motor4.update();
+    if (motorS.currentStep > 0) {
       motorS.update();
+      // advance() rewrites microDelay from the accel table; reset to keep fixed step rate
+      motorS.microDelay = MS_ZERO_STEP_DELAY_US;
+    }
   }
+
   // Reset position counters to zero
   motor1.currentStep = 0;
   motor2.currentStep = 0;
