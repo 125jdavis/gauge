@@ -13,6 +13,16 @@ uint16_t M3_SWEEP = 58 * 12;        // Motor 3: 58 degrees * 3 steps/degree * 4 
 uint16_t M4_SWEEP = 58 * 12;        // Motor 4: 58 degrees * 3 steps/degree * 4 microsteps/step = 696 steps
 uint16_t MS_SWEEP = 3950;           // Motor S: (118° / 0.9°) * 32 microsteps = 4195.555 ≈ 4196 steps (speedometer)
 
+// ===== MOTOR S (NEMA14 / TMC2209) ZEROING PARAMETERS =====
+// 500 µs/step = 2000 steps/sec — a smooth, controlled rate for the NEMA14 during zeroing.
+// The SwitecX12 accel table peaks at ~90 µs/step (11 111 steps/sec); this default is slower
+// and steadier, eliminating acceleration-driven vibration.  Decrease toward 50 µs to go
+// faster than the table max; increase to 1000+ µs for an even slower, quieter sweep.
+uint16_t MS_ZERO_STEP_DELAY_US = 500;
+// 0.5 = sweep back 50% of MS_SWEEP during zeroing (reduces vibration time at zero stop).
+// Assumes needle is near zero at startup; increase toward 1.0 if needle could be far from zero.
+float    MS_ZERO_SWEEP_FACTOR  = 0.5f;
+
 // ===== MOTOR SWEEP TIMING =====
 uint16_t MOTOR_SWEEP_TIME_MS = 1000;  // Time in milliseconds for motors to sweep full range during startup test
 
