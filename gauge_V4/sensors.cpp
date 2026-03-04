@@ -450,7 +450,7 @@ void ignitionPulseISR() {
         
         // Apply exponential moving average filter with integer math
         // FILTER_ENGINE_RPM is 0-256: higher value = less filtering
-        engineRPMEMA = (rpmRaw * FILTER_ENGINE_RPM + engineRPMEMA * (256 - FILTER_ENGINE_RPM)) >> 8;
+        engineRPMEMA = (int)(((int32_t)rpmRaw * FILTER_ENGINE_RPM + (int32_t)engineRPMEMA * (256 - FILTER_ENGINE_RPM)) >> 8);
         
         // Uncomment for debugging (note: Serial.print in ISR can cause timing issues)
         // Serial.print("RPM: ");
