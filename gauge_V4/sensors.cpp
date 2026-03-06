@@ -419,6 +419,7 @@ float updateOdometer(float speedKmh, unsigned long timeIntervalMs) {
  * - Debounces using RPM_DEBOUNCE_MICROS to suppress coil-ringdown echoes
  * - Calculates pulse interval
  * - Computes RPM using integer math and division
+ * - Applies plausibility check to reject spikes (>50% change when RPM > 500)
  * - Applies exponential moving average filter
  * 
  * Performance: ~10-15 µs execution time
@@ -451,6 +452,19 @@ void ignitionPulseISR() {
     // RPM = 120,000,000 / (pulseInterval * CYL_COUNT)
     // Note: CYL_COUNT is 2x old PULSES_PER_REVOLUTION, so we use 120M instead of 60M
     int rpmRaw = (int)(120000000UL / (pulseInterval * CYL_COUNT));
+
+    // Plausibility check: reject RPM spikes.
+    // If the engine is above 500 RPM and the new reading changes more than 50%
+    // (up or down) from the current filtered value, discard this pulse.
+    // Note: engine shutdown is handled by engineRPMUpdate() which resets RPM to
+    // zero after IGNITION_PULSE_TIMEOUT (500 ms) of no pulses, independently of
+    // this check, so a stopped engine will never be held at a high RPM value.
+    if (engineRPMEMA > 500) {
+        int halfEMA = engineRPMEMA >> 1;  // 50% of current filtered RPM
+        if (rpmRaw > engineRPMEMA + halfEMA || rpmRaw < engineRPMEMA - halfEMA) {
+            return;  // Spike detected – hold previous reading
+        }
+    }
 
     engineRPMRaw = rpmRaw;
 
