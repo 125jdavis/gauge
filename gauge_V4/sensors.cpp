@@ -416,6 +416,7 @@ float updateOdometer(float speedKmh, unsigned long timeIntervalMs) {
  * 
  * ISR Design: Lightweight with minimal calculation
  * - Captures pulse timestamp using micros()
+ * - Debounces using RPM_DEBOUNCE_MICROS to suppress coil-ringdown echoes
  * - Calculates pulse interval
  * - Computes RPM using integer math and division
  * - Applies exponential moving average filter
@@ -434,28 +435,32 @@ float updateOdometer(float speedKmh, unsigned long timeIntervalMs) {
 void ignitionPulseISR() {
     unsigned long currentTime = micros();
     unsigned long pulseInterval = currentTime - ignitionLastTime;
+
+    // Debounce: reject pulses arriving sooner than RPM_DEBOUNCE_MICROS after the last
+    // accepted pulse. This suppresses coil-ringdown echoes that cause spurious RPM spikes.
+    // ignitionLastTime is intentionally NOT updated here so the next real pulse is measured
+    // from the correct baseline.
+    if (pulseInterval < RPM_DEBOUNCE_MICROS) {
+        return;
+    }
+
     ignitionLastTime = currentTime;
 
-    // Ignore implausibly short intervals to filter electrical noise
-    // At 12,000 RPM with 8 cylinders: interval = 1,000,000 / (12000*8/120) = 1250 μs
-    // Minimum threshold of 500 μs allows up to ~18,750 RPM (very high for automotive)
-    if (pulseInterval > 500) {
-        // Calculate RPM using integer math:
-        // RPM = (1,000,000 μs/sec * 120 sec/2min) / (pulseInterval * CYL_COUNT)
-        // RPM = 120,000,000 / (pulseInterval * CYL_COUNT)
-        // Note: CYL_COUNT is 2x old PULSES_PER_REVOLUTION, so we use 120M instead of 60M
-        int rpmRaw = (int)(120000000.0 / (pulseInterval * CYL_COUNT));
-        
-        engineRPMRaw = rpmRaw;
-        
-        // Apply exponential moving average filter with integer math
-        // FILTER_ENGINE_RPM is 0-256: higher value = less filtering
-        engineRPMEMA = (int)(((int32_t)rpmRaw * FILTER_ENGINE_RPM + (int32_t)engineRPMEMA * (256 - FILTER_ENGINE_RPM)) >> 8);
-        
-        // Uncomment for debugging (note: Serial.print in ISR can cause timing issues)
-        // Serial.print("RPM: ");
-        // Serial.println(engineRPMEMA);
-    }
+    // Calculate RPM using integer math:
+    // RPM = (1,000,000 μs/sec * 120 sec/2min) / (pulseInterval * CYL_COUNT)
+    // RPM = 120,000,000 / (pulseInterval * CYL_COUNT)
+    // Note: CYL_COUNT is 2x old PULSES_PER_REVOLUTION, so we use 120M instead of 60M
+    int rpmRaw = (int)(120000000UL / (pulseInterval * CYL_COUNT));
+
+    engineRPMRaw = rpmRaw;
+
+    // Apply exponential moving average filter with integer math
+    // FILTER_ENGINE_RPM is 0-256: higher value = less filtering
+    engineRPMEMA = (int)(((int32_t)rpmRaw * FILTER_ENGINE_RPM + (int32_t)engineRPMEMA * (256 - FILTER_ENGINE_RPM)) >> 8);
+
+    // Uncomment for debugging (note: Serial.print in ISR can cause timing issues)
+    // Serial.print("RPM: ");
+    // Serial.println(engineRPMEMA);
 }
 
 /**

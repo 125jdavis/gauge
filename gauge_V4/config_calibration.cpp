@@ -44,6 +44,7 @@ uint8_t HALL_SPEED_MIN = 50;        // Minimum reportable speed in km/h*100 (50 
 // ===== ENGINE RPM SENSOR PARAMETERS =====
 uint8_t CYL_COUNT = 8;              // Cylinder count (8 = 2x old PULSES_PER_REVOLUTION of 4.0)
 uint8_t FILTER_ENGINE_RPM = 179;    // EMA filter coefficient (179/256 ≈ 0.7)
+uint16_t RPM_DEBOUNCE_MICROS = 5000; // Debounce window: reject pulses within 5 ms of last accepted pulse
 uint8_t ENGINE_RPM_MIN = 100;       // Minimum reportable RPM
 
 // ===== SPEEDOMETER CALIBRATION =====
