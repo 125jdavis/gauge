@@ -66,6 +66,11 @@ extern uint8_t CYL_COUNT;
 // EMA filter coefficient (0-256): 256=no filter, 179=moderate (0.7*256), 128=more filtered
 extern uint8_t FILTER_ENGINE_RPM;
 
+// Debounce window in microseconds: pulses arriving sooner than this after the last accepted
+// pulse are rejected as coil-ringdown echoes. Default 5000 µs (5 ms) suits most engines
+// (covers echoes up to ~3000 RPM on a V8). Reduce for high-revving engines if needed.
+extern uint16_t RPM_DEBOUNCE_MICROS;
+
 // Minimum reportable RPM (engine idle ~600-800)
 extern uint8_t ENGINE_RPM_MIN;
 

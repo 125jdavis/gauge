@@ -40,7 +40,7 @@ unsigned int spdHall = 0;                    // Filtered speed (km/h * 100)
 // ===== ENGINE RPM SENSOR VARIABLES =====
 volatile unsigned long ignitionLastTime = 0; // Last ignition pulse time (micros)
 volatile int engineRPMRaw = 0;               // Most recent calculated RPM (unfiltered)
-int engineRPMEMA = 0;                        // Filtered RPM with exponential moving average
+volatile int engineRPMEMA = 0;               // Filtered RPM with exponential moving average
 
 // ===== GPS SPEED AND ODOMETER VARIABLES =====
 // GPS provides speed and time data for speedometer and odometer calculations
