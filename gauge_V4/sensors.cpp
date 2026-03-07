@@ -38,6 +38,9 @@ static unsigned long lastCANOdometerUpdateTime = 0;
 // Synthetic speed odometer update tracking
 static unsigned long lastSyntheticOdometerUpdateTime = 0;
 
+// Serial speed odometer update tracking
+static unsigned long lastSerialOdometerUpdateTime = 0;
+
 // VR-Safe filter constants
 #define LOW_SPEED_THRESHOLD_FOR_VR_REJECTION 1000  // 10 km/h in units of km/h*100
 #define MAX_ACCELERATION_UNITS 3530UL  // 1g acceleration ≈ 35.3 km/h/s ≈ 3530 (km/h*100)/s
@@ -536,7 +539,7 @@ float curveLookup(float input, float brkpts[], float curve[], int curveLength){
  * sigSelect - Process and route sensor data
  */
 void sigSelect (void) {
-    // Select vehicle speed source: 0=off, 1=CAN, 2=Hall sensor, 3=GPS, 4=Synthetic (debug), 5=Odometer test
+    // Select vehicle speed source: 0=off, 1=CAN, 2=Hall sensor, 3=GPS, 4=Synthetic (debug), 5=Odometer test, 6=Serial
     switch (SPEED_SOURCE) {
         case 0:  // Off
             spd = 0;
@@ -555,6 +558,9 @@ void sigSelect (void) {
             break;
         case 5:  // Odometer accuracy test: deterministic 1-mile profile
             spd = generateOdometerTestSpeed();  // Returns km/h * 100 format
+            break;
+        case 6:  // Serial speed source
+            spd = spdSerial;  // Already in km/h * 100 format (set by processSerialCommands)
             break;
         default:  // Fallback to off
             spd = 0;
@@ -594,7 +600,23 @@ void sigSelect (void) {
         lastSyntheticOdometerUpdateTime = millis();
     }
     
-    // Select engine RPM source: 0=off, 1=CAN, 2=coil negative, 3=synthetic (debug)
+    // Update odometer for serial speed source
+    if (SPEED_SOURCE == 6 && lastSerialOdometerUpdateTime != 0) {
+        unsigned long currentTime = millis();
+        unsigned long timeIntervalMs = currentTime - lastSerialOdometerUpdateTime;
+        // spdSerial is in km/h * 100 format, convert to km/h for updateOdometer
+        float speedKmh = spdSerial * 0.01;
+        float distTraveled = updateOdometer(speedKmh, timeIntervalMs);
+        if (distTraveled > 0) {
+            moveOdometerMotor(distTraveled);
+        }
+        lastSerialOdometerUpdateTime = currentTime;
+    } else if (SPEED_SOURCE == 6 && lastSerialOdometerUpdateTime == 0) {
+        // Initialize the timer on first run
+        lastSerialOdometerUpdateTime = millis();
+    }
+    
+    // Select engine RPM source: 0=off, 1=CAN, 2=coil negative, 3=synthetic (debug), 4=Serial
     switch (RPM_SOURCE) {
         case 0:  // Off
             RPM = 0;
@@ -608,12 +630,15 @@ void sigSelect (void) {
         case 3:  // Synthetic RPM (debug)
             RPM = generateRPM();  // Returns RPM value
             break;
+        case 4:  // Serial RPM source
+            RPM = rpmSerial;  // Set by processSerialCommands
+            break;
         default:  // Fallback to off
             RPM = 0;
             break;
     }
     
-    // Select oil pressure source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=synthetic (debug)
+    // Select oil pressure source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=synthetic (debug), 6=Serial
     switch (OIL_PRS_SOURCE) {
         case 0:  // Off
             oilPrs = 0;
@@ -633,12 +658,15 @@ void sigSelect (void) {
         case 5:  // Synthetic oil pressure (debug)
             oilPrs = generateSyntheticOilPressure();
             break;
+        case 6:  // Serial oil pressure source
+            oilPrs = oilPrsSerial;  // Set by processSerialCommands
+            break;
         default:  // Fallback to off
             oilPrs = 0;
             break;
     }
     
-    // Select fuel pressure source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=synthetic (debug)
+    // Select fuel pressure source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=synthetic (debug), 6=Serial
     switch (FUEL_PRS_SOURCE) {
         case 0:  // Off
             fuelPrs = 0;
@@ -658,12 +686,15 @@ void sigSelect (void) {
         case 5:  // Synthetic fuel pressure (debug)
             fuelPrs = generateSyntheticFuelPressure();
             break;
+        case 6:  // Serial fuel pressure source
+            fuelPrs = fuelPrsSerial;  // Set by processSerialCommands
+            break;
         default:  // Fallback to off
             fuelPrs = 0;
             break;
     }
     
-    // Select coolant temperature source: 0=off, 1=CAN, 2=therm, 3=synthetic (debug)
+    // Select coolant temperature source: 0=off, 1=CAN, 2=therm, 3=synthetic (debug), 4=Serial
     switch (COOLANT_TEMP_SOURCE) {
         case 0:  // Off
             coolantTemp = 0;
@@ -677,12 +708,15 @@ void sigSelect (void) {
         case 3:  // Synthetic coolant temperature (debug)
             coolantTemp = generateSyntheticCoolantTemp();
             break;
+        case 4:  // Serial coolant temperature source
+            coolantTemp = coolantTempSerial;  // Set by processSerialCommands
+            break;
         default:  // Fallback to off
             coolantTemp = 0;
             break;
     }
     
-    // Select oil temperature source: 0=off, 1=CAN, 2=therm
+    // Select oil temperature source: 0=off, 1=CAN, 2=therm, 3=Serial
     switch (OIL_TEMP_SOURCE) {
         case 0:  // Off
             oilTemp = 0;
@@ -693,12 +727,15 @@ void sigSelect (void) {
         case 2:  // Thermistor sensor
             oilTemp = therm;
             break;
+        case 3:  // Serial oil temperature source
+            oilTemp = oilTempSerial;  // Set by processSerialCommands
+            break;
         default:  // Fallback to off
             oilTemp = 0;
             break;
     }
     
-    // Select manifold pressure/boost source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=synthetic (debug)
+    // Select manifold pressure/boost source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=synthetic (debug), 6=Serial
     switch (MAP_SOURCE) {
         case 0:  // Off
             manifoldPrs = 0;
@@ -718,12 +755,15 @@ void sigSelect (void) {
         case 5:  // Synthetic manifold pressure (debug)
             manifoldPrs = generateSyntheticManifoldPressure();
             break;
+        case 6:  // Serial manifold pressure source
+            manifoldPrs = mapSerial;  // Set by processSerialCommands
+            break;
         default:  // Fallback to off
             manifoldPrs = 0;
             break;
     }
     
-    // Select Lambda/AFR source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+    // Select Lambda/AFR source: 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Serial
     switch (LAMBDA_SOURCE) {
         case 0:  // Off
             afr = 0;
@@ -740,6 +780,9 @@ void sigSelect (void) {
         case 4:  // Analog sensor AV3
             afr = sensor_av3 / 100.0;
             break;
+        case 5:  // Serial AFR source
+            afr = afrSerial;  // Set by processSerialCommands
+            break;
         default:  // Fallback to off
             afr = 0;
             break;
@@ -748,7 +791,7 @@ void sigSelect (void) {
     // These remain unchanged as they don't have alternate sources
     fuelComp = fuelCompCAN/10.0;  // Fuel composition - divide by 10 (e.g., 850 becomes 85%)
 
-    // Select fuel level source: 0=off, 1=analog sensor, 2=Synthetic (debug)
+    // Select fuel level source: 0=off, 1=analog sensor, 2=Synthetic (debug), 3=Serial
     switch (FUEL_LVL_SOURCE) {
         case 0:  // Off
             fuelLvl = 0;
@@ -761,6 +804,9 @@ void sigSelect (void) {
             break;
         case 2:  // Synthetic fuel level (debug)
             fuelLvl = (generateSyntheticFuelLevel() / 100.0) * fuelCapacity;
+            break;
+        case 3:  // Serial fuel level source
+            fuelLvl = fuelLvlSerial;  // Set by processSerialCommands (in gallons or liters)
             break;
         default:  // Fallback to off
             fuelLvl = 0;

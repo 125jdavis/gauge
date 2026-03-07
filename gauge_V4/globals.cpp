@@ -199,6 +199,17 @@ bool staticContentDrawn2 = false; // Flag: static content drawn on display2
 unsigned long timerDisp1Update = 0;  // Timer for display 1 updates
 unsigned long timerDisp2Update = 0;  // Timer for display 2 updates
 
+// ===== SERIAL SIGNAL SOURCE VARIABLES =====
+int spdSerial = 0;              // Serial speed in km/h * 100
+int rpmSerial = 0;              // Serial RPM
+float coolantTempSerial = 0;    // Serial coolant temperature in Celsius
+float oilPrsSerial = 0;         // Serial oil pressure in kPa (gauge)
+float fuelPrsSerial = 0;        // Serial fuel pressure in kPa (gauge)
+float mapSerial = 101.3;        // Serial manifold pressure in kPa (default to atmospheric)
+float oilTempSerial = 0;        // Serial oil temperature in Celsius
+float afrSerial = 14.7;         // Serial Air/Fuel Ratio (stoichiometric default)
+float fuelLvlSerial = 0;        // Serial fuel level in gallons (or liters if metric)
+
 // ===== FAULT FLASH STATE =====
 unsigned long timerFaultFlash = 0;   // Timer for fault display flash toggle
 bool faultFlashState = false;        // Current inversion state for fault flash (true = inverted)

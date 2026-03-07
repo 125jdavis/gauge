@@ -195,6 +195,18 @@ extern unsigned long timerDisp2Update;  // Timer for display 2 updates
 extern unsigned long timerFaultFlash;   // Timer for fault display flash toggle
 extern bool faultFlashState;            // Current inversion state for fault flash (true = inverted)
 
+// ===== SERIAL SIGNAL SOURCE VARIABLES =====
+// Values set by processSerialCommands() and read by sigSelect() when *_SOURCE is set to serial mode
+extern int spdSerial;               // Serial speed in km/h * 100 (e.g., 10000 = 100 km/h)
+extern int rpmSerial;               // Serial RPM
+extern float coolantTempSerial;     // Serial coolant temperature in Celsius
+extern float oilPrsSerial;          // Serial oil pressure in kPa (gauge)
+extern float fuelPrsSerial;         // Serial fuel pressure in kPa (gauge)
+extern float mapSerial;             // Serial manifold pressure in kPa
+extern float oilTempSerial;         // Serial oil temperature in Celsius
+extern float afrSerial;             // Serial Air/Fuel Ratio
+extern float fuelLvlSerial;         // Serial fuel level in gallons (or liters if metric)
+
 // ===== FAULT DEBOUNCE STATE =====
 extern unsigned long timerOilFaultDebounce;
 extern unsigned long timerCoolantFaultDebounce;

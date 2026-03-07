@@ -132,6 +132,36 @@ float generateSyntheticManifoldPressure(void);
 int generateOdometerTestSpeed(void);
 
 /**
+ * processSerialCommands - Parse and execute serial input commands
+ * 
+ * Reads commands from Serial (USB) and updates serial signal source variables
+ * or triggers direct motor actions. This enables a "serial signal source" mode
+ * where signal values can be overridden from a connected PC or terminal.
+ * 
+ * Supported commands:
+ *   spd <value>        - Set speed in km/h (stored as km/h * 100)
+ *   rpm <value>        - Set engine RPM
+ *   coolant <value>    - Set coolant temperature in Celsius
+ *   oilprs <value>     - Set oil pressure in kPa (gauge)
+ *   fuelprs <value>    - Set fuel pressure in kPa (gauge)
+ *   map <value>        - Set manifold pressure in kPa
+ *   oiltemp <value>    - Set oil temperature in Celsius
+ *   afr <value>        - Set Air/Fuel Ratio
+ *   fuel <value>       - Set fuel level as a percentage (0-100)
+ *   odo motor <value>  - Rotate odometer motor N revolutions at 4 RPM
+ *                        (only allowed when speed is 0; prints error otherwise)
+ * 
+ * Signal source variables updated here are used by sigSelect() when the
+ * corresponding *_SOURCE is set to the serial source number (see config_calibration.h).
+ * 
+ * The odo motor command works regardless of which speed source is active, but
+ * requires spd == 0 to prevent conflict with speed-based odometer advancement.
+ * 
+ * Called from: main loop (gauge_V4.ino)
+ */
+void processSerialCommands(void);
+
+/**
  * mapFloat - Map a float value from one range to another
  * 
  * Similar to Arduino's map() but for floating point values.

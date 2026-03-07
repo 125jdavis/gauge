@@ -334,6 +334,12 @@ void loop() {
     timerCheckGPS = millis();
   }
 
+  // ===== SERIAL COMMAND PROCESSING =====
+  // Parse commands from the serial port (USB) to set signal values or trigger motor actions.
+  // Supports the serial signal source mode: spd, rpm, coolant, oilprs, fuelprs, map,
+  // oiltemp, afr, fuel, and odo motor commands.
+  processSerialCommands();
+
   // ===== SIGNAL SELECTION UPDATE =====
   // Process sensor readings and synthetic signal generators
   // Runs at 100Hz for responsive synthetic signals

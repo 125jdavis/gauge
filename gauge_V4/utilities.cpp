@@ -147,24 +147,76 @@ int generateRPM(void){
     
     return gRPM;
 }
-void serialInputFunc(void){
-  // SERIAL INPUT FOR TESTING ONLY
-  if (Serial.available() > 0) {
-    // Read the incoming data as a string (until newline)
-    String inputSer = Serial.readStringUntil('\n');
-    
-    // Convert the input string to an integer
-    int newValue = inputSer.toInt();
-    
-    // Update the test variable with the new value
-    // Uncomment the line for the parameter you want to test:
-    //coolantTempCAN = (newValue+273.15)*10 ;  // For temperature testing (convert C to Kelvin*10)
-    //fuelLvl = newValue;  // For fuel level testing (gallons or liters)
-    
-    // Print confirmation of new value
-    Serial.println("Updated value of fuel level: " + String(fuelLvl));
-    Serial.println("Please enter a new value:");
-  }
+/**
+ * processSerialCommands - Parse and execute serial input commands
+ * 
+ * See utilities.h for full documentation.
+ */
+void processSerialCommands(void) {
+    if (Serial.available() > 0) {
+        String cmd = Serial.readStringUntil('\n');
+        cmd.trim();
+
+        if (cmd.startsWith("spd ")) {
+            float val = cmd.substring(4).toFloat();
+            spdSerial = (int)(val * 100.0f);
+            Serial.print("Speed set to: ");
+            Serial.print(val);
+            Serial.println(" km/h");
+        } else if (cmd.startsWith("rpm ")) {
+            rpmSerial = cmd.substring(4).toInt();
+            Serial.print("RPM set to: ");
+            Serial.println(rpmSerial);
+        } else if (cmd.startsWith("coolant ")) {
+            coolantTempSerial = cmd.substring(8).toFloat();
+            Serial.print("Coolant temp set to: ");
+            Serial.print(coolantTempSerial);
+            Serial.println(" C");
+        } else if (cmd.startsWith("oilprs ")) {
+            oilPrsSerial = cmd.substring(7).toFloat();
+            Serial.print("Oil pressure set to: ");
+            Serial.print(oilPrsSerial);
+            Serial.println(" kPa");
+        } else if (cmd.startsWith("fuelprs ")) {
+            fuelPrsSerial = cmd.substring(8).toFloat();
+            Serial.print("Fuel pressure set to: ");
+            Serial.print(fuelPrsSerial);
+            Serial.println(" kPa");
+        } else if (cmd.startsWith("map ")) {
+            mapSerial = cmd.substring(4).toFloat();
+            Serial.print("Manifold pressure set to: ");
+            Serial.print(mapSerial);
+            Serial.println(" kPa");
+        } else if (cmd.startsWith("oiltemp ")) {
+            oilTempSerial = cmd.substring(8).toFloat();
+            Serial.print("Oil temp set to: ");
+            Serial.print(oilTempSerial);
+            Serial.println(" C");
+        } else if (cmd.startsWith("afr ")) {
+            afrSerial = cmd.substring(4).toFloat();
+            Serial.print("AFR set to: ");
+            Serial.println(afrSerial);
+        } else if (cmd.startsWith("fuel ")) {
+            float pct = cmd.substring(5).toFloat();
+            fuelLvlSerial = pct * fuelCapacity / 100.0f;
+            Serial.print("Fuel level set to: ");
+            Serial.print(pct);
+            Serial.println("%");
+        } else if (cmd.startsWith("odo motor ")) {
+            if (spd > 0) {
+                Serial.println("Error: odo motor command not possible unless speed is 0");
+            } else {
+                float revs = cmd.substring(10).toFloat();
+                moveOdometerMotorRevs(revs);
+                Serial.print("Odometer motor queued: ");
+                Serial.print(revs);
+                Serial.println(" revolution(s) at 4 RPM");
+            }
+        } else if (cmd.length() > 0) {
+            Serial.print("Unknown command: ");
+            Serial.println(cmd);
+        }
+    }
 }
 
 /**

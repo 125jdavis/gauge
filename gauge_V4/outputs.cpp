@@ -15,6 +15,7 @@ const float KM_TO_MILES = 0.621371;  // Conversion factor: kilometers to miles
 static float odoMotorTargetSteps = 0.0;   // Accumulated target position (includes fractional steps)
 static unsigned long odoMotorCurrentStep = 0;  // Current motor position in whole steps
 static unsigned long lastOdoStepTime = 0;  // Time of last step (microseconds)
+static volatile long odoDirectStepsRemaining = 0;  // Direct serial command: positive=forward, negative=backward
 
 // ===== MOTOR S SMOOTHING STATE =====
 // Position interpolation for smooth speedometer needle motion
@@ -54,10 +55,10 @@ static unsigned long motor1to4_updateInterval = ANGLE_UPDATE_RATE; // Measured i
 // - Target speed: < 3 RPM for odometer application
 //
 // Step delay calculation for target speed:
-// - At 3 RPM: 3 rev/min * 2048 steps/rev = 6,144 steps/min = 102.4 steps/sec
-// - Delay per step: 1,000,000 us / 102.4 = 9,766 us (~10ms)
-// - Using 5000 us (5ms) gives ~200 steps/sec = 5.86 RPM (well within stall limit)
-static const unsigned long ODO_STEP_DELAY_US = 5000;  // 5ms between steps ≈ 5.86 RPM (well within stall limit)
+// - At 4 RPM: 4 rev/min * 2048 steps/rev = 8192 steps/min = 136.5 steps/sec
+// - Delay per step: 1,000,000 us / 136.5 = 7326 us (~7.3ms)
+// - Using 7326 us gives ~136.5 steps/sec = 4 RPM (matches serial "odo motor" command target speed)
+static const unsigned long ODO_STEP_DELAY_US = 7326;  // 7.3ms between steps = 4 RPM
 
 // Wave-drive stepper sequence for 20BYJ-48 (one phase at a time)
 // Wave drive: A -> B -> C -> D -> A ...
@@ -772,48 +773,88 @@ void moveOdometerMotor(float distanceKm) {
 }
 
 /**
+ * moveOdometerMotorRevs - Queue direct motor shaft revolutions (serial command)
+ * 
+ * Rotates the odometer motor by the requested number of shaft revolutions,
+ * independently of distance-based odometer advancement. Supports both forward
+ * (positive) and backward (negative) rotation.
+ * 
+ * Used by the serial "odo motor <revolutions>" command. The motor will run at
+ * 4 RPM (controlled by ODO_STEP_DELAY_US) until the requested revolutions are
+ * complete.
+ * 
+ * @param revolutions - Number of motor shaft revolutions (positive=forward, negative=backward)
+ * 
+ * Note: Only call when spd == 0 (enforced by processSerialCommands) to avoid
+ * conflicting with speed-based odometer advancement.
+ */
+void moveOdometerMotorRevs(float revolutions) {
+    long steps = (long)(revolutions * ODO_STEPS);
+    odoDirectStepsRemaining += steps;
+}
+
+/**
  * updateOdometerMotor - Non-blocking motor update for mechanical odometer
  * 
  * Moves the odometer motor one step at a time toward the target position.
  * This function should be called frequently from the ISR to ensure
  * smooth, non-blocking motor operation.
  * 
- * The function enforces a delay between steps to keep motor speed below 3 RPM
+ * The function enforces a delay between steps to keep motor speed at 4 RPM
  * and prevent the motor from losing steps or stalling.
+ * 
+ * Handles two movement sources with the following priority:
+ *   1. Direct serial command (odoDirectStepsRemaining) - bidirectional
+ *   2. Speed-based distance advancement (odoMotorTargetSteps) - forward only
  * 
  * Implementation:
  * - Uses direct pin control for 4-phase stepper motor (20BYJ-48)
  * - Wave drive mode (one phase at a time) for lower power and heat
- * - 5ms delay between steps = ~2.93 RPM (safely below 3 RPM limit)
+ * - 7326 us delay between steps = 4 RPM
  * - Non-blocking: only advances if enough time has passed
  */
 void updateOdometerMotor(void) {
     // Check if there are steps to move
     // Round target to ensure fractional parts >= 0.5 trigger the next step
     unsigned long targetStep = (unsigned long)(odoMotorTargetSteps + 0.5);
+    bool speedBasedNeedsStep = (odoMotorCurrentStep < targetStep);
+    bool directNeedsStep = (odoDirectStepsRemaining != 0);
     
-    if (odoMotorCurrentStep < targetStep) {
-        // Check if enough time has passed since last step
-        unsigned long currentTime = micros();
-        
-        // Initialize timer on first run to avoid immediate step
-        if (lastOdoStepTime == 0) {
-            lastOdoStepTime = currentTime;
-            return;
-        }
-        
-        if (currentTime - lastOdoStepTime >= ODO_STEP_DELAY_US) {
-            // Advance to next step in sequence
-            odoMotorStepIndex = (odoMotorStepIndex + 3) % 4; //(odoMotorStepIndex + x) FWD: x=1 REV: x=3 
-            
-            // Apply step sequence to motor pins
-            digitalWrite(ODO_PIN1, ODO_STEP_SEQUENCE[odoMotorStepIndex][0]);
-            digitalWrite(ODO_PIN2, ODO_STEP_SEQUENCE[odoMotorStepIndex][1]);
-            digitalWrite(ODO_PIN3, ODO_STEP_SEQUENCE[odoMotorStepIndex][2]);
-            digitalWrite(ODO_PIN4, ODO_STEP_SEQUENCE[odoMotorStepIndex][3]);
-            
+    if (!speedBasedNeedsStep && !directNeedsStep) {
+        return;
+    }
+    
+    // Check if enough time has passed since last step
+    unsigned long currentTime = micros();
+    
+    // Initialize timer on first run to avoid immediate step
+    if (lastOdoStepTime == 0) {
+        lastOdoStepTime = currentTime;
+        return;
+    }
+    
+    if (currentTime - lastOdoStepTime >= ODO_STEP_DELAY_US) {
+        // Direct serial command takes priority over speed-based advancement
+        if (odoDirectStepsRemaining > 0) {
+            // Forward step (direct command) — x=3 matches physical forward direction
+            odoMotorStepIndex = (odoMotorStepIndex + 3) % 4;
+            odoDirectStepsRemaining--;
+        } else if (odoDirectStepsRemaining < 0) {
+            // Backward step (direct command) — x=1 is the reverse of physical forward
+            odoMotorStepIndex = (odoMotorStepIndex + 1) % 4;
+            odoDirectStepsRemaining++;
+        } else {
+            // Speed-based forward advancement — x=3 is physical forward direction
+            odoMotorStepIndex = (odoMotorStepIndex + 3) % 4;
             odoMotorCurrentStep++;
-            lastOdoStepTime = currentTime;
         }
+        
+        // Apply step sequence to motor pins
+        digitalWrite(ODO_PIN1, ODO_STEP_SEQUENCE[odoMotorStepIndex][0]);
+        digitalWrite(ODO_PIN2, ODO_STEP_SEQUENCE[odoMotorStepIndex][1]);
+        digitalWrite(ODO_PIN3, ODO_STEP_SEQUENCE[odoMotorStepIndex][2]);
+        digitalWrite(ODO_PIN4, ODO_STEP_SEQUENCE[odoMotorStepIndex][3]);
+        
+        lastOdoStepTime = currentTime;
     }
 }
