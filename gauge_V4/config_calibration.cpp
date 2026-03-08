@@ -11,7 +11,7 @@ uint16_t M1_SWEEP = 58 * 12;        // Motor 1: 58 degrees * 3 steps/degree * 4 
 uint16_t M2_SWEEP = 58 * 12;        // Motor 2: 58 degrees * 3 steps/degree * 4 microsteps/step = 696 steps
 uint16_t M3_SWEEP = 58 * 12;        // Motor 3: 58 degrees * 3 steps/degree * 4 microsteps/step = 696 steps (same config as motor1)
 uint16_t M4_SWEEP = 58 * 12;        // Motor 4: 58 degrees * 3 steps/degree * 4 microsteps/step = 696 steps
-uint16_t MS_SWEEP = 3950;           // Motor S: (118° / 0.9°) * 32 microsteps = 4195.555 ≈ 4196 steps (speedometer)
+uint16_t MS_SWEEP = 4032;           // Motor S: (118° / 0.9°) * 32 microsteps = 4195.555 ≈ 4196 steps (speedometer)
 
 // ===== MOTOR S (NEMA14 / TMC2209) ZEROING PARAMETERS =====
 // 500 µs/step = 2000 steps/sec — a smooth, controlled rate for the NEMA14 during zeroing.
