@@ -69,15 +69,15 @@ uint8_t ODO_MOTOR_TEETH = 16;       // Number of teeth on motor gear
 uint8_t ODO_GEAR_TEETH = 20;        // Number of teeth on odometer gear
 
 // ===== SIGNAL SOURCE SELECTION =====
-uint8_t SPEED_SOURCE = 2;           // 0=off, 1=CAN, 2=Hall sensor, 3=GPS, 4=Synthetic (debug), 5=Odometer test (1-mile profile)
-uint8_t RPM_SOURCE = 2;             // 0=off, 1=CAN, 2=coil negative, 3=Synthetic (debug)
-uint8_t OIL_PRS_SOURCE = 5;         // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug)
-uint8_t FUEL_PRS_SOURCE = 5;        // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug)
-uint8_t COOLANT_TEMP_SOURCE = 3;    // 0=off, 1=CAN, 2=therm, 3=Synthetic (debug)
-uint8_t OIL_TEMP_SOURCE = 2;        // 0=off, 1=CAN, 2=therm (default to therm sensor)
-uint8_t MAP_SOURCE = 5;             // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug)
-uint8_t LAMBDA_SOURCE = 1;          // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
-uint8_t FUEL_LVL_SOURCE = 2;       // 0=off, 1=analog sensor, 2=Synthetic (debug)
+uint8_t SPEED_SOURCE = 5;           // 0=off, 1=CAN, 2=Hall sensor, 3=GPS, 4=Synthetic (debug), 5=Odometer test (1-mile profile), 6=Serial
+uint8_t RPM_SOURCE = 2;             // 0=off, 1=CAN, 2=coil negative, 3=Synthetic (debug), 4=Serial
+uint8_t OIL_PRS_SOURCE = 5;         // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug), 6=Serial
+uint8_t FUEL_PRS_SOURCE = 5;        // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug), 6=Serial
+uint8_t COOLANT_TEMP_SOURCE = 3;    // 0=off, 1=CAN, 2=therm, 3=Synthetic (debug), 4=Serial
+uint8_t OIL_TEMP_SOURCE = 2;        // 0=off, 1=CAN, 2=therm (default to therm sensor), 4=Serial
+uint8_t MAP_SOURCE = 5;             // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug), 6=Serial
+uint8_t LAMBDA_SOURCE = 1;          // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Serial
+uint8_t FUEL_LVL_SOURCE = 2;       // 0=off, 1=analog sensor, 2=Synthetic (debug), 3=Serial
 
 // ===== FAULT WARNING THRESHOLDS =====
 float OIL_PRS_WARN_THRESHOLD      = 60.0;   // Oil pressure warning: flash below 60 kPa (gauge) while engine running
