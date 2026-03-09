@@ -34,6 +34,7 @@ void ledShiftLight(int ledRPM);               // Update LED tachometer display
 
 // Odometer motor control
 void moveOdometerMotor(float distanceKm);     // Queue distance for mechanical odometer motor
+void moveOdometerMotorRevs(int revs);         // Queue signed motor revolutions for serial command
 void updateOdometerMotor(void);                // Non-blocking motor update (call from main loop)
 
 #endif // OUTPUTS_H

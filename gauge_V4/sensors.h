@@ -131,6 +131,19 @@ void engineRPMUpdate();
 float curveLookup(float input, float brkpts[], float curve[], int curveLength);
 
 /**
+ * curveLookup - Integer overload: uint16_t millivolt x-axis, int16_t y-axis
+ * Used with thermTable_x (millivolts) / thermTable_l (°C).
+ */
+float curveLookup(uint16_t input, const uint16_t brkpts[], const int16_t curve[], int curveLength);
+
+/**
+ * curveLookup - Integer overload: uint16_t millivolt x-axis, uint8_t y-axis stored as value*10
+ * Used with fuelLvlTable_x (millivolts) / fuelLvlTable_l (gallons*10).
+ * Returns gallons (divides stored value by 10).
+ */
+float curveLookup(uint16_t input, const uint16_t brkpts[], const uint8_t curve[], int curveLength);
+
+/**
  * sigSelect - Process and route sensor data
  * 
  * This function acts as the central data router, converting raw CAN bus and sensor

@@ -292,7 +292,7 @@ void loop() {
     fuelSensorRaw = readSensor(FUEL_PIN, fuelSensorRaw, FILTER_FUEL);
     
     thermSensor = readThermSensor(THERM_PIN, thermSensor, FILTER_THERM);
-    therm = curveLookup(thermSensor, thermTable_x, thermTable_l, thermTable_length);
+    therm = curveLookup((uint16_t)(thermSensor * 1000.0f), thermTable_x, thermTable_l, thermTable_length);
     thermCAN = (int)(therm*10);
     
     sensor_av1 = read30PSIAsensor(PIN_AV1, sensor_av1, FILTER_AV1);
@@ -333,6 +333,10 @@ void loop() {
     fetchGPSdata();
     timerCheckGPS = millis();
   }
+
+  // ===== SERIAL COMMAND PROCESSING =====
+  // Parse serial input for manual signal injection (spd, rpm, odo motor commands)
+  processSerialCommands();
 
   // ===== SIGNAL SELECTION UPDATE =====
   // Process sensor readings and synthetic signal generators

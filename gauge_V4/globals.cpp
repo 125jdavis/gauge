@@ -126,6 +126,10 @@ int RPM = 0;               // Engine RPM for display
 int spd = 0;               // Vehicle speed in km/h * 100 (for integer precision)
 float spdMph = 0;          // Vehicle speed in miles per hour
 
+// ===== SERIAL SIGNAL SOURCE VARIABLES =====
+int spdSerial = 0;         // Speed set via serial (km/h * 100), used when SPEED_SOURCE == 6
+int rpmSerial = 0;         // RPM set via serial, used when RPM_SOURCE == 4
+
 
 // ===== CAN BUS COMMUNICATION BUFFERS =====
 // Buffers for sending and receiving CAN messages
@@ -134,7 +138,6 @@ byte canMessageData [8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}; // R
 unsigned long rxId;                // Received CAN message ID (11-bit or 29-bit)
 unsigned char len = 0;             // Length of received CAN message (0-8 bytes)
 unsigned char rxBuf[8];            // Raw receive buffer from CAN controller
-char msgString[128];               // String buffer for serial debug output 
 
 // ===== LOOKUP TABLES =====
 // These tables convert non-linear sensor readings to physical values using interpolation
@@ -143,15 +146,16 @@ char msgString[128];               // String buffer for serial debug output
 // Converts voltage reading (x-axis) to temperature in Celsius (y-axis)
 // GM thermistors have a non-linear resistance curve that varies with temperature
 const int thermTable_length = 6;
-float thermTable_x[thermTable_length] = {0.23, 0.67, 1.43, 3.70, 4.63, 4.95};  // Voltage breakpoints (0-5V)
-float thermTable_l[thermTable_length] = { 150,  105,   75,   25,   -5,  -40};  // Temperature values in Celsius
+const uint16_t thermTable_x[thermTable_length] = {230, 670, 1430, 3700, 4630, 4950};  // Voltage breakpoints (millivolts)
+const int16_t  thermTable_l[thermTable_length] = {150,  105,   75,   25,   -5,  -40};  // Temperature values in Celsius
 
 // Fuel Level Lookup Table
 // Converts voltage reading (x-axis) to fuel quantity in gallons (y-axis)
 // Fuel tank sender has non-linear float arm resistance
+// fuelLvlTable_l stores gallons * 10 for 0.1-gallon precision using uint8_t
 const int fuelLvlTable_length = 9;
-float fuelLvlTable_x[fuelLvlTable_length] = {0.87, 1.03, 1.21, 1.40, 1.60, 1.97, 2.21, 2.25, 2.30};  // Voltage breakpoints
-float fuelLvlTable_l[fuelLvlTable_length] = {  16,   14,   12,   10,    8,    6,    4,    2,    0};  // Gallons remaining
+const uint16_t fuelLvlTable_x[fuelLvlTable_length] = {870, 1030, 1210, 1400, 1600, 1970, 2210, 2250, 2300};  // Voltage breakpoints (millivolts)
+const uint8_t  fuelLvlTable_l[fuelLvlTable_length] = {160,  140,  120,  100,   80,   60,   40,   20,    0};  // Gallons * 10 remaining
 
 // ===== EEPROM STORAGE ADDRESSES =====
 // Non-volatile memory locations for saving settings between power cycles
@@ -162,8 +166,6 @@ byte odoAddress = 6;             // Total odometer value (4 bytes: addresses 6-9
 byte odoTripAddress = 10;        // Trip odometer value (4 bytes: addresses 10-13)
 byte fuelSensorRawAddress = 14;  // Last fuel sensor reading (for fuel level memory, addresses 14-17)
 byte unitsAddress = 18;          // Unit system selection: 0=metric, 1=imperial (1 byte: address 18)
-int *input;                      // Pointer for EEPROM operations
-int output = 0;                  // Output buffer for EEPROM operations
 
 // ===== MENU NAVIGATION VARIABLES =====
 // Track current position in the multi-level menu system
