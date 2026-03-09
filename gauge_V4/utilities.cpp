@@ -377,8 +377,8 @@ float generateSyntheticCoolantTemp(void) {
     const int16_t MAX_TEMP = 140;
     const int16_t PREFERRED_MIN = 60;   // Spend 75% of time above this
     const int16_t PREFERRED_MAX = 110;  // Spend 75% of time below this
-    const int8_t  MAX_RATE = 18;        // 18°C/second max
-    const int8_t  MIN_RATE = 2;         // 2°C/second min
+    const int8_t  MAX_RATE = 18;        // 18°C/s max rate of change
+    const int8_t  MIN_RATE = 2;         // 2°C/s min rate of change
     
     // Initialize on first call
     if (lastUpdateTime == 0) {
@@ -652,7 +652,7 @@ float generateSyntheticManifoldPressure(void) {
     // Constants
     const uint16_t MAX_PRESSURE = 250;
     const int16_t  MAX_RATE = 200;  // 200 kPa/second max (reduced from 600 by factor of 3)
-    const int16_t  MIN_RATE = 10;   // 10 kPa/second min (reduced from 100 by factor of 3)
+    const int16_t  MIN_RATE = 10;   // 10 kPa/second min (reduced from 100 by factor of 10)
     
     // Initialize on first call
     if (lastUpdateTime == 0) {

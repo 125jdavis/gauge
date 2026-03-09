@@ -829,7 +829,7 @@ void sigSelect (void) {
         case 1:  // Analog fuel level sensor
             {
                 // fuelSensorRaw is 0-500 (mapped ADC); multiply by 10 to get millivolts (0-5000)
-                fuelLvl = curveLookup((uint16_t)((uint16_t)fuelSensorRaw * 10), fuelLvlTable_x, fuelLvlTable_l, fuelLvlTable_length);
+                fuelLvl = curveLookup((uint16_t)(fuelSensorRaw * 10), fuelLvlTable_x, fuelLvlTable_l, fuelLvlTable_length);
             }
             break;
         case 2:  // Synthetic fuel level (debug)
