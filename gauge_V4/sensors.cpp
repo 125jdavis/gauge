@@ -38,6 +38,9 @@ static unsigned long lastCANOdometerUpdateTime = 0;
 // Synthetic speed odometer update tracking
 static unsigned long lastSyntheticOdometerUpdateTime = 0;
 
+// Serial speed odometer update tracking
+static unsigned long lastSerialOdometerUpdateTime = 0;
+
 // VR-Safe filter constants
 #define LOW_SPEED_THRESHOLD_FOR_VR_REJECTION 1000  // 10 km/h in units of km/h*100
 #define MAX_ACCELERATION_UNITS 3530UL  // 1g acceleration ≈ 35.3 km/h/s ≈ 3530 (km/h*100)/s
@@ -556,6 +559,9 @@ void sigSelect (void) {
         case 5:  // Odometer accuracy test: deterministic 1-mile profile
             spd = generateOdometerTestSpeed();  // Returns km/h * 100 format
             break;
+        case 6:  // Serial signal source: speed set via serial commands
+            spd = spdSerial;  // Already in km/h * 100 format
+            break;
         default:  // Fallback to off
             spd = 0;
             break;
@@ -594,7 +600,23 @@ void sigSelect (void) {
         lastSyntheticOdometerUpdateTime = millis();
     }
     
-    // Select engine RPM source: 0=off, 1=CAN, 2=coil negative, 3=synthetic (debug)
+    // Update odometer for serial speed source
+    if (SPEED_SOURCE == 6 && lastSerialOdometerUpdateTime != 0) {
+        unsigned long currentTime = millis();
+        unsigned long timeIntervalMs = currentTime - lastSerialOdometerUpdateTime;
+        // spd is in km/h * 100 format, convert to km/h for updateOdometer
+        float speedKmh = spd * 0.01;
+        float distTraveled = updateOdometer(speedKmh, timeIntervalMs);
+        if (distTraveled > 0) {
+            moveOdometerMotor(distTraveled);
+        }
+        lastSerialOdometerUpdateTime = currentTime;
+    } else if (SPEED_SOURCE == 6 && lastSerialOdometerUpdateTime == 0) {
+        // Initialize the timer on first run
+        lastSerialOdometerUpdateTime = millis();
+    }
+    
+    // Select engine RPM source: 0=off, 1=CAN, 2=coil negative, 3=synthetic (debug), 4=Serial
     switch (RPM_SOURCE) {
         case 0:  // Off
             RPM = 0;
@@ -607,6 +629,9 @@ void sigSelect (void) {
             break;
         case 3:  // Synthetic RPM (debug)
             RPM = generateRPM();  // Returns RPM value
+            break;
+        case 4:  // Serial signal source: RPM set via serial commands
+            RPM = rpmSerial;
             break;
         default:  // Fallback to off
             RPM = 0;

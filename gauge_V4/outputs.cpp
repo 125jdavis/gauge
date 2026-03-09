@@ -15,6 +15,7 @@ const float KM_TO_MILES = 0.621371;  // Conversion factor: kilometers to miles
 static float odoMotorTargetSteps = 0.0;   // Accumulated target position (includes fractional steps)
 static unsigned long odoMotorCurrentStep = 0;  // Current motor position in whole steps
 static unsigned long lastOdoStepTime = 0;  // Time of last step (microseconds)
+static volatile int32_t odoSerialSteps = 0;  // Signed step counter for serial-commanded movement
 
 // ===== MOTOR S SMOOTHING STATE =====
 // Position interpolation for smooth speedometer needle motion
@@ -58,6 +59,9 @@ static unsigned long motor1to4_updateInterval = ANGLE_UPDATE_RATE; // Measured i
 // - Delay per step: 1,000,000 us / 102.4 = 9,766 us (~10ms)
 // - Using 5000 us (5ms) gives ~200 steps/sec = 5.86 RPM (well within stall limit)
 static const unsigned long ODO_STEP_DELAY_US = 5000;  // 5ms between steps ≈ 5.86 RPM (well within stall limit)
+// - At 4 RPM: 4 rev/min * 2048 steps/rev = 8192 steps/min = 136.5 steps/sec
+// - Delay per step: 60,000,000 us/min / 8192 = 7,324 us per step
+static const unsigned long ODO_SERIAL_STEP_DELAY_US = 7324;  // ≈ 4 RPM for serial-commanded movement
 
 // Wave-drive stepper sequence for 20BYJ-48 (one phase at a time)
 // Wave drive: A -> B -> C -> D -> A ...
@@ -772,6 +776,24 @@ void moveOdometerMotor(float distanceKm) {
 }
 
 /**
+ * moveOdometerMotorRevs - Queue signed motor revolutions for serial-commanded movement
+ * 
+ * Adds the requested number of motor revolutions to the serial step counter.
+ * Positive values move forward; negative values move backward.
+ * Movement occurs at 4 RPM via updateOdometerMotor() calls from the ISR.
+ * 
+ * @param revs - Number of motor revolutions (positive=forward, negative=backward)
+ * 
+ * Called from: processSerialCommands() when "odo motor <N>" is received
+ */
+void moveOdometerMotorRevs(int revs) {
+    int32_t steps = revs * (int32_t)ODO_STEPS;
+    noInterrupts();
+    odoSerialSteps += steps;
+    interrupts();
+}
+
+/**
  * updateOdometerMotor - Non-blocking motor update for mechanical odometer
  * 
  * Moves the odometer motor one step at a time toward the target position.
@@ -779,31 +801,31 @@ void moveOdometerMotor(float distanceKm) {
  * smooth, non-blocking motor operation.
  * 
  * The function enforces a delay between steps to keep motor speed below 3 RPM
- * and prevent the motor from losing steps or stalling.
+ * (speed-based odometer) or at 4 RPM (serial-commanded movement).
  * 
  * Implementation:
  * - Uses direct pin control for 4-phase stepper motor (20BYJ-48)
  * - Wave drive mode (one phase at a time) for lower power and heat
- * - 5ms delay between steps = ~2.93 RPM (safely below 3 RPM limit)
+ * - 5ms delay between steps = ~5.86 RPM for speed-based odometer
+ * - 7.3ms delay between steps = ~4 RPM for serial-commanded movement
  * - Non-blocking: only advances if enough time has passed
  */
 void updateOdometerMotor(void) {
-    // Check if there are steps to move
+    unsigned long currentTime = micros();
+
+    // Initialize timer on first run to avoid immediate step
+    if (lastOdoStepTime == 0) {
+        lastOdoStepTime = currentTime;
+        return;
+    }
+
+    // Check if there are speed-based steps to move (forward only)
     // Round target to ensure fractional parts >= 0.5 trigger the next step
     unsigned long targetStep = (unsigned long)(odoMotorTargetSteps + 0.5);
     
     if (odoMotorCurrentStep < targetStep) {
-        // Check if enough time has passed since last step
-        unsigned long currentTime = micros();
-        
-        // Initialize timer on first run to avoid immediate step
-        if (lastOdoStepTime == 0) {
-            lastOdoStepTime = currentTime;
-            return;
-        }
-        
         if (currentTime - lastOdoStepTime >= ODO_STEP_DELAY_US) {
-            // Advance to next step in sequence
+            // Advance to next step in sequence (forward direction)
             odoMotorStepIndex = (odoMotorStepIndex + 3) % 4; //(odoMotorStepIndex + x) FWD: x=1 REV: x=3 
             
             // Apply step sequence to motor pins
@@ -813,6 +835,25 @@ void updateOdometerMotor(void) {
             digitalWrite(ODO_PIN4, ODO_STEP_SEQUENCE[odoMotorStepIndex][3]);
             
             odoMotorCurrentStep++;
+            lastOdoStepTime = currentTime;
+        }
+    } else if (odoSerialSteps != 0) {
+        // Serial-commanded bidirectional movement at 4 RPM
+        if (currentTime - lastOdoStepTime >= ODO_SERIAL_STEP_DELAY_US) {
+            if (odoSerialSteps > 0) {
+                odoMotorStepIndex = (odoMotorStepIndex + 3) % 4; // forward
+                odoSerialSteps--;
+            } else {
+                odoMotorStepIndex = (odoMotorStepIndex + 1) % 4; // backward
+                odoSerialSteps++;
+            }
+            
+            // Apply step sequence to motor pins
+            digitalWrite(ODO_PIN1, ODO_STEP_SEQUENCE[odoMotorStepIndex][0]);
+            digitalWrite(ODO_PIN2, ODO_STEP_SEQUENCE[odoMotorStepIndex][1]);
+            digitalWrite(ODO_PIN3, ODO_STEP_SEQUENCE[odoMotorStepIndex][2]);
+            digitalWrite(ODO_PIN4, ODO_STEP_SEQUENCE[odoMotorStepIndex][3]);
+            
             lastOdoStepTime = currentTime;
         }
     }

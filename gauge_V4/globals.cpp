@@ -126,6 +126,10 @@ int RPM = 0;               // Engine RPM for display
 int spd = 0;               // Vehicle speed in km/h * 100 (for integer precision)
 float spdMph = 0;          // Vehicle speed in miles per hour
 
+// ===== SERIAL SIGNAL SOURCE VARIABLES =====
+int spdSerial = 0;         // Speed set via serial (km/h * 100), used when SPEED_SOURCE == 6
+int rpmSerial = 0;         // RPM set via serial, used when RPM_SOURCE == 4
+
 
 // ===== CAN BUS COMMUNICATION BUFFERS =====
 // Buffers for sending and receiving CAN messages

@@ -792,3 +792,45 @@ float mapFloat(float x, float in_min, float in_max, float out_min, float out_max
   }
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
+
+/**
+ * processSerialCommands - Parse and execute serial input commands
+ * 
+ * Supported commands:
+ *   "spd <kph>"       - Set speed in km/h (stored in spdSerial, km/h * 100 format)
+ *   "rpm <value>"     - Set RPM (stored in rpmSerial)
+ *   "odo motor <N>"   - Rotate odometer motor N revolutions; speed must be 0
+ */
+void processSerialCommands(void) {
+    static char buf[20];
+    static uint8_t bufLen = 0;
+
+    while (Serial.available()) {
+        char c = (char)Serial.read();
+        if (c == '\n' || c == '\r') {
+            if (bufLen > 0) {
+                buf[bufLen] = '\0';
+                // Parse "spd <value>"
+                if (bufLen > 4 && buf[0]=='s' && buf[1]=='p' && buf[2]=='d' && buf[3]==' ') {
+                    spdSerial = atoi(buf + 4) * 100;
+                // Parse "rpm <value>"
+                } else if (bufLen > 4 && buf[0]=='r' && buf[1]=='p' && buf[2]=='m' && buf[3]==' ') {
+                    rpmSerial = atoi(buf + 4);
+                // Parse "odo motor <value>"
+                } else if (bufLen > 10 && buf[0]=='o' && buf[1]=='d' && buf[2]=='o' && buf[3]==' ' &&
+                           buf[4]=='m' && buf[5]=='o' && buf[6]=='t' && buf[7]=='o' && buf[8]=='r' && buf[9]==' ') {
+                    if (spd != 0) {
+                        Serial.println(F("odo motor: not allowed while speed > 0"));
+                    } else {
+                        moveOdometerMotorRevs(atoi(buf + 10));
+                    }
+                }
+                bufLen = 0;
+            }
+        } else if (bufLen < sizeof(buf) - 1) {
+            buf[bufLen++] = c;
+        } else {
+            bufLen = 0;  // Buffer overflow: discard
+        }
+    }
+}

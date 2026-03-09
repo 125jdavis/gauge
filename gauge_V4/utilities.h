@@ -148,4 +148,19 @@ int generateOdometerTestSpeed(void);
  */
 float mapFloat(float x, float in_min, float in_max, float out_min, float out_max);
 
+/**
+ * processSerialCommands - Parse and execute serial input commands
+ * 
+ * Reads serial input and processes commands for manual signal injection:
+ *   "spd <kph>"       - Set speed in km/h (sets spdSerial used when SPEED_SOURCE == 6)
+ *   "rpm <value>"     - Set RPM (sets rpmSerial used when RPM_SOURCE == 4)
+ *   "odo motor <N>"   - Rotate odometer motor N revolutions (negative = reverse)
+ *                       Only allowed when speed is 0; prints error otherwise.
+ * 
+ * Memory-efficient: uses a 20-byte static buffer, F() for string literals.
+ * 
+ * Called from: main loop (gauge_V4.ino)
+ */
+void processSerialCommands(void);
+
 #endif // UTILITIES_H

@@ -334,6 +334,10 @@ void loop() {
     timerCheckGPS = millis();
   }
 
+  // ===== SERIAL COMMAND PROCESSING =====
+  // Parse serial input for manual signal injection (spd, rpm, odo motor commands)
+  processSerialCommands();
+
   // ===== SIGNAL SELECTION UPDATE =====
   // Process sensor readings and synthetic signal generators
   // Runs at 100Hz for responsive synthetic signals

@@ -132,6 +132,11 @@ extern int RPM;                     // Engine RPM for display
 extern int spd;                     // Vehicle speed in km/h * 100
 extern float spdMph;                // Vehicle speed in miles per hour
 
+// ===== SERIAL SIGNAL SOURCE VARIABLES =====
+// Values set via serial commands when SPEED_SOURCE=6 or RPM_SOURCE=4
+extern int spdSerial;               // Speed set via serial (km/h * 100), used when SPEED_SOURCE == 6
+extern int rpmSerial;               // RPM set via serial, used when RPM_SOURCE == 4
+
 // ===== CAN BUS COMMUNICATION BUFFERS =====
 extern byte canMessageData[8];      // Received CAN message data
 extern unsigned long rxId;          // Received CAN message ID
