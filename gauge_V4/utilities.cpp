@@ -147,25 +147,6 @@ int generateRPM(void){
     
     return gRPM;
 }
-void serialInputFunc(void){
-  // SERIAL INPUT FOR TESTING ONLY
-  if (Serial.available() > 0) {
-    // Read the incoming data as a string (until newline)
-    String inputSer = Serial.readStringUntil('\n');
-    
-    // Convert the input string to an integer
-    int newValue = inputSer.toInt();
-    
-    // Update the test variable with the new value
-    // Uncomment the line for the parameter you want to test:
-    //coolantTempCAN = (newValue+273.15)*10 ;  // For temperature testing (convert C to Kelvin*10)
-    //fuelLvl = newValue;  // For fuel level testing (gallons or liters)
-    
-    // Print confirmation of new value
-    Serial.println("Updated value of fuel level: " + String(fuelLvl));
-    Serial.println("Please enter a new value:");
-  }
-}
 
 /**
  * generateSyntheticSpeed - Generate realistic synthetic speed signal for debugging
@@ -199,7 +180,7 @@ int generateSyntheticSpeed(void) {
     static int targetSpeed = 0;               // Target speed in km/h * 100
     static int accelRate = 0;                 // Current acceleration rate in (km/h*100)/s
     static unsigned long stateStartTime = 0;  // When current state started (ms)
-    static unsigned long stateDuration = 0;   // How long to stay in current state (ms)
+    static uint16_t stateDuration = 0;        // How long to stay in current state (ms)
     static unsigned long lastUpdateTime = 0;  // Last update timestamp for delta calculation
     
     // Constants
@@ -384,30 +365,30 @@ int generateSyntheticSpeed(void) {
  * Returns: Temperature in °C (float)
  */
 float generateSyntheticCoolantTemp(void) {
-    static float currentTemp = 20.0;           // Current temperature in °C
-    static float targetTemp = 90.0;            // Target temperature in °C
-    static float rate = 0.0;                   // Current rate in °C/s
+    static int16_t currentTemp = 20;           // Current temperature in °C
+    static int16_t targetTemp = 90;            // Target temperature in °C
+    static int8_t  rate = 0;                   // Current rate in °C/s (whole degrees)
     static unsigned long lastUpdateTime = 0;   // Last update timestamp
     static unsigned long stateStartTime = 0;   // When current state started
-    static unsigned long stateDuration = 0;    // How long to maintain current target
+    static uint16_t stateDuration = 0;         // How long to maintain current target
     
     // Constants
-    const float MIN_TEMP = -10.0;
-    const float MAX_TEMP = 140.0;
-    const float PREFERRED_MIN = 60.0;   // Spend 75% of time above this
-    const float PREFERRED_MAX = 110.0;  // Spend 75% of time below this
-    const float MAX_RATE = 18.0;        // 20°C/second max
-    const float MIN_RATE = 2.0;         // 2°C/second min
+    const int16_t MIN_TEMP = -10;
+    const int16_t MAX_TEMP = 140;
+    const int16_t PREFERRED_MIN = 60;   // Spend 75% of time above this
+    const int16_t PREFERRED_MAX = 110;  // Spend 75% of time below this
+    const int8_t  MAX_RATE = 18;        // 18°C/second max
+    const int8_t  MIN_RATE = 2;         // 2°C/second min
     
     // Initialize on first call
     if (lastUpdateTime == 0) {
         lastUpdateTime = millis();
         stateStartTime = millis();
-        currentTemp = 20.0;
-        targetTemp = random(60, 120);  // Start with target in normal range
-        rate = random(20, 100) / 10.0; // 2.0 to 10.0 °C/s
-        stateDuration = random(5000, 15000);  // 5-15 seconds
-        return currentTemp;
+        currentTemp = 20;
+        targetTemp = (int16_t)random(60, 120);
+        rate = (int8_t)random(MIN_RATE, MAX_RATE + 1);
+        stateDuration = (uint16_t)random(5000, 15000);  // 5-15 seconds
+        return (float)currentTemp;
     }
     
     // Calculate time delta
@@ -417,12 +398,11 @@ float generateSyntheticCoolantTemp(void) {
     
     // Skip if called too quickly
     if (deltaTime < 10) {
-        return currentTemp;
+        return (float)currentTemp;
     }
     
-    // Update temperature based on current rate
-    float deltaTemp = rate * (deltaTime / 1000.0);
-    currentTemp += deltaTemp;
+    // Update temperature based on current rate (integer arithmetic)
+    currentTemp += (int16_t)((int32_t)rate * (int32_t)deltaTime / 1000);
     
     // Clamp to valid range
     if (currentTemp < MIN_TEMP) currentTemp = MIN_TEMP;
@@ -431,30 +411,28 @@ float generateSyntheticCoolantTemp(void) {
     // Check if it's time to change target
     unsigned long timeInState = currentTime - stateStartTime;
     
-    if (fabs(currentTemp - targetTemp) < 1.0 || timeInState >= stateDuration) {
+    if (abs(currentTemp - targetTemp) < 1 || timeInState >= stateDuration) {
         // Reached target or time expired - set new target
         stateStartTime = currentTime;
-        stateDuration = random(5000, 15000);  // 5-15 seconds
+        stateDuration = (uint16_t)random(5000, 15000);  // 5-15 seconds
         
         // 75% chance to target preferred range, 25% chance for extremes
         if (random(100) < 75) {
-            // Stay in preferred operating range
-            targetTemp = random((int)PREFERRED_MIN, (int)PREFERRED_MAX);
+            targetTemp = (int16_t)random((int)PREFERRED_MIN, (int)PREFERRED_MAX);
         } else {
-            // Occasionally go to extremes
             if (random(2) == 0) {
-                targetTemp = random((int)MIN_TEMP, (int)PREFERRED_MIN);  // Cold
+                targetTemp = (int16_t)random((int)MIN_TEMP, (int)PREFERRED_MIN);
             } else {
-                targetTemp = random((int)PREFERRED_MAX, (int)MAX_TEMP);  // Hot
+                targetTemp = (int16_t)random((int)PREFERRED_MAX, (int)MAX_TEMP);
             }
         }
         
         // Set rate (positive if heating, negative if cooling)
-        float rateAbs = random((int)(MIN_RATE * 10), (int)(MAX_RATE * 10)) / 10.0;
-        rate = (targetTemp > currentTemp) ? rateAbs : -rateAbs;
+        int8_t rateAbs = (int8_t)random(MIN_RATE, MAX_RATE + 1);
+        rate = (targetTemp > currentTemp) ? rateAbs : (int8_t)-rateAbs;
     }
     
-    return currentTemp;
+    return (float)currentTemp;
 }
 
 /**
@@ -466,28 +444,27 @@ float generateSyntheticCoolantTemp(void) {
  * Returns: Pressure in kPa (float)
  */
 float generateSyntheticOilPressure(void) {
-    static float currentPressure = 100.0;      // Current pressure in kPa
-    static float targetPressure = 350.0;       // Target pressure in kPa
-    static float rate = 0.0;                   // Current rate in kPa/s
+    static uint16_t currentPressure = 100;     // Current pressure in kPa
+    static uint16_t targetPressure = 350;      // Target pressure in kPa
+    static int16_t  rate = 0;                  // Current rate in kPa/s
     static unsigned long lastUpdateTime = 0;   // Last update timestamp
     static unsigned long stateStartTime = 0;   // When current state started
-    static unsigned long stateDuration = 0;    // How long to maintain current target
+    static uint16_t stateDuration = 0;         // How long to maintain current target
     
     // Constants
-    const float MIN_PRESSURE = 0.0;
-    const float MAX_PRESSURE = 600.0;
-    const float MAX_RATE = 300.0;  // 300 kPa/second max
-    const float MIN_RATE = 50.0;   // 50 kPa/second min
+    const uint16_t MAX_PRESSURE = 600;
+    const int16_t  MAX_RATE = 300;  // 300 kPa/second max
+    const int16_t  MIN_RATE = 50;   // 50 kPa/second min
     
     // Initialize on first call
     if (lastUpdateTime == 0) {
         lastUpdateTime = millis();
         stateStartTime = millis();
-        currentPressure = 100.0;
-        targetPressure = random(200, 400);
-        rate = random(500, 3000) / 10.0;  // 50 to 300 kPa/s
-        stateDuration = random(3000, 10000);  // 3-10 seconds
-        return currentPressure;
+        currentPressure = 100;
+        targetPressure = (uint16_t)random(200, 400);
+        rate = (int16_t)random(MIN_RATE, MAX_RATE + 1);
+        stateDuration = (uint16_t)random(3000, 10000);  // 3-10 seconds
+        return (float)currentPressure;
     }
     
     // Calculate time delta
@@ -496,33 +473,31 @@ float generateSyntheticOilPressure(void) {
     lastUpdateTime = currentTime;
     
     if (deltaTime < 10) {
-        return currentPressure;
+        return (float)currentPressure;
     }
     
-    // Update pressure
-    float deltaPressure = rate * (deltaTime / 1000.0);
-    currentPressure += deltaPressure;
-    
-    // Clamp to valid range
-    if (currentPressure < MIN_PRESSURE) currentPressure = MIN_PRESSURE;
-    if (currentPressure > MAX_PRESSURE) currentPressure = MAX_PRESSURE;
+    // Update pressure (use int32_t intermediate to handle signed rate and prevent wrap)
+    int32_t newPressure = (int32_t)currentPressure + (int32_t)rate * (int32_t)deltaTime / 1000;
+    if (newPressure < 0) newPressure = 0;
+    if (newPressure > (int32_t)MAX_PRESSURE) newPressure = MAX_PRESSURE;
+    currentPressure = (uint16_t)newPressure;
     
     // Check if it's time to change target
     unsigned long timeInState = currentTime - stateStartTime;
     
-    if (fabs(currentPressure - targetPressure) < 5.0 || timeInState >= stateDuration) {
+    if (abs((int32_t)currentPressure - (int32_t)targetPressure) < 5 || timeInState >= stateDuration) {
         stateStartTime = currentTime;
-        stateDuration = random(3000, 10000);  // 3-10 seconds
+        stateDuration = (uint16_t)random(3000, 10000);  // 3-10 seconds
         
         // New random target
-        targetPressure = random(0, (int)MAX_PRESSURE);
+        targetPressure = (uint16_t)random(0, (int)MAX_PRESSURE);
         
         // Set rate (positive or negative)
-        float rateAbs = random((int)(MIN_RATE * 10), (int)(MAX_RATE * 10)) / 10.0;
-        rate = (targetPressure > currentPressure) ? rateAbs : -rateAbs;
+        int16_t rateAbs = (int16_t)random(MIN_RATE, MAX_RATE + 1);
+        rate = (targetPressure > currentPressure) ? rateAbs : (int16_t)-rateAbs;
     }
     
-    return currentPressure;
+    return (float)currentPressure;
 }
 
 /**
@@ -534,28 +509,27 @@ float generateSyntheticOilPressure(void) {
  * Returns: Pressure in kPa (float)
  */
 float generateSyntheticFuelPressure(void) {
-    static float currentPressure = 300.0;      // Current pressure in kPa
-    static float targetPressure = 400.0;       // Target pressure in kPa
-    static float rate = 0.0;                   // Current rate in kPa/s
+    static uint16_t currentPressure = 300;     // Current pressure in kPa
+    static uint16_t targetPressure = 400;      // Target pressure in kPa
+    static int16_t  rate = 0;                  // Current rate in kPa/s
     static unsigned long lastUpdateTime = 0;   // Last update timestamp
     static unsigned long stateStartTime = 0;   // When current state started
-    static unsigned long stateDuration = 0;    // How long to maintain current target
+    static uint16_t stateDuration = 0;         // How long to maintain current target
     
     // Constants
-    const float MIN_PRESSURE = 0.0;
-    const float MAX_PRESSURE = 600.0;
-    const float MAX_RATE = 600.0;  // 600 kPa/second max
-    const float MIN_RATE = 100.0;  // 100 kPa/second min
+    const uint16_t MAX_PRESSURE = 600;
+    const int16_t  MAX_RATE = 600;  // 600 kPa/second max
+    const int16_t  MIN_RATE = 100;  // 100 kPa/second min
     
     // Initialize on first call
     if (lastUpdateTime == 0) {
         lastUpdateTime = millis();
         stateStartTime = millis();
-        currentPressure = 300.0;
-        targetPressure = random(250, 450);
-        rate = random(1000, 6000) / 10.0;  // 100 to 600 kPa/s
-        stateDuration = random(2000, 8000);  // 2-8 seconds
-        return currentPressure;
+        currentPressure = 300;
+        targetPressure = (uint16_t)random(250, 450);
+        rate = (int16_t)random(MIN_RATE, MAX_RATE + 1);
+        stateDuration = (uint16_t)random(2000, 8000);  // 2-8 seconds
+        return (float)currentPressure;
     }
     
     // Calculate time delta
@@ -564,33 +538,31 @@ float generateSyntheticFuelPressure(void) {
     lastUpdateTime = currentTime;
     
     if (deltaTime < 10) {
-        return currentPressure;
+        return (float)currentPressure;
     }
     
-    // Update pressure
-    float deltaPressure = rate * (deltaTime / 1000.0);
-    currentPressure += deltaPressure;
-    
-    // Clamp to valid range
-    if (currentPressure < MIN_PRESSURE) currentPressure = MIN_PRESSURE;
-    if (currentPressure > MAX_PRESSURE) currentPressure = MAX_PRESSURE;
+    // Update pressure (use int32_t intermediate to handle signed rate and prevent wrap)
+    int32_t newPressure = (int32_t)currentPressure + (int32_t)rate * (int32_t)deltaTime / 1000;
+    if (newPressure < 0) newPressure = 0;
+    if (newPressure > (int32_t)MAX_PRESSURE) newPressure = MAX_PRESSURE;
+    currentPressure = (uint16_t)newPressure;
     
     // Check if it's time to change target
     unsigned long timeInState = currentTime - stateStartTime;
     
-    if (fabs(currentPressure - targetPressure) < 10.0 || timeInState >= stateDuration) {
+    if (abs((int32_t)currentPressure - (int32_t)targetPressure) < 10 || timeInState >= stateDuration) {
         stateStartTime = currentTime;
-        stateDuration = random(2000, 8000);  // 2-8 seconds
+        stateDuration = (uint16_t)random(2000, 8000);  // 2-8 seconds
         
         // New random target
-        targetPressure = random(0, (int)MAX_PRESSURE);
+        targetPressure = (uint16_t)random(0, (int)MAX_PRESSURE);
         
         // Set rate (positive or negative)
-        float rateAbs = random((int)(MIN_RATE * 10), (int)(MAX_RATE * 10)) / 10.0;
-        rate = (targetPressure > currentPressure) ? rateAbs : -rateAbs;
+        int16_t rateAbs = (int16_t)random(MIN_RATE, MAX_RATE + 1);
+        rate = (targetPressure > currentPressure) ? rateAbs : (int16_t)-rateAbs;
     }
     
-    return currentPressure;
+    return (float)currentPressure;
 }
 
 /**
@@ -607,7 +579,7 @@ float generateSyntheticFuelLevel(void) {
     static float rate = 0.0;                   // Current rate in %/s
     static unsigned long lastUpdateTime = 0;   // Last update timestamp
     static unsigned long stateStartTime = 0;   // When current state started
-    static unsigned long stateDuration = 0;    // How long to maintain current target
+    static uint16_t stateDuration = 0;         // How long to maintain current target
     
     // Constants
     const float MIN_LEVEL = 0.0;
@@ -670,28 +642,27 @@ float generateSyntheticFuelLevel(void) {
  * Returns: Pressure in kPa (float)
  */
 float generateSyntheticManifoldPressure(void) {
-    static float currentPressure = 100.0;      // Current pressure in kPa
-    static float targetPressure = 150.0;       // Target pressure in kPa
-    static float rate = 0.0;                   // Current rate in kPa/s
+    static uint16_t currentPressure = 100;     // Current pressure in kPa
+    static uint16_t targetPressure = 150;      // Target pressure in kPa
+    static int16_t  rate = 0;                  // Current rate in kPa/s
     static unsigned long lastUpdateTime = 0;   // Last update timestamp
     static unsigned long stateStartTime = 0;   // When current state started
-    static unsigned long stateDuration = 0;    // How long to maintain current target
+    static uint16_t stateDuration = 0;         // How long to maintain current target
     
     // Constants
-    const float MIN_PRESSURE = 0.0;
-    const float MAX_PRESSURE = 250.0;
-    const float MAX_RATE = 200.0;  // 200 kPa/second max (reduced from 600 by factor of 3)
-    const float MIN_RATE = 10;   // 33.3 kPa/second min (reduced from 100 by factor of 3)
+    const uint16_t MAX_PRESSURE = 250;
+    const int16_t  MAX_RATE = 200;  // 200 kPa/second max (reduced from 600 by factor of 3)
+    const int16_t  MIN_RATE = 10;   // 10 kPa/second min (reduced from 100 by factor of 3)
     
     // Initialize on first call
     if (lastUpdateTime == 0) {
         lastUpdateTime = millis();
         stateStartTime = millis();
-        currentPressure = 100.0;
-        targetPressure = random(80, 280);
-        rate = random(100, 2000) / 10.0;  // 100 to 600 kPa/s
-        stateDuration = random(1000, 5000);  // 1-5 seconds
-        return currentPressure;
+        currentPressure = 100;
+        targetPressure = (uint16_t)random(80, 280);
+        rate = (int16_t)random(MIN_RATE, MAX_RATE + 1);
+        stateDuration = (uint16_t)random(1000, 5000);  // 1-5 seconds
+        return (float)currentPressure;
     }
     
     // Calculate time delta
@@ -700,33 +671,31 @@ float generateSyntheticManifoldPressure(void) {
     lastUpdateTime = currentTime;
     
     if (deltaTime < 10) {
-        return currentPressure;
+        return (float)currentPressure;
     }
     
-    // Update pressure
-    float deltaPressure = rate * (deltaTime / 1000.0);
-    currentPressure += deltaPressure;
-    
-    // Clamp to valid range
-    if (currentPressure < MIN_PRESSURE) currentPressure = MIN_PRESSURE;
-    if (currentPressure > MAX_PRESSURE) currentPressure = MAX_PRESSURE;
+    // Update pressure (use int32_t intermediate to handle signed rate and prevent wrap)
+    int32_t newPressure = (int32_t)currentPressure + (int32_t)rate * (int32_t)deltaTime / 1000;
+    if (newPressure < 0) newPressure = 0;
+    if (newPressure > (int32_t)MAX_PRESSURE) newPressure = MAX_PRESSURE;
+    currentPressure = (uint16_t)newPressure;
     
     // Check if it's time to change target
     unsigned long timeInState = currentTime - stateStartTime;
     
-    if (fabs(currentPressure - targetPressure) < 10.0 || timeInState >= stateDuration) {
+    if (abs((int32_t)currentPressure - (int32_t)targetPressure) < 10 || timeInState >= stateDuration) {
         stateStartTime = currentTime;
-        stateDuration = random(2000, 5000);  // 1-5 seconds
+        stateDuration = (uint16_t)random(2000, 5000);  // 1-5 seconds
         
         // New random target
-        targetPressure = random(0, (int)MAX_PRESSURE);
+        targetPressure = (uint16_t)random(0, (int)MAX_PRESSURE);
         
         // Set rate (positive or negative)
-        float rateAbs = random((int)(MIN_RATE * 10), (int)(MAX_RATE * 10)) / 10.0;
-        rate = (targetPressure > currentPressure) ? rateAbs : -rateAbs;
+        int16_t rateAbs = (int16_t)random(MIN_RATE, MAX_RATE + 1);
+        rate = (targetPressure > currentPressure) ? rateAbs : (int16_t)-rateAbs;
     }
     
-    return currentPressure;
+    return (float)currentPressure;
 }
 
 /**

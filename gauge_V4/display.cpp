@@ -557,7 +557,6 @@ void dispRPM (Adafruit_SSD1306 *display){
       
       // Update previous value
       RPM_prev = RPM;
-      Serial.println(RPM);
     }
 }
 

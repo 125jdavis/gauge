@@ -671,7 +671,7 @@ void motorZeroTimed(void) {
 void motorSweepSynchronous(void){
   // Start by zeroing all motors (fast, establish known position)
   motorZeroSynchronous();
-  Serial.println("zeroed");
+  Serial.println(F("zeroed"));
 
   // Per-motor delays: each motor steps at a rate that fills exactly MOTOR_SWEEP_TIME_MS
   unsigned long d[5] = {
@@ -704,7 +704,7 @@ void motorSweepSynchronous(void){
     yield();
   }
 
-  Serial.println("full sweep");
+  Serial.println(F("full sweep"));
 
   // ── Sweep down: command all motors back to zero ───────────────────────────
   motor1.setPosition(0);

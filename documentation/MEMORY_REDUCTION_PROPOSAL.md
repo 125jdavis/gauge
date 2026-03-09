@@ -1,8 +1,8 @@
-# Dynamic Memory Reduction Proposal
+# Dynamic Memory Reduction — Implemented
 
 **Target platform:** Arduino Mega 2560 (8 KB RAM)  
 **Scope:** Reduce SRAM usage with zero or negligible effect on runtime performance  
-**Approach:** No changes made yet — this document proposes changes only
+**Status:** All items implemented
 
 ---
 

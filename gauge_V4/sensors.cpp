@@ -333,8 +333,6 @@ void hallSpeedUpdate() {
             spdHall = speedFiltered;
             spdHallPrev = spdHall;
             lastSpeedUpdateTime = currentTime;
-            
-            Serial.println(spdHall);
         }
     }
     
@@ -347,7 +345,6 @@ void hallSpeedUpdate() {
         // This makes the speed drop more naturally when slowing to a stop
         spdHall = (spdHall * SPEED_DECAY_FACTOR) >> 8;
         spdHallPrev = spdHall;
-        Serial.println(spdHall);  // Print decayed speed
     }
     
     // ===== MINIMUM SPEED THRESHOLD =====
@@ -500,7 +497,7 @@ void engineRPMUpdate() {
 }
 
 /**
- * curveLookup - Generic lookup table with linear interpolation
+ * curveLookup - Generic lookup table with linear interpolation (float version)
  */
 float curveLookup(float input, float brkpts[], float curve[], int curveLength){
   int index = 1;
@@ -533,6 +530,57 @@ float curveLookup(float input, float brkpts[], float curve[], int curveLength){
   // Calculate interpolated value: slope * distance + offset
   float output = (((y1-y0)/(x1-x0))*(input-x0))+y0;
   return output;
+}
+
+/**
+ * curveLookup - Integer overload for uint16_t x-axis (millivolts) and int16_t y-axis
+ *
+ * Used with the compact thermistor table (thermTable_x / thermTable_l).
+ * Identical interpolation logic to the float version.
+ *
+ * @param input      - Input value in millivolts (uint16_t)
+ * @param brkpts     - Breakpoint array in millivolts
+ * @param curve      - Y-value array (int16_t, e.g. °C)
+ * @param curveLength - Number of table entries
+ * @return Interpolated float result
+ */
+float curveLookup(uint16_t input, const uint16_t brkpts[], const int16_t curve[], int curveLength) {
+    if (input < brkpts[0]) return (float)curve[0];
+    if (input >= brkpts[curveLength - 1]) return (float)curve[curveLength - 1];
+    for (int i = 0; i < curveLength - 1; i++) {
+        if (input <= brkpts[i + 1]) {
+            float x0 = (float)brkpts[i],     x1 = (float)brkpts[i + 1];
+            float y0 = (float)curve[i],       y1 = (float)curve[i + 1];
+            return ((y1 - y0) / (x1 - x0)) * ((float)input - x0) + y0;
+        }
+    }
+    return (float)curve[curveLength - 1];
+}
+
+/**
+ * curveLookup - Integer overload for uint16_t x-axis (millivolts) and uint8_t y-axis (value*10)
+ *
+ * Used with the compact fuel level table (fuelLvlTable_x / fuelLvlTable_l).
+ * Y values are stored as (gallons * 10); this function divides by 10 before returning
+ * so the caller receives gallons directly.
+ *
+ * @param input      - Input value in millivolts (uint16_t)
+ * @param brkpts     - Breakpoint array in millivolts
+ * @param curve      - Y-value array (uint8_t, gallons * 10)
+ * @param curveLength - Number of table entries
+ * @return Interpolated float result in gallons
+ */
+float curveLookup(uint16_t input, const uint16_t brkpts[], const uint8_t curve[], int curveLength) {
+    if (input < brkpts[0]) return curve[0] / 10.0f;
+    if (input >= brkpts[curveLength - 1]) return curve[curveLength - 1] / 10.0f;
+    for (int i = 0; i < curveLength - 1; i++) {
+        if (input <= brkpts[i + 1]) {
+            float x0 = (float)brkpts[i],     x1 = (float)brkpts[i + 1];
+            float y0 = (float)curve[i],       y1 = (float)curve[i + 1];
+            return (((y1 - y0) / (x1 - x0)) * ((float)input - x0) + y0) / 10.0f;
+        }
+    }
+    return curve[curveLength - 1] / 10.0f;
 }
 
 /**
@@ -780,8 +828,8 @@ void sigSelect (void) {
             break;
         case 1:  // Analog fuel level sensor
             {
-                float fuelSensor = (float)fuelSensorRaw * 0.01;
-                fuelLvl = curveLookup(fuelSensor, fuelLvlTable_x, fuelLvlTable_l, fuelLvlTable_length);
+                // fuelSensorRaw is 0-500 (mapped ADC); multiply by 10 to get millivolts (0-5000)
+                fuelLvl = curveLookup((uint16_t)((uint16_t)fuelSensorRaw * 10), fuelLvlTable_x, fuelLvlTable_l, fuelLvlTable_length);
             }
             break;
         case 2:  // Synthetic fuel level (debug)

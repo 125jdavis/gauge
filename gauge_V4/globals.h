@@ -142,15 +142,14 @@ extern byte canMessageData[8];      // Received CAN message data
 extern unsigned long rxId;          // Received CAN message ID
 extern unsigned char len;           // Length of received CAN message
 extern unsigned char rxBuf[8];      // Raw receive buffer from CAN controller
-extern char msgString[128];         // String buffer for serial debug output
 
 // ===== LOOKUP TABLES =====
 extern const int thermTable_length;
-extern float thermTable_x[];
-extern float thermTable_l[];
+extern const uint16_t thermTable_x[];   // Voltage breakpoints in millivolts
+extern const int16_t  thermTable_l[];   // Temperature values in Celsius
 extern const int fuelLvlTable_length;
-extern float fuelLvlTable_x[];
-extern float fuelLvlTable_l[];
+extern const uint16_t fuelLvlTable_x[]; // Voltage breakpoints in millivolts
+extern const uint8_t  fuelLvlTable_l[]; // Gallons * 10 remaining
 
 // ===== EEPROM STORAGE ADDRESSES =====
 extern byte dispArray1Address;      // Display 1 menu selections (4 bytes)
@@ -160,8 +159,6 @@ extern byte odoAddress;             // Total odometer value (4 bytes)
 extern byte odoTripAddress;         // Trip odometer value (4 bytes)
 extern byte fuelSensorRawAddress;   // Last fuel sensor reading (4 bytes)
 extern byte unitsAddress;           // Unit system selection (1 byte)
-extern int *input;                  // Pointer for EEPROM operations
-extern int output;                  // Output buffer for EEPROM operations
 
 // ===== MENU NAVIGATION VARIABLES =====
 extern byte menuLevel;              // Current menu depth
