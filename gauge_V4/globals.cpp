@@ -171,7 +171,7 @@ byte unitsAddress = 18;          // Unit system selection: 0=metric, 1=imperial 
 // Track current position in the multi-level menu system
 byte menuLevel = 0;              // Current menu depth (0=top level, 1=submenu, 2=sub-submenu)
 byte units = 0;                  // Unit system: 0=metric (km/h, C, bar), 1=imperial (mph, F, PSI)
-unsigned int nMenuLevel = 17;    // Maximum menu index (0-17 = 18 total items)
+unsigned int nMenuLevel = 12;    // Maximum menu index (0-12 = 13 total items)
 byte dispArray1[4] = { 1, 0, 0, 0 };  // Menu position array for display 1 [level0, level1, level2, level3]
 byte dispArray2[1] = {1};        // Menu selection for display 2 (single level)
 

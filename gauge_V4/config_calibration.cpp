@@ -36,13 +36,13 @@ uint8_t FILTER_AV2 = 12;            // Sensor B filter
 uint8_t FILTER_AV3 = 12;            // Sensor C filter
 
 // ===== HALL EFFECT SPEED SENSOR PARAMETERS =====
-uint16_t REVS_PER_KM = 1625;        // Revolutions of VSS per kilometer (8000 pulses per mile is standard)
+uint16_t REVS_PER_KM = 621;         // Revolutions of VSS per kilometer (8000 pulses/mile ÷ 1.60934 km/mi ÷ 8 teeth/rev ≈ 621)
 uint8_t TEETH_PER_REV = 8;         // Teeth per revolution of the VSS
 uint8_t FILTER_HALL_SPEED = 64;    // EMA filter coefficient (205/256 ≈ 0.8)
 uint8_t HALL_SPEED_MIN = 50;        // Minimum reportable speed in km/h*100 (50 = 0.5 km/h)
 
 // ===== ENGINE RPM SENSOR PARAMETERS =====
-uint8_t CYL_COUNT = 8;              // Cylinder count (8 = 2x old PULSES_PER_REVOLUTION of 4.0)
+uint8_t CYL_COUNT = 4;              // Cylinder count (4 = 2x PULSES_PER_REVOLUTION of 2.0 for 4-cyl)
 uint8_t FILTER_ENGINE_RPM = 179;    // EMA filter coefficient (179/256 ≈ 0.7)
 uint16_t RPM_DEBOUNCE_MICROS = 5000; // Debounce window: reject pulses within 5 ms of last accepted pulse
 uint8_t ENGINE_RPM_MIN = 100;       // Minimum reportable RPM
@@ -54,8 +54,8 @@ uint16_t SPEEDO_MAX = 100 * 100;    // Maximum speedometer reading
 uint8_t NUM_LEDS = 27;              // Total number of LEDs
 uint8_t WARN_LEDS = 6;              // Warning zone LEDs
 uint8_t SHIFT_LEDS = 2;             // Shift light LEDs
-unsigned int TACH_MAX = 6000;       // RPM at shift point
-unsigned int TACH_MIN = 3000;       // Minimum RPM to show
+unsigned int TACH_MAX = 5500;       // RPM at shift point
+unsigned int TACH_MIN = 3200;       // Minimum RPM to show
 
 // ===== ODOMETER MOTOR CALIBRATION =====
 // 28BYJ-48 stepper motor step count depends on drive mode:
@@ -71,13 +71,13 @@ uint8_t ODO_GEAR_TEETH = 20;        // Number of teeth on odometer gear
 // ===== SIGNAL SOURCE SELECTION =====
 uint8_t SPEED_SOURCE = 2;           // 0=off, 1=CAN, 2=Hall sensor, 3=GPS, 4=Synthetic (debug), 5=Odometer test (1-mile profile)
 uint8_t RPM_SOURCE = 2;             // 0=off, 1=CAN, 2=coil negative, 3=Synthetic (debug)
-uint8_t OIL_PRS_SOURCE = 5;         // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug)
-uint8_t FUEL_PRS_SOURCE = 5;        // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug)
-uint8_t COOLANT_TEMP_SOURCE = 3;    // 0=off, 1=CAN, 2=therm, 3=Synthetic (debug)
+uint8_t OIL_PRS_SOURCE = 2;         // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug) — Analog 1 (0-100 psi)
+uint8_t FUEL_PRS_SOURCE = 4;        // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug) — Analog 3 (0-100 psi)
+uint8_t COOLANT_TEMP_SOURCE = 2;    // 0=off, 1=CAN, 2=therm, 3=Synthetic (debug) — GM NTC thermistor
 uint8_t OIL_TEMP_SOURCE = 2;        // 0=off, 1=CAN, 2=therm (default to therm sensor)
-uint8_t MAP_SOURCE = 5;             // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug)
+uint8_t MAP_SOURCE = 3;             // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug) — Analog 2 (3 bar sensor)
 uint8_t LAMBDA_SOURCE = 1;          // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
-uint8_t FUEL_LVL_SOURCE = 2;       // 0=off, 1=analog sensor, 2=Synthetic (debug)
+uint8_t FUEL_LVL_SOURCE = 1;       // 0=off, 1=analog sensor, 2=Synthetic (debug)
 
 // ===== FAULT WARNING THRESHOLDS =====
 float OIL_PRS_WARN_THRESHOLD      = 60.0;   // Oil pressure warning: flash below 60 kPa (gauge) while engine running

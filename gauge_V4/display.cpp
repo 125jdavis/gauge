@@ -67,112 +67,77 @@ void dispMenu() {
       dispSpd(&display1);  // Show speed in km/h or mph based on units setting
       break;
 
-    case 7:  // Air/Fuel Ratio Display                dispArray1 = {7, x, x, x}
-      if (menuLevel == 0 && button == 1) {
-        button = 0; // Clear button flag
-      }
-      dispAFR(&display1);  // Show AFR (e.g., 14.7)
-      break;
-
-    case 8:  // Fuel Pressure Display                 dispArray1 = {8, x, x, x}
+    case 7:  // Fuel Pressure Display                dispArray1 = {7, x, x, x}
       if (menuLevel == 0 && button == 1) {
         button = 0; // Clear button flag
       }
       dispFuelPrs(&display1);  // Show fuel pressure in PSI or bar
       break;
 
-    case 9:  // Boost Gauge Display (with bar)        dispArray1 = {9, x, x, x}
+    case 8:  // Boost Gauge Display (icon + bar)     dispArray1 = {8, x, x, x}
       if (menuLevel == 0 && button == 1) {
         button = 0; // Clear button flag
       }
       dispBoostGfx(&display1);  // Show boost with turbo icon and bar gauge
       break;
 
-    case 10:  // Boost Display (text only)            dispArray1 = {10, x, x, x}
+    case 9:  // Boost Display (icon + text readout)  dispArray1 = {9, x, x, x}
       if (menuLevel == 0 && button == 1) {
         button = 0; // Clear button flag
       }
       dispBoost(&display1);  // Show boost with turbo icon, text only
       break;
 
-    case 11:  // Oil Temperature Display              dispArray1 = {11, x, x, x}
+    case 10:  // Trip Odometer with Reset Option     dispArray1 = {10, x, x, x}
       if (menuLevel == 0 && button == 1) {
-        button = 0; // Clear button flag
-      }
-      dispOilTempGfx(&display1);  // Show oil temp with oil can/thermometer icon
-      break;
-
-    case 12:  // Fuel Composition Display             dispArray1 = {12, x, x, x}
-      if (menuLevel == 0 && button == 1) {
-        button = 0; // Clear button flag
-      }
-      dispFuelComp(&display1);  // Show ethanol percentage (E85 flex fuel)
-      break;
-
-    case 13:  // Injector Duty Cycle Display          dispArray1 = {13, x, x, x}
-      if (menuLevel == 0 && button == 1) {
-        button = 0; // Clear button flag
-      }
-      dispInjDuty(&display1);  // Show injector duty cycle percentage
-      break;
-
-    case 14:  // Ignition Timing Display              dispArray1 = {14, x, x, x}
-      if (menuLevel == 0 && button == 1) {
-        button = 0; // Clear button flag
-      }
-      dispIgnAng(&display1);  // Show ignition advance in degrees BTDC
-      break;
-
-    case 15:  // Trip Odometer with Reset Option      dispArray1 = {15, x, x, x}
-	  if (menuLevel == 0 && button == 1) {
         // Button pressed - enter submenu to confirm reset
         button = 0;
         menuLevel = 1;   // Go to level 1 (submenu)
         nMenuLevel = 1;  // 2 options in submenu: Yes/No (0-indexed)
-      } 
+      }
       else if (menuLevel == 0) {
         // No button - just display trip odometer value
         dispTripOdo(&display1);
-      } 
+      }
       else {
         // In submenu - handle Yes/No selection for reset
         switch (dispArray1[1]) {
-          case 0:  // Reset Trip Odo: YES              dispArray1 = {15, 0, x, x}
+          case 0:  // Reset Trip Odo: YES              dispArray1 = {10, 0, x, x}
             dispOdoResetYes(&display1);  // Show confirmation screen with YES highlighted
-			      if (button == 1) {
-                // User confirmed reset
-			        odoTrip = 0;  // Clear trip odometer
-			        goToLevel0();  // Return to main menu
-			        dispArray1[0] = 15;  // Stay on trip odo screen
-			        forceDisplayUpdate = true;  // Flag for force update after for loop
-            } 
+            if (button == 1) {
+              // User confirmed reset
+              odoTrip = 0;  // Clear trip odometer
+              goToLevel0();  // Return to main menu
+              dispArray1[0] = 10;  // Stay on trip odo screen
+              forceDisplayUpdate = true;  // Flag for force update after for loop
+            }
             break;
-            
-		      case 1:  // Reset Trip Odo: NO               dispArray1 = {15, 1, x, x}
-			      dispOdoResetNo(&display1);  // Show confirmation screen with NO highlighted
-			      if (button == 1) {
-                // User cancelled reset
-				      goToLevel0();  // Return to main menu
-				      dispArray1[0] = 15;  // Stay on trip odo screen
-				      forceDisplayUpdate = true;  // Flag for force update after for loop
-			      } 
-          break;
-		    } 
-	    }
-      break;
 
-    case 16:  // Clock Display                        dispArray1 = {16, x, x, x}
-      if (menuLevel == 0 && button == 1) {
-        button = 0; // Clear button flag
+          case 1:  // Reset Trip Odo: NO               dispArray1 = {10, 1, x, x}
+            dispOdoResetNo(&display1);  // Show confirmation screen with NO highlighted
+            if (button == 1) {
+              // User cancelled reset
+              goToLevel0();  // Return to main menu
+              dispArray1[0] = 10;  // Stay on trip odo screen
+              forceDisplayUpdate = true;  // Flag for force update after for loop
+            }
+            break;
+        }
       }
-      dispClock(&display1);  // Show time from GPS with local offset
       break;
 
-    case 17:  // Falcon Script Logo                   dispArray1 = {17, x, x, x}
+    case 11:  // Falcon Script Logo                  dispArray1 = {11, x, x, x}
       if (menuLevel == 0 && button == 1) {
         // No action on button press - just a splash screen
       }
       dispFalconScript(&display1);  // Display Falcon logo
+      break;
+
+    case 12:  // 2300 Turbo Screen                  dispArray1 = {12, x, x, x}
+      if (menuLevel == 0 && button == 1) {
+        // No action on button press - just a splash screen
+      }
+      disp2300turbo(&display1);  // Display 2300 turbo engine badge
       break;
 
     case 0:  // SETTINGS MENU - Always last screen for easy wrapping access
@@ -275,8 +240,8 @@ void dispMenu() {
                   }
                   break;
 
-                case 8:  // Clock on Display 2           dispArray1 = {0, 0, 8, x}
-                  dispArray2[0] = 8;  // Set display 2 to clock
+                case 8:  // 2300 Turbo on Display 2      dispArray1 = {0, 0, 8, x}
+                  dispArray2[0] = 8;  // Set display 2 to 2300 turbo screen
                   if (button == 1) {
                     goToLevel0();  // Save and return to main menu
                   }
@@ -431,8 +396,8 @@ void dispMenu() {
  * 4 - RPM
  * 5 - Speed
  * 6 - Boost Gauge (with bar)
- * 7 - Boost Display (text only)
- * 8 - Clock
+ * 7 - Boost Display (icon + text readout)
+ * 8 - 2300 Turbo screen
  * 9 - Falcon Script logo
  */
 void disp2(void){
@@ -470,8 +435,8 @@ void disp2(void){
       dispBoost(&display2);  // Show boost with turbo icon, text only
       break;
 
-    case 8: // Clock
-      dispClock(&display2);
+    case 8: // 2300 Turbo Screen
+      disp2300turbo(&display2);
       break;
 
     case 9: // Falcon Script Logo
@@ -1783,9 +1748,9 @@ bool needsUpdate_ModeChange(byte* current, byte* previous, int size) {
  * getDisplayUpdateInterval - Get appropriate refresh rate for display mode
  * 
  * Variable refresh rates based on content type:
- * - 83ms (12Hz): RPM - needs fast updates for responsiveness
- * - 143ms (7Hz): Pressures, speed, AFR, ignition, injector - moderate updates
- * - 500ms (2Hz): Temps, battery, fuel level, clock, odometer - slow changing values
+ * - 83ms (12Hz): RPM, boost - needs fast updates for responsiveness
+ * - 143ms (7Hz): Pressures, speed - moderate updates
+ * - 500ms (2Hz): Temps, battery, fuel level, odometer - slow changing values
  * - 1000ms (1Hz): Static logos - minimal updates (check for mode change only)
  * 
  * @param displayMode - The display mode/case number
@@ -1797,15 +1762,12 @@ unsigned int getDisplayUpdateInterval(byte displayMode, byte displayNum) {
   if (displayNum == 1) {
     switch (displayMode) {
       case 5:   // RPM
-      case 9:   // Boost gauge with bar (12Hz, same as RPM)
-      case 10:  // Boost text display (12Hz, same as RPM)
+      case 8:   // Boost gauge with bar (12Hz, same as RPM)
+      case 9:   // Boost text display (12Hz, same as RPM)
         return 83;
       
       case 6:   // Speed
-      case 7:   // AFR
-      case 8:   // Fuel Pressure
-      case 13:  // Injector Duty
-      case 14:  // Ignition Timing
+      case 7:   // Fuel Pressure
         return 143;
       
       case 0:   // Settings menu
@@ -1813,13 +1775,11 @@ unsigned int getDisplayUpdateInterval(byte displayMode, byte displayNum) {
       case 2:   // Coolant Temp
       case 3:   // Fuel Level
       case 4:   // Battery Voltage
-      case 11:  // Oil Temp
-      case 12:  // Fuel Composition
-      case 15:  // Trip Odometer
-      case 16:  // Clock
+      case 10:  // Trip Odometer
         return 500;
       
-      case 17:  // Falcon Script logo
+      case 11:  // Falcon Script logo
+      case 12:  // 2300 Turbo screen
         return 1000;
       
       default:
@@ -1841,9 +1801,9 @@ unsigned int getDisplayUpdateInterval(byte displayMode, byte displayNum) {
       case 1:   // Coolant Temp
       case 2:   // Fuel Level
       case 3:   // Battery Voltage
-      case 8:   // Clock
         return 500;
       
+      case 8:   // 2300 Turbo screen
       case 9:   // Falcon Script logo
         return 1000;
       

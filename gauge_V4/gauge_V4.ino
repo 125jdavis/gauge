@@ -248,6 +248,10 @@ void setup() {
   EEPROM.get(fuelSensorRawAddress, fuelSensorRaw);
   EEPROM.get(unitsAddress, units);
 
+  // Validate EEPROM values are within firmware menu ranges
+  if (dispArray1[0] > nMenuLevel) dispArray1[0] = 1;  // Default to oil pressure screen
+  if (dispArray2[0] > 9) dispArray2[0] = 0;            // Default to oil pressure on Display 2
+
   Serial.print("clockOffset: ");
   Serial.println(clockOffset);
   

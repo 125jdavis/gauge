@@ -116,5 +116,5 @@ void goToLevel0() {
   dispArray1[1] = 0;    // Clear level 1 selection
   dispArray1[2] = 0;    // Clear level 2 selection
   menuLevel = 0;        // Return to top menu level
-  nMenuLevel = 17;      // Maximum index is 17 (18 total items: indices 0-17)
+  nMenuLevel = 12;      // Maximum index is 12 (13 total items: indices 0-12)
 }
