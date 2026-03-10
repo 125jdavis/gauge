@@ -141,16 +141,15 @@ void dispMenu() {
       break;
 
     case 0:  // SETTINGS MENU - Always last screen for easy wrapping access
-             // Structure: Settings -> [Display 2 Select | Units | Clock Offset]
+             // Structure: Settings -> [Display 2 Select | Units | Exit]
              //   -> Display 2: 10 screen options (0-9)
              //   -> Units: Metric or Imperial
-             //   -> Clock Offset: adjust hours from UTC
              
       if (menuLevel == 0 && button == 1) {  
         // Button pressed - enter Settings submenu
         button = 0;
         menuLevel = 1;   // Go to level 1 (submenu)
-        nMenuLevel = 3;  // 4 options: Display2, Units, Clock, FuelCal (0-indexed)
+        nMenuLevel = 2;  // 3 options: Display2, Units, Exit (0-indexed)
       } 
       else if (menuLevel == 0) {
         // No button - display "SETTINGS" screen
@@ -310,47 +309,7 @@ void dispMenu() {
             } // End level 2 - Units selection
             break;  // End case 1 - Units submenu
 
-          case 2:  // Clock Offset (Time Zone)          dispArray1 = {0, 2, x, x}
-            // Adjust clock offset from UTC (-12 to +12 hours)
-            if (menuLevel == 1 && button == 1) {
-              button = 0;
-              menuLevel = 2;  // Go to level 2 (offset value selection)
-              // Force mode change detection so dispClock updates immediately
-              dispArray1_prev[0] = 255;  // Set to invalid value to force update
-              // Switch encoder handlers to clock offset adjustment mode
-              detachInterrupt(0);
-              detachInterrupt(1);
-              attachInterrupt(0, incrementOffset, CHANGE);  // Use special offset increment handler
-              attachInterrupt(1, incrementOffset, CHANGE);
-              // nMenuLevel set dynamically in level 2 handler
-            } 
-            else if (menuLevel == 1) {
-              // Show "SET CLOCK" menu header at level 1
-              // Serial.println("ClockOffset");  // Debug output
-              dispClockOffset(&display1);
-            } 
-            else {
-              // Level 2 - Display clock while adjusting offset with encoder
-              // Always show the clock so user can see the time as they adjust
-              if (button == 1) {
-                // Button pressed - save clock offset and return to main menu
-                button = 0;  // Clear button flag immediately
-                detachInterrupt(0);  // Detach offset adjustment handlers
-                detachInterrupt(1);
-                attachInterrupt(0, rotate, CHANGE);  // Reattach normal menu rotation handler
-                attachInterrupt(1, rotate, CHANGE);
-                EEPROM.write(clockOffsetAddress, clockOffset);  // Save offset to EEPROM (address, value)
-                goToLevel0();  // Return to main menu
-              } 
-              else {
-                // Display clock with current offset applied
-                // Encoder rotation handled by incrementOffset ISR
-                dispClock(&display1);
-              }
-            } // End level 2 - Clock offset adjustment
-            break;  // End case 2 - Clock offset submenu
-          
-          case 3:  // Exit Settings Menu                dispArray1 = {0, 3, x, x}
+          case 2:  // Exit Settings Menu                dispArray1 = {0, 2, x, x}
             display1.setTextColor(WHITE); 
             display1.clearDisplay();
             display1.setTextSize(2);
@@ -360,7 +319,7 @@ void dispMenu() {
             if (button == 1) {
               goToLevel0();  // Return to main menu
             }
-            break;  // End case 3 - Exit
+            break;  // End case 2 - Exit
             
         } // End switch dispArray1[1] - Settings level 1 options
         break;  // Break for case 0 (Settings menu when in submenus)
