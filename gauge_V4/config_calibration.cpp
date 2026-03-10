@@ -69,14 +69,14 @@ uint8_t ODO_MOTOR_TEETH = 16;       // Number of teeth on motor gear
 uint8_t ODO_GEAR_TEETH = 20;        // Number of teeth on odometer gear
 
 // ===== SIGNAL SOURCE SELECTION =====
-uint8_t SPEED_SOURCE = 2;           // 0=off, 1=CAN, 2=Hall sensor, 3=GPS, 4=Synthetic (debug), 5=Odometer test (1-mile profile)
-uint8_t RPM_SOURCE = 2;             // 0=off, 1=CAN, 2=coil negative, 3=Synthetic (debug)
+uint8_t SPEED_SOURCE = 6;           // 0=off, 1=CAN, 2=Hall sensor, 3=GPS, 4=Synthetic (debug), 5=Odometer test (1-mile profile), 6=Serial Input
+uint8_t RPM_SOURCE = 4;             // 0=off, 1=CAN, 2=coil negative, 3=Synthetic (debug), 4=Serial Input
 uint8_t OIL_PRS_SOURCE = 2;         // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug) — Analog 1 (0-100 psi)
 uint8_t FUEL_PRS_SOURCE = 4;        // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug) — Analog 3 (0-100 psi)
 uint8_t COOLANT_TEMP_SOURCE = 2;    // 0=off, 1=CAN, 2=therm, 3=Synthetic (debug) — GM NTC thermistor
-uint8_t OIL_TEMP_SOURCE = 2;        // 0=off, 1=CAN, 2=therm (default to therm sensor)
+uint8_t OIL_TEMP_SOURCE = 0;        // 0=off, 1=CAN, 2=therm (default to therm sensor)
 uint8_t MAP_SOURCE = 3;             // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug) — Analog 2 (3 bar sensor)
-uint8_t LAMBDA_SOURCE = 1;          // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
+uint8_t LAMBDA_SOURCE = 0;          // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
 uint8_t FUEL_LVL_SOURCE = 1;       // 0=off, 1=analog sensor, 2=Synthetic (debug)
 
 // ===== FAULT WARNING THRESHOLDS =====

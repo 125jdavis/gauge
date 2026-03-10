@@ -373,10 +373,10 @@ float generateSyntheticCoolantTemp(void) {
     static uint16_t stateDuration = 0;         // How long to maintain current target
     
     // Constants
-    const int16_t MIN_TEMP = -10;
-    const int16_t MAX_TEMP = 140;
-    const int16_t PREFERRED_MIN = 60;   // Spend 75% of time above this
-    const int16_t PREFERRED_MAX = 110;  // Spend 75% of time below this
+    const int16_t MIN_TEMP = 100;
+    const int16_t MAX_TEMP = 200;
+    const int16_t PREFERRED_MIN = 120;   // Spend 75% of time above this
+    const int16_t PREFERRED_MAX = 180;  // Spend 75% of time below this
     const int8_t  MAX_RATE = 18;        // 18°C/s max rate of change
     const int8_t  MIN_RATE = 2;         // 2°C/s min rate of change
     
