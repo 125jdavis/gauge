@@ -15,6 +15,7 @@ for smooth motor motion.
   is absolutely no alternative — and if so, ask first. Use `millis()`/`micros()` patterns.
 - **When in doubt, ask.** Stop and ask clarifying questions rather than assume. If an
   assumption must be made, state it explicitly before proceeding.
+- **Dynamic Memory is Limited** Arduino Mega has only 8kb of SRAM. Be very careful about increasing SRAM usage.
 
 ---
 
