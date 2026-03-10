@@ -551,7 +551,7 @@ void dispRPM (Adafruit_SSD1306 *display){
       display->setCursor(center-((nDig*18)/2),6);  // Center based on digits (18 pixels per char at size 3)
       display->println(RPM); 
       display->setTextSize(2);  // Smaller text for label
-      display->setCursor(88,10);
+      display->setCursor(center+((nDig*18)/2)+4,10);  // Position just right of number (matches dispSpd pattern)
       display->println("RPM");                
       display->display();
       
