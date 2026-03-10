@@ -361,7 +361,7 @@ void loop() {
     //Serial.println(millis() - timerAngleUpdate);
     // Motors 1-4 use smoothing: update targets at ANGLE_UPDATE_RATE, interpolation happens below
     updateMotors1to4Target(fuelLvlAngle(M1_SWEEP), coolantTempAngle(M2_SWEEP),
-                           fuelLvlAngle(M3_SWEEP), fuelLvlAngle(M4_SWEEP));
+                           fuelLvlAngle(M3_SWEEP), coolantTempAngle(M4_SWEEP));
     // Motor S uses smoothing: update target at ANGLE_UPDATE_RATE, interpolation happens below
     updateMotorSTarget(MS_SWEEP);
     timerAngleUpdate = millis();
