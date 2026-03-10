@@ -27,13 +27,13 @@ float    MS_ZERO_SWEEP_FACTOR  = 0.25f;
 uint16_t MOTOR_SWEEP_TIME_MS = 1000;  // Time in milliseconds for motors to sweep full range during startup test
 
 // ===== ANALOG SENSOR FILTER COEFFICIENTS =====
-uint8_t FILTER_VBATT = 8;           // 8/64 = light filtering
+uint8_t FILTER_VBATT = 8;           // 1/64 = Heavy, 64/64 Light
 float VBATT_SCALER = 0.040923;      // Voltage divider scaling factor
-uint8_t FILTER_FUEL = 1;            // Light filter
+uint8_t FILTER_FUEL = 1;            // Heavy filter
 uint8_t FILTER_THERM = 50;          // Medium filter
-uint8_t FILTER_AV1 = 4;             // Barometric pressure filter
+uint8_t FILTER_AV1 = 4;             // Sensor A filter
 uint8_t FILTER_AV2 = 12;            // Sensor B filter
-uint8_t FILTER_AV3 = 12;            // Sensor C filter
+uint8_t FILTER_AV3 = 4;            // Sensor C filter
 
 // ===== HALL EFFECT SPEED SENSOR PARAMETERS =====
 uint16_t REVS_PER_KM = 621;         // Revolutions of VSS per kilometer (8000 pulses/mile ÷ 1.60934 km/mi ÷ 8 teeth/rev ≈ 621)
@@ -69,8 +69,8 @@ uint8_t ODO_MOTOR_TEETH = 16;       // Number of teeth on motor gear
 uint8_t ODO_GEAR_TEETH = 20;        // Number of teeth on odometer gear
 
 // ===== SIGNAL SOURCE SELECTION =====
-uint8_t SPEED_SOURCE = 6;           // 0=off, 1=CAN, 2=Hall sensor, 3=GPS, 4=Synthetic (debug), 5=Odometer test (1-mile profile), 6=Serial Input
-uint8_t RPM_SOURCE = 4;             // 0=off, 1=CAN, 2=coil negative, 3=Synthetic (debug), 4=Serial Input
+uint8_t SPEED_SOURCE = 2;           // 0=off, 1=CAN, 2=Hall sensor, 3=GPS, 4=Synthetic (debug), 5=Odometer test (1-mile profile), 6=Serial Input
+uint8_t RPM_SOURCE = 2;             // 0=off, 1=CAN, 2=coil negative, 3=Synthetic (debug), 4=Serial Input
 uint8_t OIL_PRS_SOURCE = 2;         // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug) — Analog 1 (0-100 psi)
 uint8_t FUEL_PRS_SOURCE = 4;        // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug) — Analog 3 (0-100 psi)
 uint8_t COOLANT_TEMP_SOURCE = 2;    // 0=off, 1=CAN, 2=therm, 3=Synthetic (debug) — GM NTC thermistor
