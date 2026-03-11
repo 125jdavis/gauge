@@ -166,6 +166,12 @@ byte odoAddress = 6;             // Total odometer value (4 bytes: addresses 6-9
 byte odoTripAddress = 10;        // Trip odometer value (4 bytes: addresses 10-13)
 byte fuelSensorRawAddress = 14;  // Last fuel sensor reading (for fuel level memory, addresses 14-17)
 byte unitsAddress = 18;          // Unit system selection: 0=metric, 1=imperial (1 byte: address 18)
+// Addresses 19-508: reserved for future configuration tool parameters
+uint16_t splashValidFlag1Address = 509;  // Splash slot 1 validity flag (0xA5 = valid)
+uint16_t splashValidFlag2Address = 510;  // Splash slot 2 validity flag (0xA5 = valid)
+// Address 511: reserved padding byte
+uint16_t customSplash1Address = 512;     // Custom splash image slot 1 (512 bytes: 512-1023)
+uint16_t customSplash2Address = 1024;    // Custom splash image slot 2 (512 bytes: 1024-1535)
 
 // ===== MENU NAVIGATION VARIABLES =====
 // Track current position in the multi-level menu system

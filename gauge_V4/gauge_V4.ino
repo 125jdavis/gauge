@@ -72,6 +72,8 @@
 #include "menu.h"
 #include "utilities.h"
 #include "image_data.h"
+#include "serial_config.h"
+#include "splash.h"
 
 
 
