@@ -110,7 +110,8 @@ The Arduino Mega 2560 has **8 KB of SRAM**. Key consumers:
 | Stack (estimated) | ~512 bytes | Function call depth |
 | **Total estimated** | **~2128 bytes** | **~26% of 8 KB** |
 
-**Budget constraint:** Any new feature must not consume more than ~1 KB of additional SRAM. Lookup tables and constant data must use `PROGMEM`.
+**Current Usage** Upon compilation, global variables use 6666 bytes (81%) of dynamic memory, leaving 1526 bytes for local variables. Maximum is 8192 bytes.
+**Note:** Lookup tables and constant data must use `PROGMEM`.
 
 ### Flash Usage
 
