@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# Build artifacts
+*.o
+*.elf
+*.hex
+*.bin
