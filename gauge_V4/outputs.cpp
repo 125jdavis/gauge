@@ -80,7 +80,7 @@ void ledShiftLight(int ledRPM){
   // ===== SPEEDOMETER BACKLIGHT COLOR =====
   // Warm white approximation for 3500K at 25% brightness (64/255 max).
   // RGB values derived from CIE 3500K chromaticity: R=255, G=196, B=137 → scaled to 25%: R=64, G=49, B=34.
-  const CRGB backlightColor = SPEEDO_BACKLIGHT_ENABLED ? CRGB(64, 49, 34) : CRGB::Black;
+  const CRGB backlightColor = SPEEDO_BACKLIGHT_ENABLED ? CRGB(4, 3, 1) : CRGB::Black;
 
   if (ledRPM < TACH_MIN) {
     // Tachometer inactive: fill strip with backlight (warm white 3500K at 25%) or off
