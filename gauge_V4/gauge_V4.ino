@@ -357,7 +357,7 @@ void loop() {
     //Serial.println(millis() - timerAngleUpdate);
     // Motors 1-4 use smoothing: update targets at ANGLE_UPDATE_RATE, interpolation happens below
     updateMotors1to4Target(fuelLvlAngle(M1_SWEEP), coolantTempAngle(M2_SWEEP),
-                           fuelLvlAngle(M3_SWEEP), fuelLvlAngle(M4_SWEEP));
+                           fuelLvlAngle(M3_SWEEP), coolantTempAngle(M4_SWEEP));
     // Motor S uses smoothing: update target at ANGLE_UPDATE_RATE, interpolation happens below
     updateMotorSTarget(MS_SWEEP);
     timerAngleUpdate = millis();
@@ -495,9 +495,9 @@ void loop() {
   }
 
 
-  // ===== SHUTDOWN DETECTION =====
-  // Check if ignition voltage has dropped (key turned off)
-  // Shutdown when battery voltage < 1V AND system has been running for at least 3 seconds
+  //===== SHUTDOWN DETECTION =====
+  //Check if ignition voltage has dropped (key turned off)
+  //Shutdown when battery voltage < 1V AND system has been running for at least 3 seconds
   if (vBatt < 1 && millis() > SPLASH_TIME + 3000) {
     shutdown();  // Save settings, zero gauges, display shutdown screen, cut power
   }

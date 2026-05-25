@@ -11,14 +11,14 @@ uint16_t M1_SWEEP = 58 * 12;        // Motor 1: 58 degrees * 3 steps/degree * 4 
 uint16_t M2_SWEEP = 58 * 12;        // Motor 2: 58 degrees * 3 steps/degree * 4 microsteps/step = 696 steps
 uint16_t M3_SWEEP = 58 * 12;        // Motor 3: 58 degrees * 3 steps/degree * 4 microsteps/step = 696 steps (same config as motor1)
 uint16_t M4_SWEEP = 58 * 12;        // Motor 4: 58 degrees * 3 steps/degree * 4 microsteps/step = 696 steps
-uint16_t MS_SWEEP = 4032;           // Motor S: (118° / 0.9°) * 32 microsteps = 4195.555 ≈ 4196 steps (speedometer)
+uint16_t MS_SWEEP = 8064;           // Motor S: (118° / 0.9°) * 32 microsteps = 4195.555 ≈ 4196 steps (speedometer)
 
 // ===== MOTOR S (NEMA14 / TMC2209) ZEROING PARAMETERS =====
 // 500 µs/step = 2000 steps/sec — a smooth, controlled rate for the NEMA14 during zeroing.
 // The SwitecX12 accel table peaks at ~90 µs/step (11 111 steps/sec); this default is slower
 // and steadier, eliminating acceleration-driven vibration.  Decrease toward 50 µs to go
 // faster than the table max; increase to 1000+ µs for an even slower, quieter sweep.
-uint16_t MS_ZERO_STEP_DELAY_US = 40;
+uint16_t MS_ZERO_STEP_DELAY_US = 20;
 // 0.5 = sweep back 50% of MS_SWEEP during zeroing (reduces vibration time at zero stop).
 // Assumes needle is near zero at startup; increase toward 1.0 if needle could be far from zero.
 float    MS_ZERO_SWEEP_FACTOR  = 0.25f;
@@ -51,7 +51,7 @@ uint8_t ENGINE_RPM_MIN = 100;       // Minimum reportable RPM
 uint16_t SPEEDO_MAX = 100 * 100;    // Maximum speedometer reading
 
 // ===== LED TACHOMETER CONFIGURATION =====
-uint8_t NUM_LEDS = 27;              // Total number of LEDs
+uint8_t NUM_LEDS = 26;              // Total number of LEDs
 uint8_t WARN_LEDS = 6;              // Warning zone LEDs
 uint8_t SHIFT_LEDS = 2;             // Shift light LEDs
 unsigned int TACH_MAX = 6000;       // RPM at shift point
@@ -69,15 +69,15 @@ uint8_t ODO_MOTOR_TEETH = 16;       // Number of teeth on motor gear
 uint8_t ODO_GEAR_TEETH = 20;        // Number of teeth on odometer gear
 
 // ===== SIGNAL SOURCE SELECTION =====
-uint8_t SPEED_SOURCE = 2;           // 0=off, 1=CAN, 2=Hall sensor, 3=GPS, 4=Synthetic (debug), 5=Odometer test (1-mile profile)
-uint8_t RPM_SOURCE = 2;             // 0=off, 1=CAN, 2=coil negative, 3=Synthetic (debug)
-uint8_t OIL_PRS_SOURCE = 5;         // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug)
-uint8_t FUEL_PRS_SOURCE = 5;        // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug)
-uint8_t COOLANT_TEMP_SOURCE = 3;    // 0=off, 1=CAN, 2=therm, 3=Synthetic (debug)
-uint8_t OIL_TEMP_SOURCE = 2;        // 0=off, 1=CAN, 2=therm (default to therm sensor)
-uint8_t MAP_SOURCE = 5;             // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug)
+uint8_t SPEED_SOURCE = 1;           // 0=off, 1=CAN, 2=Hall sensor, 3=GPS, 4=Synthetic (debug), 5=Odometer test (1-mile profile), 6=Serial (set via serial commands)
+uint8_t RPM_SOURCE = 1;             // 0=off, 1=CAN, 2=coil negative, 3=Synthetic (debug), 4=Serial (set via serial commands)
+uint8_t OIL_PRS_SOURCE = 1;         // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug)
+uint8_t FUEL_PRS_SOURCE = 1;        // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug)
+uint8_t COOLANT_TEMP_SOURCE = 1;    // 0=off, 1=CAN, 2=therm, 3=Synthetic (debug)
+uint8_t OIL_TEMP_SOURCE = 1;        // 0=off, 1=CAN, 2=therm (default to therm sensor)
+uint8_t MAP_SOURCE = 1;             // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3, 5=Synthetic (debug)
 uint8_t LAMBDA_SOURCE = 1;          // 0=off, 1=CAN, 2=sensor_av1, 3=sensor_av2, 4=sensor_av3
-uint8_t FUEL_LVL_SOURCE = 2;       // 0=off, 1=analog sensor, 2=Synthetic (debug)
+uint8_t FUEL_LVL_SOURCE = 1;       // 0=off, 1=analog sensor, 2=Synthetic (debug)
 
 // ===== FAULT WARNING THRESHOLDS =====
 float OIL_PRS_WARN_THRESHOLD      = 60.0;   // Oil pressure warning: flash below 60 kPa (gauge) while engine running
