@@ -84,6 +84,12 @@ extern uint8_t SHIFT_LEDS;             // Shift light LEDs on each side of cente
 extern unsigned int TACH_MAX;       // RPM at which shift light activates and flashes
 extern unsigned int TACH_MIN;       // Minimum RPM to show on tach (below this LEDs are off)
 
+// ===== SPEEDOMETER BACKLIGHT =====
+// When enabled, the LED tachometer strip provides warm white (3500K) backlight to the speedometer
+// at 25% brightness whenever LEDs would otherwise be off (RPM below TACH_MIN or blacked-out pairs).
+// Set to 1 to enable, 0 to disable.
+extern uint8_t SPEEDO_BACKLIGHT_ENABLED;  // Speedometer backlight: 0=disabled, 1=enabled
+
 // ===== ODOMETER MOTOR CALIBRATION =====
 extern uint16_t ODO_STEPS;             // Steps per revolution for odometer motor
 extern uint8_t ODO_MOTOR_TEETH;       // Number of teeth on motor gear

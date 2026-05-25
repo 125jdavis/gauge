@@ -76,11 +76,16 @@ static uint8_t odoMotorStepIndex = 0;  // Current position in step sequence (0-3
 
 void ledShiftLight(int ledRPM){
   static bool tachFlashState = 0;  // Current state of shift light flashing (0=off, 1=on) - local static
-  
+
+  // ===== SPEEDOMETER BACKLIGHT COLOR =====
+  // Warm white approximation for 3500K at 25% brightness (64/255 max).
+  // RGB values derived from CIE 3500K chromaticity: R=255, G=196, B=137 → scaled to 25%: R=64, G=49, B=34.
+  const CRGB backlightColor = SPEEDO_BACKLIGHT_ENABLED ? CRGB(4, 3, 1) : CRGB::Black;
+
   if (ledRPM < TACH_MIN) {
-      // black out unused range  
+    // Tachometer inactive: fill strip with backlight (warm white 3500K at 25%) or off
     for (int i = 0; i < NUM_LEDS; i++){
-      leds[i] = CRGB::Black;
+      leds[i] = backlightColor;
     }
   } else {
     // ===== PAIR-BASED TACH RENDERING =====
@@ -120,30 +125,30 @@ void ledShiftLight(int ledRPM){
       leds[halfLeds] = CRGB(80, 0, 0);
     }
 
-    // 3. Black out innermost pairs to reflect current RPM
+    // 3. Black out innermost pairs to reflect current RPM (or show backlight if enabled)
     //    Pair p=0 in this loop targets the INNERMOST pair; as blackoutPairs
     //    decreases (RPM rises), outer pairs are progressively revealed first.
     for (int p = 0; p < blackoutPairs; p++){
-      leds[halfLeds - 1 - p]       = CRGB::Black;  // innermost left  → outward
-      leds[NUM_LEDS - halfLeds + p] = CRGB::Black;  // innermost right → outward
+      leds[halfLeds - 1 - p]       = backlightColor;  // innermost left  → outward
+      leds[NUM_LEDS - halfLeds + p] = backlightColor;  // innermost right → outward
     }
 
-    // 4. Center LED for odd N: black out whenever any pairs are blacked out
+    // 4. Center LED for odd N: show backlight whenever any pairs are blacked out
     if ((NUM_LEDS % 2 == 1) && blackoutPairs > 0){
-      leds[halfLeds] = CRGB::Black;
+      leds[halfLeds] = backlightColor;
     }
 
     // 5. Flash shift zone pairs when shift point is exceeded
     if (RPM > TACH_MAX){
       if (millis() - timerTachFlash > TACH_FLASH_RATE){
         if (tachFlashState == 0){
-          // Black out the SHIFT_LEDS+1 innermost pairs (the shift zone)
+          // Show backlight (or black) on the SHIFT_LEDS+1 innermost pairs (the shift zone)
           for (int p = 0; p <= SHIFT_LEDS; p++){
-            leds[halfLeds - 1 - p]       = CRGB::Black;
-            leds[NUM_LEDS - halfLeds + p] = CRGB::Black;
+            leds[halfLeds - 1 - p]       = backlightColor;
+            leds[NUM_LEDS - halfLeds + p] = backlightColor;
           }
           if (NUM_LEDS % 2 == 1){
-            leds[halfLeds] = CRGB::Black;  // center LED for odd N
+            leds[halfLeds] = backlightColor;  // center LED for odd N
           }
         }
 
@@ -179,8 +184,8 @@ void ledShiftLight(int ledRPM){
       }
       prevFaultFlashState = faultFlashState;
 
-      // Flash: show fault color on flash-on period, off on flash-off period
-      leds[0] = faultFlashState ? activeFaultColors[faultLedColorIdx % numFaults] : CRGB::Black;
+      // Flash: show fault color on flash-on period, backlight (or off) on flash-off period
+      leds[0] = faultFlashState ? activeFaultColors[faultLedColorIdx % numFaults] : backlightColor;
     } else {
       // No active faults: reset state so next fault cycle starts fresh
       faultLedColorIdx = 0;
