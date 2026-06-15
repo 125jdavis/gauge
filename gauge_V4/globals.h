@@ -159,6 +159,10 @@ extern byte odoAddress;             // Total odometer value (4 bytes)
 extern byte odoTripAddress;         // Trip odometer value (4 bytes)
 extern byte fuelSensorRawAddress;   // Last fuel sensor reading (4 bytes)
 extern byte unitsAddress;           // Unit system selection (1 byte)
+extern uint16_t splashValidFlag1Address; // Splash slot 1 validity flag address
+extern uint16_t splashValidFlag2Address; // Splash slot 2 validity flag address
+extern uint16_t customSplash1Address;    // Custom splash image slot 1 start address
+extern uint16_t customSplash2Address;    // Custom splash image slot 2 start address
 
 // ===== MENU NAVIGATION VARIABLES =====
 extern byte menuLevel;              // Current menu depth
