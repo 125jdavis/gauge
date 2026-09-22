@@ -299,9 +299,17 @@ void loop() {
     therm = curveLookup((uint16_t)(thermSensor * 1000.0f), thermTable_x, thermTable_l, thermTable_length);
     thermCAN = (int)(therm*10);
     
-    sensor_av1 = read100PSIGsensor(PIN_AV1, sensor_av1, FILTER_AV1);  // Oil pressure sensor (0-100 PSIG)
+    if (OIL_PRS_SOURCE == 2) {
+      sensor_av1 = read100PSIGsensor(PIN_AV1, sensor_av1, FILTER_AV1);  // AV1 configured as oil pressure
+    } else if (MAP_SOURCE == 2) {
+      sensor_av1 = read30PSIAsensor(PIN_AV1, sensor_av1, FILTER_AV1);  // AV1 configured as MAP/boost
+    }
     baroCAN = sensor_av1;  // Legacy signal name; currently mirrors AV1
-    sensor_av2 = read30PSIAsensor(PIN_AV2, sensor_av2, FILTER_AV2);  // Boost/MAP sensor on A6
+    if (OIL_PRS_SOURCE == 3) {
+      sensor_av2 = read100PSIGsensor(PIN_AV2, sensor_av2, FILTER_AV2);  // AV2 configured as oil pressure
+    } else if (MAP_SOURCE == 3) {
+      sensor_av2 = read30PSIAsensor(PIN_AV2, sensor_av2, FILTER_AV2);  // AV2 configured as MAP/boost
+    }
 
     swRead();
     

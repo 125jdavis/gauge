@@ -708,8 +708,8 @@ void sigSelect (void) {
         case 2:  // Analog sensor AV1 (Lowdoller 100 PSIG oil pressure sensor, PSIG*10 -> kPa)
             oilPrs = (sensor_av1 / 10.0) * 6.894757;
             break;
-        case 3:  // Analog sensor AV2
-            oilPrs = sensor_av2 / 10.0;
+        case 3:  // Analog sensor AV2 (Lowdoller 100 PSIG oil pressure sensor, PSIG*10 -> kPa)
+            oilPrs = (sensor_av2 / 10.0) * 6.894757;
             break;
         case 4:  // Analog sensor AV3
             oilPrs = sensor_av3 / 10.0;
