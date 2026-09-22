@@ -68,6 +68,17 @@ unsigned long read30PSIAsensor(int inputPin, int oldVal, int filt)
 }
 
 /**
+ * read100PSIGsensor - Read Lowdoller Motorsports 799/899 Series 0-100 PSIG pressure sensor
+ */
+unsigned long read100PSIGsensor(int inputPin, int oldVal, int filt)
+{
+    int raw = analogRead(inputPin);  // Read ADC: 0-1023
+    unsigned long newVal = map(raw, 102, 921, 0, 1000);  // Map 0.5-4.5V to 0-100 PSIG (0-1000 in PSIG*10)
+    unsigned long filtVal = ((newVal*filt) + (oldVal*(16-filt)))>>4;  // Filter (>>4 is divide by 16)
+    return filtVal;
+}
+
+/**
  * readThermSensor - Read GM-style thermistor temperature sensor
  */
 float readThermSensor(int inputPin, float oldVal, int filt)
@@ -694,8 +705,8 @@ void sigSelect (void) {
         case 1:  // CAN oil pressure
             oilPrs = (oilPrsCAN/10.0) - 101.3;  // Convert from absolute kPa to gauge pressure
             break;
-        case 2:  // Analog sensor AV1
-            oilPrs = sensor_av1 / 10.0;
+        case 2:  // Analog sensor AV1 (Lowdoller 100 PSIG oil pressure sensor, PSIG*10 -> kPa)
+            oilPrs = (sensor_av1 / 10.0) * 6.894757;
             break;
         case 3:  // Analog sensor AV2
             oilPrs = sensor_av2 / 10.0;

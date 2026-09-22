@@ -28,8 +28,8 @@ int fuelSensorRaw;             // Raw fuel sensor ADC reading (0-500)
 float therm;                   // Current temperature in Celsius (after lookup table conversion)
 float thermSensor;             // Voltage reading from thermistor (0-5V)
 int thermCAN;                  // Temperature formatted for CAN transmission (temp * 10)
-float sensor_av1;              // Barometric pressure in kPa * 10
-float sensor_av2;              // Reserved sensor B value
+float sensor_av1;              // Analog sensor AV1 value (oil pressure PSIG * 10 on this branch)
+float sensor_av2;              // Analog sensor AV2 value
 float sensor_av3;              // Reserved sensor C value
 
 // ===== HALL EFFECT SPEED SENSOR VARIABLES =====
@@ -106,7 +106,7 @@ int oilTempCAN;            // Oil temperature in Celsius * 10 (or Kelvin - check
 int transTempCAN;          // Transmission temperature in Celsius * 10
 int fuelCompCAN;           // Fuel composition (ethanol %) * 10 (e.g., 850 = 85.0% E85)
 int fuelLvlCAN;            // Fuel level percentage (0-100)
-int baroCAN;               // Barometric pressure in kPa * 10 (sent TO other modules)
+int baroCAN;               // Legacy AV1 mirror for CAN/output handling
 int spdCAN;                // Vehicle speed sent to CAN bus (km/h * 16 for protocol compatibility)
 int pumpPressureCAN;       // Fuel pump pressure (test variable)
 
@@ -217,4 +217,3 @@ bool oilFaultActive     = false;  // Debounced oil pressure fault
 bool coolantFaultActive = false;  // Debounced coolant temperature fault
 bool battFaultActive    = false;  // Debounced battery voltage fault
 bool fuelFaultActive    = false;  // Debounced low fuel fault
-
