@@ -303,8 +303,8 @@ void loop() {
       sensor_av1 = read100PSIGsensor(PIN_AV1, sensor_av1, FILTER_AV1);  // AV1 configured as oil pressure
     } else if (MAP_SOURCE == 2) {
       sensor_av1 = read30PSIAsensor(PIN_AV1, sensor_av1, FILTER_AV1);  // AV1 configured as MAP/boost
+      baroCAN = constrain(sensor_av1, 600, 1050);  // Preserve legacy barometric CAN/output range
     }
-    baroCAN = sensor_av1;  // Legacy signal name; currently mirrors AV1
     if (OIL_PRS_SOURCE == 3) {
       sensor_av2 = read100PSIGsensor(PIN_AV2, sensor_av2, FILTER_AV2);  // AV2 configured as oil pressure
     } else if (MAP_SOURCE == 3) {
