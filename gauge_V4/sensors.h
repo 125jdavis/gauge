@@ -50,6 +50,38 @@ unsigned long readSensor(int inputPin, int oldVal, int filt);
 unsigned long read30PSIAsensor(int inputPin, int oldVal, int filt);
 
 /**
+ * read3barMapSensor - Read LowDollar Motorsports 3 bar MAP sensor
+ *
+ * Sensor characteristics (per LowDollar Motorsports MAP sensor calibration sheet):
+ * - 0.5V = 0 kPa absolute
+ * - 4.5V = 300 kPa absolute
+ * - ADC 102 (0.5V) = 0 kPa * 10
+ * - ADC 921 (4.5V) = 3000 (300.0 kPa * 10)
+ *
+ * @param inputPin - Arduino analog pin for MAP sensor
+ * @param oldVal - Previous filtered value (kPa absolute * 10)
+ * @param filt - Filter coefficient (0-16): same style as read30PSIAsensor (>>4 divide by 16)
+ * @return Filtered pressure in kPa absolute * 10
+ */
+unsigned long read3barMapSensor(int inputPin, int oldVal, int filt);
+
+/**
+ * read100PSIGsensor - Read LowDollar Motorsports 799/899 Series 0-100 PSIG pressure sensor
+ *
+ * Sensor characteristics (per LowDollar Motorsports 799/899 Series calibration sheet):
+ * - 0.5V = 0 PSIG = 0 kPa gauge
+ * - 4.5V = 100 PSIG
+ * - ADC 102 (0.5V) = 0 kPa * 10
+ * - ADC 921 (4.5V) = 6895 (689.5 kPa * 10)
+ *
+ * @param inputPin - Arduino analog pin for pressure sensor
+ * @param oldVal - Previous filtered value (kPa gauge * 10)
+ * @param filt - Filter coefficient (0-16): same style as read30PSIAsensor (>>4 divide by 16)
+ * @return Filtered pressure in kPa gauge * 10
+ */
+unsigned long read100PSIGsensor(int inputPin, int oldVal, int filt);
+
+/**
  * readThermSensor - Read GM-style thermistor temperature sensor
  * 
  * GM thermistors have a non-linear resistance vs. temperature curve.

@@ -43,9 +43,9 @@ extern int fuelSensorRaw;           // Raw fuel sensor ADC reading (0-500)
 extern float therm;                 // Current temperature in Celsius (after lookup table conversion)
 extern float thermSensor;           // Voltage reading from thermistor (0-5V)
 extern int thermCAN;                // Temperature formatted for CAN transmission (temp * 10)
-extern float sensor_av1;            // Barometric pressure in kPa * 10
-extern float sensor_av2;            // Reserved sensor B value
-extern float sensor_av3;            // Reserved sensor C value
+extern float sensor_av1;            // Analog sensor AV1 value (calibration depends on configured source)
+extern float sensor_av2;            // Analog sensor AV2 value (calibration depends on configured source)
+extern float sensor_av3;            // Analog sensor AV3 value (calibration depends on configured source)
 
 // ===== HALL EFFECT SPEED SENSOR VARIABLES =====
 extern volatile unsigned long hallLastTime;     // Last pulse time (micros)
@@ -107,7 +107,7 @@ extern int oilTempCAN;              // Oil temperature in Celsius * 10
 extern int transTempCAN;            // Transmission temperature in Celsius * 10
 extern int fuelCompCAN;             // Fuel composition (ethanol %) * 10
 extern int fuelLvlCAN;              // Fuel level percentage (0-100)
-extern int baroCAN;                 // Barometric pressure in kPa * 10
+extern int baroCAN;                 // Legacy AV1 mirror for CAN/output handling
 extern int spdCAN;                  // Vehicle speed sent to CAN bus (km/h * 16)
 extern int pumpPressureCAN;         // Fuel pump pressure (test variable)
 
