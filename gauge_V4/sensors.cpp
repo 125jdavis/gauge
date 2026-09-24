@@ -68,7 +68,7 @@ unsigned long read30PSIAsensor(int inputPin, int oldVal, int filt)
 }
 
 /**
- * read3barMapSensor - Read Lowdoller Motorsports 3 bar MAP sensor
+ * read3barMapSensor - Read LowDollar Motorsports 3 bar MAP sensor
  */
 unsigned long read3barMapSensor(int inputPin, int oldVal, int filt)
 {
@@ -79,7 +79,7 @@ unsigned long read3barMapSensor(int inputPin, int oldVal, int filt)
 }
 
 /**
- * read100PSIGsensor - Read Lowdoller Motorsports 799/899 Series 0-100 PSIG pressure sensor
+ * read100PSIGsensor - Read LowDollar Motorsports 799/899 Series 0-100 PSIG pressure sensor
  */
 unsigned long read100PSIGsensor(int inputPin, int oldVal, int filt)
 {
@@ -716,13 +716,13 @@ void sigSelect (void) {
         case 1:  // CAN oil pressure
             oilPrs = (oilPrsCAN/10.0) - 101.3;  // Convert from absolute kPa to gauge pressure
             break;
-        case 2:  // Analog sensor AV1 (Lowdoller 100 PSIG oil pressure sensor, kPa*10)
+        case 2:  // Analog sensor AV1 (LowDollar 100 PSIG oil pressure sensor, kPa*10)
             oilPrs = sensor_av1 / 10.0;
             break;
-        case 3:  // Analog sensor AV2 (Lowdoller 100 PSIG oil pressure sensor, kPa*10)
+        case 3:  // Analog sensor AV2 (LowDollar 100 PSIG oil pressure sensor, kPa*10)
             oilPrs = sensor_av2 / 10.0;
             break;
-        case 4:  // Analog sensor AV3 (Lowdoller 100 PSIG oil pressure sensor, kPa*10)
+        case 4:  // Analog sensor AV3 (LowDollar 100 PSIG oil pressure sensor, kPa*10)
             oilPrs = sensor_av3 / 10.0;
             break;
         case 5:  // Synthetic oil pressure (debug)
@@ -741,13 +741,13 @@ void sigSelect (void) {
         case 1:  // CAN fuel pressure
             fuelPrs = (fuelPrsCAN/10.0) - 101.3;  // Convert from absolute kPa to gauge pressure
             break;
-        case 2:  // Analog sensor AV1 (Lowdoller 100 PSIG fuel pressure sensor, kPa*10)
+        case 2:  // Analog sensor AV1 (LowDollar 100 PSIG fuel pressure sensor, kPa*10)
             fuelPrs = sensor_av1 / 10.0;
             break;
-        case 3:  // Analog sensor AV2 (Lowdoller 100 PSIG fuel pressure sensor, kPa*10)
+        case 3:  // Analog sensor AV2 (LowDollar 100 PSIG fuel pressure sensor, kPa*10)
             fuelPrs = sensor_av2 / 10.0;
             break;
-        case 4:  // Analog sensor AV3 (Lowdoller 100 PSIG fuel pressure sensor, kPa*10)
+        case 4:  // Analog sensor AV3 (LowDollar 100 PSIG fuel pressure sensor, kPa*10)
             fuelPrs = sensor_av3 / 10.0;
             break;
         case 5:  // Synthetic fuel pressure (debug)
@@ -802,13 +802,13 @@ void sigSelect (void) {
             manifoldPrs = mapCAN / 10.0;  // Convert from kPa*10 to kPa
             break;
         case 2:  // Analog sensor AV1
-            manifoldPrs = sensor_av1 / 10.0;
+            manifoldPrs = ((OIL_PRS_SOURCE == 2) || (FUEL_PRS_SOURCE == 2)) ? 0 : (sensor_av1 / 10.0);
             break;
         case 3:  // Analog sensor AV2
-            manifoldPrs = sensor_av2 / 10.0;
+            manifoldPrs = ((OIL_PRS_SOURCE == 3) || (FUEL_PRS_SOURCE == 3)) ? 0 : (sensor_av2 / 10.0);
             break;
         case 4:  // Analog sensor AV3
-            manifoldPrs = sensor_av3 / 10.0;
+            manifoldPrs = ((OIL_PRS_SOURCE == 4) || (FUEL_PRS_SOURCE == 4)) ? 0 : (sensor_av3 / 10.0);
             break;
         case 5:  // Synthetic manifold pressure (debug)
             manifoldPrs = generateSyntheticManifoldPressure();

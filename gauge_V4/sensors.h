@@ -50,9 +50,9 @@ unsigned long readSensor(int inputPin, int oldVal, int filt);
 unsigned long read30PSIAsensor(int inputPin, int oldVal, int filt);
 
 /**
- * read3barMapSensor - Read Lowdoller Motorsports 3 bar MAP sensor
+ * read3barMapSensor - Read LowDollar Motorsports 3 bar MAP sensor
  *
- * Sensor characteristics (per Lowdoller Motorsports MAP sensor calibration sheet):
+ * Sensor characteristics (per LowDollar Motorsports MAP sensor calibration sheet):
  * - 0.5V = 0 kPa absolute
  * - 4.5V = 300 kPa absolute
  * - ADC 102 (0.5V) = 0 kPa * 10
@@ -66,9 +66,9 @@ unsigned long read30PSIAsensor(int inputPin, int oldVal, int filt);
 unsigned long read3barMapSensor(int inputPin, int oldVal, int filt);
 
 /**
- * read100PSIGsensor - Read Lowdoller Motorsports 799/899 Series 0-100 PSIG pressure sensor
+ * read100PSIGsensor - Read LowDollar Motorsports 799/899 Series 0-100 PSIG pressure sensor
  *
- * Sensor characteristics (per Lowdoller Motorsports 799/899 Series calibration sheet):
+ * Sensor characteristics (per LowDollar Motorsports 799/899 Series calibration sheet):
  * - 0.5V = 0 PSIG = 0 kPa gauge
  * - 4.5V = 100 PSIG
  * - ADC 102 (0.5V) = 0 kPa * 10
