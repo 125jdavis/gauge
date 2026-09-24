@@ -87,9 +87,9 @@ constexpr uint8_t FUEL_PIN = A3;    // Analog input pin for fuel level sensor
 constexpr uint8_t THERM_PIN = A4;   // Analog input pin for thermistor
 
 // Analog Inputs for 0-5V sensors
-constexpr uint8_t PIN_AV1 = A5;     // Analog pin 5 (barometric pressure sensor)
-constexpr uint8_t PIN_AV2 = A6;     // Analog pin 6 (reserved for future sensor)
-constexpr uint8_t PIN_AV3 = A7;     // Analog pin 7 (reserved for future sensor)
+constexpr uint8_t PIN_AV1 = A5;     // Analog pin 5 (configurable 0-5V sensor input)
+constexpr uint8_t PIN_AV2 = A6;     // Analog pin 6 (configurable 0-5V sensor input)
+constexpr uint8_t PIN_AV3 = A7;     // Analog pin 7 (configurable 0-5V sensor input)
 
 // ===== HALL EFFECT SPEED SENSOR =====
 constexpr uint8_t HALL_PIN = 20;    // Digital speed input pin (D20, interrupt 1)

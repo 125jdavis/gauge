@@ -48,9 +48,9 @@ extern uint8_t FILTER_FUEL;
 extern uint8_t FILTER_THERM;
 
 // Analog Inputs for 0-5V sensors
-extern uint8_t FILTER_AV1;             // Filter coefficient for barometric pressure (4/16 = moderate filtering)
-extern uint8_t FILTER_AV2;            // Filter coefficient for sensor B (12/16)
-extern uint8_t FILTER_AV3;            // Filter coefficient for sensor C (12/16)
+extern uint8_t FILTER_AV1;            // Filter coefficient for configurable analog sensor AV1
+extern uint8_t FILTER_AV2;            // Filter coefficient for configurable analog sensor AV2
+extern uint8_t FILTER_AV3;            // Filter coefficient for configurable analog sensor AV3
 
 // ===== HALL EFFECT SPEED SENSOR PARAMETERS =====
 extern uint16_t REVS_PER_KM;        // Revolutions per kilometer (vehicle-specific)

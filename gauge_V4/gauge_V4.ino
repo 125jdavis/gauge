@@ -300,16 +300,21 @@ void loop() {
     thermCAN = (int)(therm*10);
     
     baroCAN = 0;
-    if (OIL_PRS_SOURCE == 2) {
-      sensor_av1 = read100PSIGsensor(PIN_AV1, sensor_av1, FILTER_AV1);  // AV1 configured as oil pressure
+    if (OIL_PRS_SOURCE == 2 || FUEL_PRS_SOURCE == 2) {
+      sensor_av1 = read100PSIGsensor(PIN_AV1, sensor_av1, FILTER_AV1);  // AV1 configured as oil/fuel pressure
     } else if (MAP_SOURCE == 2) {
-      sensor_av1 = read30PSIAsensor(PIN_AV1, sensor_av1, FILTER_AV1);  // AV1 configured as MAP/boost
+      sensor_av1 = read3barMap(PIN_AV1, sensor_av1, FILTER_AV1);  // AV1 configured as MAP/boost
       baroCAN = constrain(sensor_av1, 600, 1050);  // Preserve legacy barometric CAN/output range
     }
-    if (OIL_PRS_SOURCE == 3) {
-      sensor_av2 = read100PSIGsensor(PIN_AV2, sensor_av2, FILTER_AV2);  // AV2 configured as oil pressure
+    if (OIL_PRS_SOURCE == 3 || FUEL_PRS_SOURCE == 3) {
+      sensor_av2 = read100PSIGsensor(PIN_AV2, sensor_av2, FILTER_AV2);  // AV2 configured as oil/fuel pressure
     } else if (MAP_SOURCE == 3) {
-      sensor_av2 = read30PSIAsensor(PIN_AV2, sensor_av2, FILTER_AV2);  // AV2 configured as MAP/boost
+      sensor_av2 = read3barMap(PIN_AV2, sensor_av2, FILTER_AV2);  // AV2 configured as MAP/boost
+    }
+    if (OIL_PRS_SOURCE == 4 || FUEL_PRS_SOURCE == 4) {
+      sensor_av3 = read100PSIGsensor(PIN_AV3, sensor_av3, FILTER_AV3);  // AV3 configured as oil/fuel pressure
+    } else if (MAP_SOURCE == 4) {
+      sensor_av3 = read3barMap(PIN_AV3, sensor_av3, FILTER_AV3);  // AV3 configured as MAP/boost
     }
 
     swRead();
