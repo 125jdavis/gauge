@@ -310,7 +310,6 @@ void loop() {
       sensor_av1 = read100PSIGsensor(PIN_AV1, sensor_av1, FILTER_AV1);  // AV1 configured as oil/fuel pressure
     } else if (av1UsesMap) {
       sensor_av1 = read3barMapSensor(PIN_AV1, sensor_av1, FILTER_AV1);  // AV1 configured as MAP/boost
-      baroCAN = (int)sensor_av1;  // Mirror the active MAP/baro source for legacy outputs
     } else {
       sensor_av1 = readSensor(PIN_AV1, sensor_av1, FILTER_AV1);  // AV1 configured for generic analog use
     }
@@ -318,7 +317,6 @@ void loop() {
       sensor_av2 = read100PSIGsensor(PIN_AV2, sensor_av2, FILTER_AV2);  // AV2 configured as oil/fuel pressure
     } else if (av2UsesMap) {
       sensor_av2 = read3barMapSensor(PIN_AV2, sensor_av2, FILTER_AV2);  // AV2 configured as MAP/boost
-      baroCAN = (int)sensor_av2;  // Mirror the active MAP/baro source for legacy outputs
     } else {
       sensor_av2 = readSensor(PIN_AV2, sensor_av2, FILTER_AV2);  // AV2 configured for generic analog use
     }
@@ -326,7 +324,6 @@ void loop() {
       sensor_av3 = read100PSIGsensor(PIN_AV3, sensor_av3, FILTER_AV3);  // AV3 configured as oil/fuel pressure
     } else if (av3UsesMap) {
       sensor_av3 = read3barMapSensor(PIN_AV3, sensor_av3, FILTER_AV3);  // AV3 configured as MAP/boost
-      baroCAN = (int)sensor_av3;  // Mirror the active MAP/baro source for legacy outputs
     } else {
       sensor_av3 = readSensor(PIN_AV3, sensor_av3, FILTER_AV3);  // AV3 configured for generic analog use
     }
