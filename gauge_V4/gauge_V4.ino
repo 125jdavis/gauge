@@ -306,7 +306,6 @@ void loop() {
     bool av2UsesMap = (MAP_SOURCE == 3) && !av2UsesPressure;
     bool av3UsesMap = (MAP_SOURCE == 4) && !av3UsesPressure;
 
-    baroCAN = 0;
     if (av1UsesPressure) {
       sensor_av1 = read100PSIGsensor(PIN_AV1, sensor_av1, FILTER_AV1);  // AV1 configured as oil/fuel pressure
     } else if (av1UsesMap) {

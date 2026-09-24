@@ -802,13 +802,16 @@ void sigSelect (void) {
             manifoldPrs = mapCAN / 10.0;  // Convert from kPa*10 to kPa
             break;
         case 2:  // Analog sensor AV1
-            manifoldPrs = ((OIL_PRS_SOURCE == 2) || (FUEL_PRS_SOURCE == 2)) ? 0 : (sensor_av1 / 10.0);
+            if ((OIL_PRS_SOURCE == 2) || (FUEL_PRS_SOURCE == 2)) break;
+            manifoldPrs = sensor_av1 / 10.0;
             break;
         case 3:  // Analog sensor AV2
-            manifoldPrs = ((OIL_PRS_SOURCE == 3) || (FUEL_PRS_SOURCE == 3)) ? 0 : (sensor_av2 / 10.0);
+            if ((OIL_PRS_SOURCE == 3) || (FUEL_PRS_SOURCE == 3)) break;
+            manifoldPrs = sensor_av2 / 10.0;
             break;
         case 4:  // Analog sensor AV3
-            manifoldPrs = ((OIL_PRS_SOURCE == 4) || (FUEL_PRS_SOURCE == 4)) ? 0 : (sensor_av3 / 10.0);
+            if ((OIL_PRS_SOURCE == 4) || (FUEL_PRS_SOURCE == 4)) break;
+            manifoldPrs = sensor_av3 / 10.0;
             break;
         case 5:  // Synthetic manifold pressure (debug)
             manifoldPrs = generateSyntheticManifoldPressure();
