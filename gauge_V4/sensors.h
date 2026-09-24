@@ -50,7 +50,7 @@ unsigned long readSensor(int inputPin, int oldVal, int filt);
 unsigned long read30PSIAsensor(int inputPin, int oldVal, int filt);
 
 /**
- * read3barMap - Read Lowdoller Motorsports 3 bar MAP sensor
+ * read3barMapSensor - Read Lowdoller Motorsports 3 bar MAP sensor
  *
  * Sensor characteristics (per Lowdoller Motorsports MAP sensor calibration sheet):
  * - 0.5V = 0 kPa absolute
@@ -63,21 +63,21 @@ unsigned long read30PSIAsensor(int inputPin, int oldVal, int filt);
  * @param filt - Filter coefficient (0-16): same style as read30PSIAsensor (>>4 divide by 16)
  * @return Filtered pressure in kPa absolute * 10
  */
-unsigned long read3barMap(int inputPin, int oldVal, int filt);
+unsigned long read3barMapSensor(int inputPin, int oldVal, int filt);
 
 /**
  * read100PSIGsensor - Read Lowdoller Motorsports 799/899 Series 0-100 PSIG pressure sensor
  *
  * Sensor characteristics (per Lowdoller Motorsports 799/899 Series calibration sheet):
- * - 0.5V = 0 PSIG (gauge pressure, i.e. already referenced to atmosphere)
+ * - 0.5V = 0 PSIG = 0 kPa gauge
  * - 4.5V = 100 PSIG
- * - ADC 102 (0.5V) = 0 psi * 10
- * - ADC 921 (4.5V) = 1000 (100.0 psi * 10)
+ * - ADC 102 (0.5V) = 0 kPa * 10
+ * - ADC 921 (4.5V) = 6895 (689.5 kPa * 10)
  *
  * @param inputPin - Arduino analog pin for pressure sensor
- * @param oldVal - Previous filtered value (PSIG * 10)
+ * @param oldVal - Previous filtered value (kPa gauge * 10)
  * @param filt - Filter coefficient (0-16): same style as read30PSIAsensor (>>4 divide by 16)
- * @return Filtered pressure in PSIG * 10 (e.g., 425 = 42.5 psi)
+ * @return Filtered pressure in kPa gauge * 10
  */
 unsigned long read100PSIGsensor(int inputPin, int oldVal, int filt);
 

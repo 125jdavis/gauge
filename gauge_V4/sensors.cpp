@@ -68,9 +68,9 @@ unsigned long read30PSIAsensor(int inputPin, int oldVal, int filt)
 }
 
 /**
- * read3barMap - Read Lowdoller Motorsports 3 bar MAP sensor
+ * read3barMapSensor - Read Lowdoller Motorsports 3 bar MAP sensor
  */
-unsigned long read3barMap(int inputPin, int oldVal, int filt)
+unsigned long read3barMapSensor(int inputPin, int oldVal, int filt)
 {
     int raw = analogRead(inputPin);  // Read ADC: 0-1023
     unsigned long newVal = map(raw, 102, 921, 0, 3000);  // Map 0.5-4.5V to 0-300 kPa absolute (0-3000 in kPa*10)
@@ -84,7 +84,7 @@ unsigned long read3barMap(int inputPin, int oldVal, int filt)
 unsigned long read100PSIGsensor(int inputPin, int oldVal, int filt)
 {
     int raw = analogRead(inputPin);  // Read ADC: 0-1023
-    unsigned long newVal = map(raw, 102, 921, 0, 1000);  // Map 0.5-4.5V to 0-100 PSIG (0-1000 in PSIG*10)
+    unsigned long newVal = map(raw, 102, 921, 0, 6895);  // Map 0.5-4.5V to 0-100 PSIG (0-689.5 kPa in kPa*10)
     unsigned long filtVal = ((newVal*filt) + (oldVal*(16-filt)))>>4;  // Filter (>>4 is divide by 16)
     return filtVal;
 }
@@ -716,14 +716,14 @@ void sigSelect (void) {
         case 1:  // CAN oil pressure
             oilPrs = (oilPrsCAN/10.0) - 101.3;  // Convert from absolute kPa to gauge pressure
             break;
-        case 2:  // Analog sensor AV1 (Lowdoller 100 PSIG oil pressure sensor, PSIG*10 -> kPa)
-            oilPrs = (sensor_av1 / 10.0) * 6.894757;
+        case 2:  // Analog sensor AV1 (Lowdoller 100 PSIG oil pressure sensor, kPa*10)
+            oilPrs = sensor_av1 / 10.0;
             break;
-        case 3:  // Analog sensor AV2 (Lowdoller 100 PSIG oil pressure sensor, PSIG*10 -> kPa)
-            oilPrs = (sensor_av2 / 10.0) * 6.894757;
+        case 3:  // Analog sensor AV2 (Lowdoller 100 PSIG oil pressure sensor, kPa*10)
+            oilPrs = sensor_av2 / 10.0;
             break;
-        case 4:  // Analog sensor AV3 (Lowdoller 100 PSIG oil pressure sensor, PSIG*10 -> kPa)
-            oilPrs = (sensor_av3 / 10.0) * 6.894757;
+        case 4:  // Analog sensor AV3 (Lowdoller 100 PSIG oil pressure sensor, kPa*10)
+            oilPrs = sensor_av3 / 10.0;
             break;
         case 5:  // Synthetic oil pressure (debug)
             oilPrs = generateSyntheticOilPressure();
@@ -741,14 +741,14 @@ void sigSelect (void) {
         case 1:  // CAN fuel pressure
             fuelPrs = (fuelPrsCAN/10.0) - 101.3;  // Convert from absolute kPa to gauge pressure
             break;
-        case 2:  // Analog sensor AV1 (Lowdoller 100 PSIG fuel pressure sensor, PSIG*10 -> kPa)
-            fuelPrs = (sensor_av1 / 10.0) * 6.894757;
+        case 2:  // Analog sensor AV1 (Lowdoller 100 PSIG fuel pressure sensor, kPa*10)
+            fuelPrs = sensor_av1 / 10.0;
             break;
-        case 3:  // Analog sensor AV2 (Lowdoller 100 PSIG fuel pressure sensor, PSIG*10 -> kPa)
-            fuelPrs = (sensor_av2 / 10.0) * 6.894757;
+        case 3:  // Analog sensor AV2 (Lowdoller 100 PSIG fuel pressure sensor, kPa*10)
+            fuelPrs = sensor_av2 / 10.0;
             break;
-        case 4:  // Analog sensor AV3 (Lowdoller 100 PSIG fuel pressure sensor, PSIG*10 -> kPa)
-            fuelPrs = (sensor_av3 / 10.0) * 6.894757;
+        case 4:  // Analog sensor AV3 (Lowdoller 100 PSIG fuel pressure sensor, kPa*10)
+            fuelPrs = sensor_av3 / 10.0;
             break;
         case 5:  // Synthetic fuel pressure (debug)
             fuelPrs = generateSyntheticFuelPressure();
