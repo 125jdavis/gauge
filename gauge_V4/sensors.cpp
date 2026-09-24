@@ -802,14 +802,17 @@ void sigSelect (void) {
             manifoldPrs = mapCAN / 10.0;  // Convert from kPa*10 to kPa
             break;
         case 2:  // Analog sensor AV1
+            // If AV1 is configured for oil/fuel pressure, keep the last valid MAP reading.
             if ((OIL_PRS_SOURCE == 2) || (FUEL_PRS_SOURCE == 2)) break;
             manifoldPrs = sensor_av1 / 10.0;
             break;
         case 3:  // Analog sensor AV2
+            // If AV2 is configured for oil/fuel pressure, keep the last valid MAP reading.
             if ((OIL_PRS_SOURCE == 3) || (FUEL_PRS_SOURCE == 3)) break;
             manifoldPrs = sensor_av2 / 10.0;
             break;
         case 4:  // Analog sensor AV3
+            // If AV3 is configured for oil/fuel pressure, keep the last valid MAP reading.
             if ((OIL_PRS_SOURCE == 4) || (FUEL_PRS_SOURCE == 4)) break;
             manifoldPrs = sensor_av3 / 10.0;
             break;
