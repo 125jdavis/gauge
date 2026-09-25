@@ -162,6 +162,7 @@ class GaugeConfigApp:
         self._vars: Dict[str, tk.StringVar] = {p: tk.StringVar(value="") for p in ALL_PARAMS}
         self._dirty: Dict[str, bool] = {p: False for p in ALL_PARAMS}
         self._splash_data: Dict[int, bytes] = {}
+        self._port_devices: Dict[str, str] = {}
 
         self._build_menu()
         self._build_toolbar()
@@ -262,10 +263,17 @@ class GaugeConfigApp:
         self._refresh_ports()
 
     def _refresh_ports(self) -> None:
-        ports = (self._serial.list_ports() if HAS_SERIAL and self._serial else [])
-        self._port_combo["values"] = ports
-        if ports and not self._port_var.get():
-            self._port_var.set(ports[0])
+        details = (
+            self._serial.list_port_details()
+            if HAS_SERIAL and self._serial else []
+        )
+        self._port_devices = {display: device for device, display in details}
+        displays = list(self._port_devices)
+        self._port_combo["values"] = displays
+        if displays and self._port_var.get() not in self._port_devices:
+            self._port_var.set(displays[0])
+        elif not displays:
+            self._port_var.set("")
 
     def _toggle_connection(self) -> None:
         if not HAS_SERIAL or self._serial is None:
@@ -277,7 +285,8 @@ class GaugeConfigApp:
             self._connect_btn.configure(text="Connect")
             self._set_status("Disconnected")
         else:
-            port = self._port_var.get()
+            selected_port = self._port_var.get()
+            port = self._port_devices.get(selected_port, selected_port)
             baud = int(self._baud_var.get())
             try:
                 self._serial.connect(port, baud)

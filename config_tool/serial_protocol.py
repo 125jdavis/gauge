@@ -60,6 +60,18 @@ class GaugeSerial:
             return []
         return [p.device for p in serial.tools.list_ports.comports()]
 
+    @staticmethod
+    def list_port_details() -> "List[tuple[str, str]]":
+        """Return ``(device, display_name)`` pairs for available ports."""
+        if not HAS_SERIAL:
+            return []
+        ports = []
+        for port in serial.tools.list_ports.comports():
+            description = (port.description or "").strip()
+            display_name = f"{port.device} - {description}" if description else port.device
+            ports.append((port.device, display_name))
+        return ports
+
     def connect(self, port: str, baud: int = DEFAULT_BAUD) -> None:
         """Open *port* at *baud* and wait for the Arduino to reset."""
         if not HAS_SERIAL:

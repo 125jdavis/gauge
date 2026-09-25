@@ -1,0 +1,75 @@
+# Gauge V4 Configuration
+# Vehicle profile: Grace
+# Based on gauge_V4/config_calibration.cpp compiled defaults
+# Runtime calibration profile; hardware pin assignments are not included.
+# Signal source codes are documented in gauge_V4/config_calibration.h.
+
+# Stepper motor sweep ranges
+m1_sweep=696
+m2_sweep=696
+m3_sweep=696
+m4_sweep=696
+ms_sweep=4032
+ms_zero_delay=40
+ms_zero_factor=0.25
+motor_sweep_ms=1000
+
+# Analog sensor filters
+filter_vbatt=8
+vbatt_scaler=0.040923
+filter_fuel=1
+filter_therm=50
+filter_av1=4
+filter_av2=12
+filter_av3=12
+
+# Hall-effect speed sensor
+revs_per_km=1625
+teeth_per_rev=8
+filter_hall=64
+hall_speed_min=50
+
+# Engine RPM sensor
+cyl_count=8
+filter_rpm=179
+rpm_debounce_us=5000
+engine_rpm_min=100
+
+# Speedometer
+speedo_max=10000
+
+# LED tachometer
+num_leds=27
+warn_leds=6
+shift_leds=2
+tach_max=6000
+tach_min=3000
+
+# Odometer motor
+odo_steps=2048
+odo_motor_teeth=16
+odo_gear_teeth=20
+
+# Signal sources
+speed_source=2
+rpm_source=2
+oil_prs_source=5
+fuel_prs_source=5
+coolant_src=3
+oil_temp_src=2
+map_source=5
+lambda_source=1
+fuel_lvl_src=2
+
+# Fault warning thresholds
+oil_warn_kpa=60.0
+coolant_warn_c=110.0
+batt_warn_v=11.0
+engine_run_rpm=400
+fuel_warn_pct=5
+
+# System
+clock_offset=0
+fuel_capacity=16.0
+can_protocol=0
+units=0
