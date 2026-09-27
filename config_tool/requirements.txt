@@ -1,2 +1,6 @@
 pyserial>=3.5
 Pillow>=9.0
+
+# Only needed to build the standalone customer executable:
+#   python build_exe.py
+# pyinstaller>=6.0

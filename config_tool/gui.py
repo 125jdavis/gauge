@@ -4,7 +4,7 @@ gui.py
 Tkinter-based GUI for the Gauge V4 Configuration Tool.
 
 Implements CONFIG_TOOL_SPECIFICATION.md §12 (Python Application Specification):
-  Tab 1  - Connection
+  Tab 1  - Connection (and firmware update, §13)
   Tab 2  - Motor Configuration
   Tab 3  - Speed & Hall Sensor
   Tab 4  - Engine RPM
@@ -22,8 +22,10 @@ Run with: python gui.py
 from __future__ import annotations
 
 import os
+import queue
+import threading
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, messagebox, filedialog, scrolledtext
 from typing import Dict, Optional
 
 try:
@@ -47,10 +49,24 @@ except ImportError:
     HAS_UPLOADER = False
     SplashUploader = None  # type: ignore
 
+try:
+    import firmware_uploader
+    from firmware_uploader import FirmwareUploader, FirmwareError
+    from stk500v2 import HAS_SERIAL as HAS_PYSERIAL
+    HAS_FIRMWARE = HAS_PYSERIAL
+except ImportError:
+    HAS_FIRMWARE = False
+    firmware_uploader = None  # type: ignore
+    FirmwareUploader = None  # type: ignore
+    FirmwareError = RuntimeError  # type: ignore
+
 from config_file import ConfigFile
 
 TOOL_VERSION = "1.0"
 WINDOW_TITLE = f"Gauge V4 Configuration Tool v{TOOL_VERSION}"
+
+# Milliseconds to let the freshly flashed sketch start before re-opening the port.
+BOOTLOADER_EXIT_MS = 3000
 
 ALL_PARAMS = [
     "m1_sweep", "m2_sweep", "m3_sweep", "m4_sweep", "ms_sweep",
@@ -164,6 +180,11 @@ class GaugeConfigApp:
         self._splash_data: Dict[int, bytes] = {}
         self._port_devices: Dict[str, str] = {}
 
+        # Firmware flashing runs on a worker thread; it reports back here.
+        self._fw_queue: "queue.Queue[tuple]" = queue.Queue()
+        self._fw_thread: Optional[threading.Thread] = None
+        self._fw_was_connected = False
+
         self._build_menu()
         self._build_toolbar()
         self._build_tabs()
@@ -242,7 +263,7 @@ class GaugeConfigApp:
     # ------ Tab 1: Connection ------
     def _build_tab_connection(self, frame: ttk.Frame) -> None:
         inner = ttk.LabelFrame(frame, text="Serial Connection")
-        inner.pack(padx=10, pady=10, fill="both")
+        inner.pack(padx=10, pady=10, fill="x")
         ttk.Label(inner, text="Port:").grid(row=0, column=0, sticky="e", padx=4, pady=4)
         self._port_var = tk.StringVar()
         self._port_combo = ttk.Combobox(inner, textvariable=self._port_var, width=20)
@@ -260,7 +281,231 @@ class GaugeConfigApp:
         ttk.Label(inner, text="Firmware:").grid(row=4, column=0, sticky="e", padx=4)
         self._fw_var = tk.StringVar(value="--")
         ttk.Label(inner, textvariable=self._fw_var).grid(row=4, column=1, sticky="w", padx=4)
+        self._build_firmware_group(frame)
         self._refresh_ports()
+
+    # ------ Tab 1: Firmware update (spec §13) ------
+    def _build_firmware_group(self, parent: ttk.Frame) -> None:
+        """Firmware picker and one-click update. No toolchain required."""
+        grp = ttk.LabelFrame(parent, text="Firmware Update")
+        grp.pack(padx=10, pady=(0, 10), fill="both", expand=True)
+        grp.columnconfigure(1, weight=1)
+
+        ttk.Label(grp, text="Firmware file:").grid(row=0, column=0, sticky="e", padx=4, pady=4)
+        self._fw_path_var = tk.StringVar()
+        path_entry = ttk.Entry(grp, textvariable=self._fw_path_var)
+        path_entry.grid(row=0, column=1, sticky="ew", padx=4, pady=4)
+        ToolTip(path_entry, "The .hex firmware file supplied with your gauge.")
+        ttk.Button(grp, text="Browse...", command=self._fw_browse_binary
+                   ).grid(row=0, column=2, padx=4, pady=4)
+
+        actions = ttk.Frame(grp)
+        actions.grid(row=1, column=0, columnspan=3, sticky="ew", padx=4, pady=6)
+        actions.columnconfigure(1, weight=1)
+        self._fw_upload_btn = ttk.Button(actions, text="Update Firmware",
+                                         command=self._fw_upload)
+        self._fw_upload_btn.grid(row=0, column=0, padx=(0, 8))
+        self._fw_pb = ttk.Progressbar(actions, orient="horizontal", mode="determinate")
+        self._fw_pb.grid(row=0, column=1, sticky="ew")
+
+        self._fw_log_text = scrolledtext.ScrolledText(grp, height=10, wrap="word",
+                                                      state="disabled")
+        self._fw_log_text.grid(row=2, column=0, columnspan=3, sticky="nsew", padx=4, pady=(0, 6))
+        grp.rowconfigure(2, weight=1)
+
+        if not HAS_FIRMWARE:
+            self._fw_upload_btn.state(["disabled"])
+            self._fw_log("Firmware update unavailable: pyserial is not installed.")
+            return
+        self._fw_autoselect()
+
+    def _fw_autoselect(self) -> None:
+        """Pre-select a firmware image shipped alongside the tool, if there is one."""
+        candidates = firmware_uploader.list_firmware()
+        if not candidates:
+            self._fw_log("Select the firmware file supplied with your gauge, "
+                         "then press Update Firmware.")
+            return
+        self._fw_path_var.set(candidates[0])
+        self._fw_log(f"Found firmware: {os.path.basename(candidates[0])}")
+        if len(candidates) > 1:
+            self._fw_log(f"({len(candidates) - 1} other .hex file(s) nearby — "
+                         "use Browse if this is not the right one.)")
+        self._fw_describe(candidates[0])
+
+    def _fw_describe(self, path: str) -> bool:
+        """Validate *path* and report it in the log. Returns True if usable."""
+        try:
+            warnings = firmware_uploader.validate(path)
+        except FirmwareError as exc:
+            self._fw_log(f"Cannot use this file: {exc}")
+            return False
+        size = len(firmware_uploader.load_image(path))
+        self._fw_log(f"Ready to flash: {size / 1024:.1f} KB.")
+        for warning in warnings:
+            self._fw_log(f"Note: {warning}")
+        return True
+
+    def _fw_log(self, line: str) -> None:
+        self._fw_log_text.configure(state="normal")
+        self._fw_log_text.insert("end", line + "\n")
+        self._fw_log_text.see("end")
+        self._fw_log_text.configure(state="disabled")
+
+    def _firmware_initial_dir(self) -> str:
+        """Open the file dialog wherever firmware is most likely to be."""
+        current = self._fw_path_var.get().strip()
+        if current and os.path.isfile(current):
+            return os.path.dirname(current)
+        dirs = firmware_uploader.firmware_search_dirs() if HAS_FIRMWARE else []
+        return dirs[0] if dirs else os.getcwd()
+
+    def _fw_browse_binary(self) -> None:
+        path = filedialog.askopenfilename(
+            title="Select firmware file",
+            initialdir=self._firmware_initial_dir(),
+            filetypes=[("Firmware", "*.hex"), ("All files", "*.*")],
+        )
+        if not path:
+            return
+        self._fw_path_var.set(path)
+        if not HAS_FIRMWARE:
+            return
+        self._fw_log("")
+        self._fw_log(f"Selected {os.path.basename(path)}")
+        if self._fw_describe(path):
+            self._set_status(f"Firmware selected: {os.path.basename(path)}")
+
+    def _fw_upload(self) -> None:
+        """Validate, confirm, drop the serial connection, then flash on a worker thread."""
+        if not HAS_FIRMWARE:
+            messagebox.showerror("Unavailable",
+                                 "pyserial is required. Run: pip install pyserial")
+            return
+        if self._fw_thread and self._fw_thread.is_alive():
+            messagebox.showinfo("Busy", "A firmware update is already running.")
+            return
+
+        path = self._fw_path_var.get().strip()
+        try:
+            warnings = firmware_uploader.validate(path)
+        except FirmwareError as exc:
+            messagebox.showerror("Cannot use this firmware file", str(exc))
+            return
+
+        selected_port = self._port_var.get()
+        port = self._port_devices.get(selected_port, selected_port).strip()
+        if not port:
+            messagebox.showwarning("No port",
+                                   "Select the gauge's port first, then press Update Firmware.")
+            return
+
+        prompt = [f"Update the firmware on {port}?", "",
+                  f"File: {os.path.basename(path)}", "",
+                  "The gauge will be unresponsive for about a minute.",
+                  "Do not unplug it until this finishes."]
+        if warnings:
+            prompt += [""] + [f"Note: {w}" for w in warnings]
+        if not messagebox.askyesno("Confirm firmware update", "\n".join(prompt)):
+            return
+
+        # The bootloader needs exclusive access to the port, and flashing resets
+        # the board, so the tool's own connection has to go first.
+        self._fw_was_connected = bool(self._serial and self._serial.is_connected)
+        if self._fw_was_connected and self._serial:
+            self._serial.disconnect()
+            self._conn_status_var.set("Disconnected (updating)")
+            self._connect_btn.configure(text="Connect")
+
+        self._fw_pb["value"] = 0
+        self._fw_log("")
+        self._fw_log(f"--- Updating firmware on {port} ---")
+        self._fw_upload_btn.state(["disabled"])
+        self._connect_btn.state(["disabled"])
+        self._set_status("Updating firmware — do not unplug the gauge.")
+
+        uploader = FirmwareUploader()
+        args = (uploader, path, port)
+        self._fw_thread = threading.Thread(target=self._fw_worker, args=args, daemon=True)
+        self._fw_thread.start()
+        self.root.after(100, self._fw_poll)
+
+    def _fw_worker(self, uploader: "FirmwareUploader", path: str, port: str) -> None:
+        """Worker thread: flash the board, funnelling all output through the queue."""
+        try:
+            uploader.upload(
+                path, port,
+                log_cb=lambda line: self._fw_queue.put(("log", line)),
+                progress_cb=lambda pct: self._fw_queue.put(("progress", pct)),
+            )
+            self._fw_queue.put(("done", True, ""))
+        except FirmwareError as exc:
+            self._fw_queue.put(("done", False, str(exc)))
+        except Exception as exc:                       # surfaced in the UI thread
+            self._fw_queue.put(("done", False, f"Unexpected error: {exc}"))
+
+    def _fw_poll(self) -> None:
+        """Drain worker messages into the UI; re-arms itself until the thread exits."""
+        finished = False
+        while True:
+            try:
+                msg = self._fw_queue.get_nowait()
+            except queue.Empty:
+                break
+            kind = msg[0]
+            if kind == "log":
+                self._fw_log(msg[1])
+            elif kind == "progress":
+                self._fw_pb["value"] = msg[1]
+            elif kind == "done":
+                finished = True
+                self._fw_finish(bool(msg[1]), str(msg[2]))
+        if not finished:
+            self.root.after(100, self._fw_poll)
+
+    def _fw_finish(self, ok: bool, error: str) -> None:
+        self._fw_upload_btn.state(["!disabled"])
+        self._connect_btn.state(["!disabled"])
+        if ok:
+            self._fw_pb["value"] = 100
+            self._set_status("Firmware update complete.")
+        else:
+            self._fw_pb["value"] = 0
+            self._fw_log(f"UPDATE FAILED: {error}")
+            self._set_status("Firmware update failed.")
+            messagebox.showerror("Firmware update failed", error)
+
+        if not self._fw_was_connected:
+            if ok:
+                self._fw_log("Press Connect to verify the new firmware.")
+            return
+        self._fw_log(f"Waiting {BOOTLOADER_EXIT_MS / 1000:.0f}s for the gauge to restart...")
+        self.root.after(BOOTLOADER_EXIT_MS, self._fw_reconnect)
+
+    def _fw_reconnect(self) -> None:
+        """Re-open the port after flashing and confirm the new firmware responds."""
+        self._fw_was_connected = False
+        if not self._serial:
+            return
+        selected_port = self._port_var.get()
+        port = self._port_devices.get(selected_port, selected_port)
+        try:
+            self._serial.connect(port, int(self._baud_var.get()))
+            if not self._serial.ping():
+                self._serial.disconnect()
+                self._fw_log("The gauge did not respond after the update. "
+                             "Unplug it, plug it back in, then press Connect.")
+                return
+            version = self._serial.version()
+            self._fw_var.set(version)
+            self._conn_status_var.set("Connected")
+            self._connect_btn.configure(text="Disconnect")
+            self._fw_log(f"Reconnected — {version}")
+            self._set_status(f"Connected: {port}  |  {version}")
+            self._read_from_device()
+        except Exception as exc:
+            self._fw_log(f"Reconnect failed: {exc}")
+            self._conn_status_var.set("Disconnected")
 
     def _refresh_ports(self) -> None:
         details = (

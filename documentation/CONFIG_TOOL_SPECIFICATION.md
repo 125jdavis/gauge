@@ -1174,6 +1174,19 @@ struct (stdlib)
 | Status label | Label | "Connected" / "Disconnected" |
 | Firmware version | Label | Populated after `version` command |
 
+**Firmware Update group** (see §13 for the procedure):
+
+| Widget | Type | Description |
+|--------|------|-------------|
+| Firmware file | Entry + Browse | Pre-compiled `.hex`; auto-filled from `firmware/` and validated on selection |
+| Update Firmware | Button | Confirms, then flashes on a worker thread |
+| Progress bar | Progressbar | Write pass 0–50%, verify pass 50–100% |
+| Log pane | ScrolledText | Plain-language progress and errors |
+
+Deliberately minimal: no MCU, programmer, or tool-path fields. Customers do not
+have a toolchain to configure, and the board is always an ATmega2560 — which the
+tool confirms by reading the device signature rather than asking.
+
 #### Tab 2 — Motor Configuration
 
 One group box per motor (Motor 1, 2, 3, 4, S). Each contains:
@@ -1307,59 +1320,162 @@ filter_vbatt=32
 
 ## 13. Firmware Upload Procedure
 
-### avrdude Integration
+Customers do not have the Arduino IDE, a toolchain, or Python. They receive a
+`.hex` built in-house and a standalone executable. The tool therefore speaks the
+ATmega2560 bootloader protocol **directly over USB serial** — there is no
+avrdude, no compilation, and nothing to install.
 
-The PC tool can flash new firmware using `avrdude`:
+> The customer-facing instructions are in
+> [FIRMWARE_UPDATE_GUIDE.md](FIRMWARE_UPDATE_GUIDE.md). This section is the
+> implementation reference.
 
-```python
-import subprocess, shutil
+| Module | Responsibility |
+|--------|----------------|
+| `config_tool/intel_hex.py` | Parse a `.hex` into a flat, 0xFF-padded flash image |
+| `config_tool/stk500v2.py` | Speak STK500v2 to the bootloader over pyserial |
+| `config_tool/firmware_uploader.py` | Locate, validate, and flash the image |
+| `config_tool/build_exe.py` | Build `GaugeConfig.exe` with PyInstaller |
 
-def upload_firmware(hex_path: str, port: str) -> tuple[bool, str]:
-    avrdude = shutil.which("avrdude")
-    if not avrdude:
-        return False, "avrdude not found in PATH"
-    cmd = [
-        avrdude, "-c", "arduino", "-p", "m2560",
-        "-P", port, "-b", "115200",
-        "-U", f"flash:w:{hex_path}:i"
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-    return result.returncode == 0, result.stderr
-```
-
-### Safety Checks Before Upload
-
-1. Verify firmware `.hex` file has valid Intel HEX format (first byte `:`).
-2. Warn if file size > 230 KB (near flash limit).
-3. Prompt user to confirm: "This will overwrite existing firmware."
-4. After upload, wait 3 seconds, then send `ping` to verify Arduino is responsive.
-5. If `ping` fails, display "Upload may have failed — check connections."
-
-### Upload Workflow
+### Customer workflow
 
 ```
 ┌────────────────────────────────────────────────────┐
-│  1. User selects .hex file                         │
-│  2. Tool verifies file format                      │
-│  3. User confirms port selection                   │
-│  4. Tool closes active serial connection           │
-│  5. avrdude flashes firmware                       │
-│  6. Tool waits 3 seconds for bootloader exit       │
-│  7. Tool re-opens serial port                      │
-│  8. Tool sends "ping" → expects "pong"             │
-│  9. Tool reads "version" → updates status bar      │
-│ 10. Tool sends "load" → refreshes UI from EEPROM   │
+│  1. Customer unzips the tool and runs GaugeConfig  │
+│  2. Tool finds the .hex in firmware/ and pre-      │
+│     selects it (Browse to override)                │
+│  3. Customer picks the port and clicks Update      │
+│  4. Tool confirms, then closes its own connection  │
+│  5. DTR/RTS pulse resets the board into bootloader │
+│  6. Device signature checked against ATmega2560    │
+│  7. Flash written page by page, then read back     │
+│     and verified                                   │
+│  8. Bootloader leaves programming mode; sketch runs│
+│  9. Tool reconnects, pings, reads version          │
+│ 10. Tool re-reads parameters to refresh the UI     │
 └────────────────────────────────────────────────────┘
 ```
 
-### Error Handling
+Steps 9–10 run only if the tool was connected before the update, since step 4 is
+what closed that connection. If it was not, the port is left free and the log
+says to press Connect.
+
+### Finding the firmware image
+
+`firmware_uploader.find_firmware()` searches, in order:
+
+1. `firmware/` beside the executable
+2. the executable's own folder
+3. `gauge_V4/build/` (convenience when running from a source checkout)
+
+The newest `.hex` wins and is pre-selected at startup; anything named
+`with_bootloader` is skipped, because flashing that image over the serial
+bootloader would overwrite the bootloader mid-upload.
+
+Under PyInstaller, `app_dir()` resolves to the folder holding the `.exe`, not
+the temporary extraction directory, so a new `.hex` can be dropped beside the
+executable without rebuilding it.
+
+### STK500v2 protocol
+
+The Mega 2560 bootloader (`stk500boot`) speaks STK500v2 at 115200 8N1.
+
+```
+Frame:  0x1B <seq> <size hi> <size lo> 0x0E <body...> <xor checksum>
+Reply:  echoes the command byte, then a status byte (0x00 = OK)
+```
+
+Three behaviours of the bootloader constrain the client, and each has a
+regression test:
+
+- **`CMD_LOAD_ADDRESS` takes a *word* address** and shifts it left by one to get
+  a byte address. avrdude's "extended address" bit 31 is shifted off the top and
+  is harmless, so it is always set. Getting this wrong truncates every address
+  past 64 KB — which is most of a Mega sketch.
+- **`CMD_PROGRAM_FLASH_ISP` erases one page per call** using an internal cursor
+  that starts at 0 and advances independently of the loaded address. Pages must
+  therefore be written **in order from address 0**, or erase and write
+  desynchronise and the image is silently corrupted.
+- **The mode/delay/cmd/poll header bytes are ignored** by the bootloader (it uses
+  `boot_page_*`), but are sent for avrdude compatibility.
+
+Commands used: `CMD_SIGN_ON`, `CMD_READ_SIGNATURE_ISP`, `CMD_ENTER_PROGMODE_ISP`,
+`CMD_LOAD_ADDRESS`, `CMD_PROGRAM_FLASH_ISP`, `CMD_READ_FLASH_ISP`,
+`CMD_LEAVE_PROGMODE_ISP`.
+
+### Entering the bootloader
+
+The board is reset the same way the Arduino IDE does it: drop DTR and RTS to
+discharge the auto-reset capacitor, wait 250 ms, raise them again to pull RESET
+low, then sync with `CMD_SIGN_ON`, retrying while the bootloader starts. The
+bootloader hands off to the sketch after a short window, so sync happens
+immediately after the reset.
+
+### Safety checks before writing
+
+Run when the file is picked and again immediately before flashing.
+
+**Blocking — the upload does not start:**
+
+1. The file exists, is non-empty, and has a `.hex` extension.
+2. Every record is well-formed Intel HEX: leading `:`, even hex-digit count,
+   byte-count field matching the record, and a correct two's-complement
+   checksum. A corrupt or truncated file is named with its line number.
+3. An end-of-file record is present, with no data after it.
+4. The image fits the 248 KB application area. A `with_bootloader` image fails
+   here, with a message saying to use the plain `.hex`.
+5. The device signature read from the board is the ATmega2560's
+   (`1E 98 01`). A different AVR is named in the error and nothing is written.
+
+**Warning — shown in the confirmation dialog:**
+
+6. The image fills more than 90% of the application area.
+
+After writing, flash is read back page by page and compared; a mismatch names
+the first differing address.
+
+### Intel HEX
+
+Record types 00 (data), 01 (EOF), 02 (extended segment), 03, 04 (extended
+linear) and 05 are handled; gaps are padded with 0xFF.
+
+> **Type 02 matters.** Real avr-gcc output uses extended *segment* records, not
+> the extended *linear* records a naive parser tends to implement — the Arduino
+> AVR core's own `stk500boot_v2_mega2560.hex` is addressed that way. A parser
+> that handles only type 04 folds the upper half of a sketch onto the lower half.
+
+The parser is cross-checked in the test suite against `avr-objcopy` output for
+every `.hex` shipped with an installed Arduino AVR core (36 files), skipped when
+no core is present.
+
+### Threading
+
+Flashing runs on a daemon worker thread; log lines and progress percentages
+reach the Tk thread through a `queue.Queue` drained by a `root.after(100, ...)`
+poll. The Connect and Update buttons are disabled for the duration. Progress is
+split evenly between the write and verify passes.
+
+### Error handling
 
 | Error | Response |
 |-------|----------|
-| Port busy | "Close all other serial monitors, then retry." |
-| avrdude timeout | "Check USB cable and board power." |
-| CRC mismatch after upload | "Re-flash; file may be corrupted." |
-| `ping` no response | "Upload may have failed. Try again." |
+| Port busy | "Close any other program using the port, then retry." |
+| No response after reset | "Check the USB cable, confirm the port, and make sure no other program is using it." |
+| Wrong device signature | Names the AVR that was found; nothing is written. |
+| Corrupt / truncated `.hex` | Rejected at selection, with the offending line number. |
+| Image too large | "Use the plain .hex instead" (a `with_bootloader` file). |
+| Verification mismatch | Names the first differing flash address. |
+| `ping` no response | "Unplug it, plug it back in, then press Connect." |
+
+### Packaging
+
+`python build_exe.py` produces `dist/GaugeConfig.exe` (PyInstaller, `--onefile
+--windowed`) plus an empty `dist/firmware/` folder, and stages any exported
+`.hex` from `gauge_V4/build/` into it. pyserial's platform-specific
+`list_ports_*` backends are named as hidden imports, because they are reached
+through conditional imports the dependency scan does not follow.
+
+To ship: build, drop the customer's `.hex` into `dist/firmware/`, zip the `.exe`
+and that folder together.
 
 ---
 
