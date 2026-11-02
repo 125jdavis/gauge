@@ -204,12 +204,12 @@ The Arduino Mega 2560 has **256 KB** of flash. All `PROGMEM` bitmaps, lookup tab
 | `revs_per_km` | uint16 | 100–10000 | VSS pulses per km |
 | `teeth_per_rev` | uint8 | 1–64 | VSS teeth per shaft revolution |
 | `filter_hall` | uint8 | 1–255 | Hall speed EMA coefficient |
-| `hall_speed_min` | uint8 | 0–100 | Min reportable speed (km/h×100) |
+| `hall_speed_min` | uint8 | 0–100 | Min reportable speed (km/h×100); GUI accepts km/h (0–1) |
 | `cyl_count` | uint8 | 2–16 | Engine cylinder count |
 | `filter_rpm` | uint8 | 1–255 | RPM EMA filter coefficient |
 | `rpm_debounce_us` | uint16 | 100–20000 | RPM pulse debounce window (µs) |
 | `engine_rpm_min` | uint8 | 0–255 | Min reportable RPM |
-| `speedo_max` | uint16 | 1000–30000 | Max speedometer (mph×100) |
+| `speedo_max` | uint16 | 1000–30000 | Max speedometer (mph×100); GUI accepts km/h or mph |
 | `num_leds` | uint8 | 1–64 | LED strip length |
 | `warn_leds` | uint8 | 0–32 | Warning zone LED count |
 | `shift_leds` | uint8 | 0–16 | Shift light LED count |
@@ -227,13 +227,13 @@ The Arduino Mega 2560 has **256 KB** of flash. All `PROGMEM` bitmaps, lookup tab
 | `map_source` | uint8 | 0–5 | MAP / boost source |
 | `lambda_source` | uint8 | 0–4 | Lambda / AFR source |
 | `fuel_lvl_src` | uint8 | 0–2 | Fuel level source |
-| `oil_warn_kpa` | float | 0–1000 | Oil pressure warning threshold (kPa gauge) |
-| `coolant_warn_c` | float | 50–200 | Coolant temp warning threshold (°C) |
+| `oil_warn_kpa` | float | 0–1000 | Oil pressure warning threshold (kPa gauge); GUI accepts kPa or PSI |
+| `coolant_warn_c` | float | 50–200 | Engine temperature warning threshold (°C); GUI accepts °C or °F |
 | `batt_warn_v` | float | 5–16 | Battery voltage warning threshold (V) |
 | `engine_run_rpm` | int | 0–2000 | Min RPM to consider engine running |
 | `fuel_warn_pct` | uint8 | 0–50 | Low fuel warning threshold (%) |
 | `clock_offset` | int8 | −12–12 | Time zone offset from UTC (hours) |
-| `fuel_capacity` | float | 1–200 | Fuel tank capacity (gallons) |
+| `fuel_capacity` | float | 1–200 | Fuel tank capacity (gallons); GUI accepts gallons or liters |
 | `can_protocol` | uint8 | 0–3 | CAN protocol: 0=Haltech v2, 1=Megasquirt, 2=AiM, 3=OBDII |
 | `units` | uint8 | 0–1 | 0 = metric, 1 = imperial |
 
@@ -1200,49 +1200,30 @@ One group box per motor (Motor 1, 2, 3, 4, S). Each contains:
 | Input high | Spinbox | Physical input at needle maximum |
 | Live preview | Canvas | Animated needle at current sensor value |
 
-#### Tab 3 — Speed & Hall Sensor
+#### Tab 3 — Signal Source
 
 | Widget | Description |
 |--------|-------------|
-| Speed source | Combobox (SpeedSource enum) |
-| Revs per km | Spinbox |
-| Teeth per rev | Spinbox |
-| Hall speed min | Spinbox |
-| Hall filter | Slider 1–255 |
-| Speedometer max | Spinbox (mph × 100) |
-
-#### Tab 4 — Engine RPM
-
-| Widget | Description |
-|--------|-------------|
+| CAN protocol | Combobox; remains editable regardless of selected sources |
+| Speed source | Combobox |
 | RPM source | Combobox |
-| Cylinder count | Combobox (2, 3, 4, 5, 6, 8, 10, 12) |
-| Debounce window (µs) | Spinbox |
-| Engine RPM min | Spinbox |
-| RPM filter | Slider 1–255 |
+| Other signal sources | Comboboxes for oil/fuel pressure, coolant/oil temperature, MAP, lambda, and fuel level |
 
-#### Tab 5 — Sensors & Curves
-
-Sub-tabs for each sensor:
-- **Thermistor** — curve editor (up to 8 points), voltage divider helper
-- **Fuel Level** — curve editor, sender type presets (0–30Ω, 0–90Ω, 10–180Ω)
-- **AV1 / AV2 / AV3** — raw filter sliders, optional curve editors
-
-**Curve Editor Widget:**
-- Table with N rows (mV | value)
-- Add/Remove point buttons
-- Live graph preview
-- Preset loader dropdown
-
-#### Tab 6 — CAN Bus
+#### Tab 4 — Speed/RPM
 
 | Widget | Description |
 |--------|-------------|
-| Protocol | Combobox (CANProtocol enum) |
-| Signal sources | Grid of comboboxes (one per signal: Oil Prs, Coolant, etc.) |
-| OBD-II PIDs | Checkbox list for polled parameters |
+| Revs per km, teeth per rev, minimum cutoff, Hall filter | Enabled only for Hall speed source |
+| Speedometer Max | Numeric input with km/h and mph radio buttons; disabled when speed is Off |
+| Cylinder count, debounce window, RPM minimum, RPM filter | Enabled only for coil RPM source |
+| Mechanical odometer calibration | Steps per revolution, motor gear teeth, driven gear teeth |
 
-#### Tab 7 — LED Tachometer
+#### Tab 5 — Sensors
+
+Sensor filter groups are shown together on one page: thermistor, fuel level,
+analog inputs AV1/AV2/AV3, and battery voltage.
+
+#### Tab 6 — LED Tachometer
 
 | Widget | Description |
 |--------|-------------|
@@ -1253,7 +1234,7 @@ Sub-tabs for each sensor:
 | Shift LEDs | Spinbox |
 | Live preview | Canvas showing LED strip simulation |
 
-#### Tab 8 — Display Settings
+#### Tab 7 — Display Settings
 
 | Widget | Description |
 |--------|-------------|
@@ -1261,25 +1242,19 @@ Sub-tabs for each sensor:
 | Display 2 active screen | Combobox |
 | Screen enable checkboxes | One per screen (18 for D1, 10 for D2) |
 | Unit system | Radio buttons: Metric / Imperial |
+| Clock & Fuel | UTC offset and fuel tank capacity with gallon / liter radio buttons |
 
-#### Tab 9 — Fault Warnings
+#### Tab 8 — Fault Warnings
 
 | Widget | Description |
 |--------|-------------|
-| Oil pressure threshold | Spinbox (kPa) |
-| Coolant temp threshold | Spinbox (°C or °F) |
+| Oil pressure threshold | Numeric input with kPa / PSI radio buttons |
+| Engine temperature threshold | Numeric input with °C / °F radio buttons |
 | Battery voltage threshold | Spinbox (V) |
 | Engine running RPM min | Spinbox |
 | Low fuel threshold | Spinbox (%) |
 
-#### Tab 10 — Clock & Fuel
-
-| Widget | Description |
-|--------|-------------|
-| UTC offset | Spinbox −12 to +12 |
-| Fuel tank capacity | Spinbox (gallons) |
-
-#### Tab 11 — Splash Screens (v1.2)
+#### Tab 9 — Splash Screens (v1.2)
 
 | Widget | Description |
 |--------|-------------|
@@ -1304,15 +1279,39 @@ Sub-tabs for each sensor:
 
 ### File Format (.txt config files)
 
+Format 5 config parameter values use the same canonical units and scaling as
+the firmware protocol. For example, `hall_speed_min` is km/h × 100 and
+`speedo_max` is mph × 100; warning thresholds are kPa and °C, and fuel
+capacity is gallons. The `*_units` keys preserve the GUI's display preference
+only. The GUI handles conversions between display units and these canonical
+values.
+
+Formats 2–4 remain supported: format 2 stores human-readable speed values;
+format 3 also stores human-readable warning thresholds; format 4 also stores
+human-readable fuel capacity. The loader converts those fields to firmware
+units. Fields not introduced as human-readable in a given format remain in
+firmware units. Files without a `config_format` continue to load using legacy
+raw firmware values.
+
 ```
 # Gauge V4 Configuration
 # Generated by gauge-config-tool v1.0
 # Date: 2025-01-01
 
+config_format=5
 m1_sweep=696
 m2_sweep=696
 ms_sweep=4032
 filter_vbatt=32
+hall_speed_min=50
+speedo_max=10000
+speedo_max_units=mph
+oil_warn_kpa=60
+oil_warn_units=kPa
+coolant_warn_c=110
+coolant_warn_units=C
+fuel_capacity=16
+fuel_capacity_units=gal
 # ... (one key=value per line; lines starting with # are comments)
 ```
 

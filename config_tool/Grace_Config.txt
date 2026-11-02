@@ -4,6 +4,8 @@
 # Runtime calibration profile; hardware pin assignments are not included.
 # Signal source codes are documented in gauge_V4/config_calibration.h.
 
+config_format=5
+
 # Stepper motor sweep ranges
 m1_sweep=696
 m2_sweep=696
@@ -37,6 +39,7 @@ engine_rpm_min=100
 
 # Speedometer
 speedo_max=10000
+speedo_max_units=mph
 
 # LED tachometer
 num_leds=27
@@ -63,7 +66,9 @@ fuel_lvl_src=2
 
 # Fault warning thresholds
 oil_warn_kpa=60.0
+oil_warn_units=kPa
 coolant_warn_c=110.0
+coolant_warn_units=C
 batt_warn_v=11.0
 engine_run_rpm=400
 fuel_warn_pct=5
@@ -71,5 +76,6 @@ fuel_warn_pct=5
 # System
 clock_offset=0
 fuel_capacity=16.0
+fuel_capacity_units=gal
 can_protocol=0
 units=0

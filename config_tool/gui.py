@@ -6,27 +6,26 @@ Tkinter-based GUI for the Gauge V4 Configuration Tool.
 Implements CONFIG_TOOL_SPECIFICATION.md §12 (Python Application Specification):
   Tab 1  - Connection (and firmware update, §13)
   Tab 2  - Motor Configuration
-  Tab 3  - Speed & Hall Sensor
-  Tab 4  - Engine RPM
-  Tab 5  - Sensors & Curves
-  Tab 6  - CAN Bus
-  Tab 7  - LED Tachometer
-  Tab 8  - Display Settings
-  Tab 9  - Fault Warnings
-  Tab 10 - Clock & Fuel
-  Tab 11 - Splash Screens
+  Tab 3  - Signal Source
+  Tab 4  - Speed/RPM (including mechanical odometer calibration)
+  Tab 5  - Sensors
+  Tab 6  - LED Tachometer
+  Tab 7  - Display Settings (including clock and fuel)
+  Tab 8  - Fault Warnings
+  Tab 9  - Splash Screens
 
 Run with: python gui.py
 """
 
 from __future__ import annotations
 
+import math
 import os
 import queue
 import threading
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog, scrolledtext
-from typing import Dict, Optional
+from typing import Callable, Dict, Optional
 
 try:
     from serial_protocol import GaugeSerial, SerialError, NotConnectedError
@@ -64,6 +63,220 @@ from config_file import ConfigFile
 
 TOOL_VERSION = "1.0"
 WINDOW_TITLE = f"Gauge V4 Configuration Tool v{TOOL_VERSION}"
+
+SOURCE_OPTIONS: Dict[str, tuple] = {
+    "speed_source": ("Off", "CAN", "Hall sensor", "GPS", "Synthetic", "Odometer test", "Serial"),
+    "rpm_source": ("Off", "CAN", "Coil", "Synthetic", "Serial"),
+    "oil_prs_source": ("Off", "CAN", "AV1", "AV2", "AV3", "Synthetic"),
+    "fuel_prs_source": ("Off", "CAN", "AV1", "AV2", "AV3", "Synthetic"),
+    "coolant_src": ("Off", "CAN", "Thermistor", "Synthetic"),
+    "oil_temp_src": ("Off", "CAN", "Thermistor"),
+    "map_source": ("Off", "CAN", "AV1", "AV2", "AV3", "Synthetic"),
+    "lambda_source": ("Off", "CAN", "AV1", "AV2", "AV3"),
+    "fuel_lvl_src": ("Off", "Analog sensor", "Synthetic"),
+}
+
+SOURCE_DEPENDENT_PARAMS: Dict[str, tuple] = {
+    "revs_per_km": (("speed_source", 2),),
+    "teeth_per_rev": (("speed_source", 2),),
+    "filter_hall": (("speed_source", 2),),
+    "hall_speed_min": (("speed_source", 2),),
+    "cyl_count": (("rpm_source", 2),),
+    "filter_rpm": (("rpm_source", 2),),
+    "rpm_debounce_us": (("rpm_source", 2),),
+    "engine_rpm_min": (("rpm_source", 2),),
+    "filter_fuel": (("fuel_lvl_src", 1),),
+    "filter_therm": (("coolant_src", 2), ("oil_temp_src", 2)),
+    "filter_av1": (
+        ("oil_prs_source", 2), ("fuel_prs_source", 2),
+        ("map_source", 2), ("lambda_source", 2),
+    ),
+    "filter_av2": (
+        ("oil_prs_source", 3), ("fuel_prs_source", 3),
+        ("map_source", 3), ("lambda_source", 3),
+    ),
+    "filter_av3": (
+        ("oil_prs_source", 4), ("fuel_prs_source", 4),
+        ("map_source", 4), ("lambda_source", 4),
+    ),
+}
+
+SPEEDO_MAX_UNITS = ("mph", "km/h")
+OIL_WARNING_UNITS = ("PSI", "kPa")
+TEMPERATURE_UNITS = ("F", "C")
+FUEL_CAPACITY_UNITS = ("gal", "L")
+CONFIG_FILE_FORMAT = 5
+KMH_PER_MPH = 1.609344
+PSI_PER_KPA = 0.1450377377
+LITERS_PER_GALLON = 3.785411784
+
+
+def _source_uses_parameter(param: str, selected_sources: Dict[str, str]) -> bool:
+    if param in ("speedo_max", "speedo_max_units"):
+        try:
+            return int(selected_sources.get("speed_source", "")) != 0
+        except ValueError:
+            return False
+    requirements = SOURCE_DEPENDENT_PARAMS.get(param)
+    if requirements is None:
+        return True
+    return any(selected_sources.get(source) == str(value) for source, value in requirements)
+
+
+def _display_number(value: float) -> str:
+    return f"{value:.2f}".rstrip("0").rstrip(".")
+
+
+def _hall_speed_min_to_raw(value: str) -> int:
+    try:
+        speed = float(value)
+    except ValueError as exc:
+        raise ValueError("Minimum Speed Cutoff must be a number from 0 to 1 km/h.") from exc
+    if not math.isfinite(speed) or not 0 <= speed <= 1:
+        raise ValueError("Minimum Speed Cutoff must be from 0 to 1 km/h.")
+    return round(speed * 100)
+
+
+def _speedo_max_to_raw(value: str, units: str) -> int:
+    try:
+        speed = float(value)
+    except ValueError as exc:
+        raise ValueError("Speedometer Max must be a number.") from exc
+    if not math.isfinite(speed) or speed <= 0:
+        raise ValueError("Speedometer Max must be a positive number.")
+    if units == "km/h":
+        speed /= KMH_PER_MPH
+    elif units != "mph":
+        raise ValueError(f"Unsupported speedometer unit: {units}")
+    raw = round(speed * 100)
+    if not 1000 <= raw <= 30000:
+        raise ValueError("Speedometer Max must be between 10 and 300 mph (or the equivalent in km/h).")
+    return raw
+
+
+def _oil_warning_to_raw(value: str, units: str) -> float:
+    try:
+        pressure = float(value)
+    except ValueError as exc:
+        raise ValueError("Oil pressure warning must be a number.") from exc
+    if not math.isfinite(pressure):
+        raise ValueError("Oil pressure warning must be a finite number.")
+    if units == "PSI":
+        pressure /= PSI_PER_KPA
+    elif units != "kPa":
+        raise ValueError(f"Unsupported oil pressure unit: {units}")
+    if not 0 <= pressure <= 1000:
+        raise ValueError("Oil pressure warning must be between 0 and 1000 kPa.")
+    return pressure
+
+
+def _temperature_warning_to_raw(value: str, units: str) -> float:
+    try:
+        temperature = float(value)
+    except ValueError as exc:
+        raise ValueError("Engine temperature warning must be a number.") from exc
+    if not math.isfinite(temperature):
+        raise ValueError("Engine temperature warning must be a finite number.")
+    if units == "F":
+        temperature = (temperature - 32) * 5 / 9
+    elif units != "C":
+        raise ValueError(f"Unsupported temperature unit: {units}")
+    if not 50 <= temperature <= 200:
+        raise ValueError("Engine temperature warning must be between 50 and 200 C.")
+    return temperature
+
+
+def _warning_display_value(raw_value: str, param: str, units: str) -> str:
+    value = float(raw_value)
+    if param == "oil_warn_kpa" and units == "PSI":
+        value *= PSI_PER_KPA
+    elif param == "coolant_warn_c" and units == "F":
+        value = value * 9 / 5 + 32
+    return _display_number(value)
+
+
+def _fuel_capacity_to_raw(value: str, units: str) -> float:
+    try:
+        capacity = float(value)
+    except ValueError as exc:
+        raise ValueError("Fuel tank capacity must be a number.") from exc
+    if not math.isfinite(capacity):
+        raise ValueError("Fuel tank capacity must be a finite number.")
+    if units == "L":
+        capacity /= LITERS_PER_GALLON
+    elif units != "gal":
+        raise ValueError(f"Unsupported fuel capacity unit: {units}")
+    if not 1 <= capacity <= 200:
+        raise ValueError("Fuel tank capacity must be between 1 and 200 gallons (or the equivalent in liters).")
+    return capacity
+
+
+def _fuel_capacity_display_value(raw_value: str, units: str) -> str:
+    capacity = float(raw_value)
+    if units == "L":
+        capacity *= LITERS_PER_GALLON
+    elif units != "gal":
+        raise ValueError(f"Unsupported fuel capacity unit: {units}")
+    return _display_number(capacity)
+
+
+def _decode_config_units(params: Dict[str, str]) -> tuple[Dict[str, str], Dict[str, str]]:
+    version = params.get("config_format")
+    if version is None:
+        return {}, {
+            "speedo_max_units": "mph",
+            "oil_warn_units": "kPa",
+            "coolant_warn_units": "C",
+            "fuel_capacity_units": "gal",
+        }
+    if version not in ("2", "3", "4", str(CONFIG_FILE_FORMAT)):
+        raise ValueError(f"Unsupported config file format: {version}")
+
+    units = {
+        "speedo_max_units": params.get("speedo_max_units", "mph"),
+        "oil_warn_units": params.get("oil_warn_units", "kPa"),
+        "coolant_warn_units": params.get("coolant_warn_units", "C"),
+        "fuel_capacity_units": params.get("fuel_capacity_units", "gal"),
+    }
+    if units["speedo_max_units"] not in SPEEDO_MAX_UNITS:
+        raise ValueError(f"Unsupported speedometer unit: {units['speedo_max_units']}")
+    if units["oil_warn_units"] not in OIL_WARNING_UNITS:
+        raise ValueError(f"Unsupported oil pressure unit: {units['oil_warn_units']}")
+    if units["coolant_warn_units"] not in TEMPERATURE_UNITS:
+        raise ValueError(f"Unsupported engine temperature unit: {units['coolant_warn_units']}")
+    if units["fuel_capacity_units"] not in FUEL_CAPACITY_UNITS:
+        raise ValueError(f"Unsupported fuel capacity unit: {units['fuel_capacity_units']}")
+
+    converted: Dict[str, str] = {}
+    if version in ("2", "3", "4"):
+        if "hall_speed_min" in params:
+            converted["hall_speed_min"] = str(_hall_speed_min_to_raw(params["hall_speed_min"]))
+        if "speedo_max" in params:
+            converted["speedo_max"] = str(
+                _speedo_max_to_raw(params["speedo_max"], units["speedo_max_units"])
+            )
+    if version in ("3", "4"):
+        if "oil_warn_kpa" in params:
+            converted["oil_warn_kpa"] = str(
+                _oil_warning_to_raw(params["oil_warn_kpa"], units["oil_warn_units"])
+            )
+        if "coolant_warn_c" in params:
+            converted["coolant_warn_c"] = str(
+                _temperature_warning_to_raw(
+                    params["coolant_warn_c"], units["coolant_warn_units"],
+                )
+            )
+    if version == "4" and "fuel_capacity" in params:
+        converted["fuel_capacity"] = str(
+            _fuel_capacity_to_raw(params["fuel_capacity"], units["fuel_capacity_units"])
+        )
+    if version != "5":
+        units["fuel_capacity_units"] = "gal"
+    if version == "2":
+        units["oil_warn_units"] = "kPa"
+        units["coolant_warn_units"] = "C"
+    return converted, units
+
 
 # Milliseconds to let the freshly flashed sketch start before re-opening the port.
 BOOTLOADER_EXIT_MS = 3000
@@ -103,36 +316,36 @@ TOOLTIPS: Dict[str, str] = {
     "revs_per_km":       "VSS shaft revolutions per km (100-10000).",
     "teeth_per_rev":     "VSS teeth per shaft revolution (1-64).",
     "filter_hall":       "Hall speed EMA filter coefficient (1-255).",
-    "hall_speed_min":    "Minimum reportable speed in km/h x 100 (0-100).",
+    "hall_speed_min":    "Minimum speed cutoff in km/h (0-1).",
     "cyl_count":         "Engine cylinder count (2-16).",
     "filter_rpm":        "RPM EMA filter coefficient (1-255).",
     "rpm_debounce_us":   "RPM pulse debounce window us (100-20000).",
     "engine_rpm_min":    "Minimum displayed RPM (0-255).",
-    "speedo_max":        "Max speedometer reading mph x 100 (1000-30000).",
+    "speedo_max":        "Maximum speedometer reading in the selected unit.",
     "num_leds":          "Total LED strip count (1-64).",
     "warn_leds":         "Warning zone LEDs per side (0-32).",
     "shift_leds":        "Shift-light LEDs per side (0-16).",
     "tach_max":          "Shift RPM (1000-15000).",
-    "tach_min":          "Minimum lit RPM (0-5000).",
+    "tach_min":          "RPM at which first LED is active",
     "odo_steps":         "Odometer motor steps per revolution (512-8192).",
     "odo_motor_teeth":   "Odometer motor gear tooth count (1-64).",
     "odo_gear_teeth":    "Odometer driven gear tooth count (1-64).",
-    "speed_source":      "Speed signal: 0=off 1=CAN 2=Hall 3=GPS 4=Synthetic 5=OdoTest 6=Serial",
-    "rpm_source":        "RPM signal: 0=off 1=CAN 2=coil 3=Synthetic 4=Serial",
-    "oil_prs_source":    "Oil pressure: 0=off 1=CAN 2=AV1 3=AV2 4=AV3 5=Synthetic",
-    "fuel_prs_source":   "Fuel pressure: 0=off 1=CAN 2=AV1 3=AV2 4=AV3 5=Synthetic",
-    "coolant_src":       "Coolant temp: 0=off 1=CAN 2=thermistor 3=Synthetic",
-    "oil_temp_src":      "Oil temp: 0=off 1=CAN 2=thermistor",
-    "map_source":        "MAP/boost: 0=off 1=CAN 2=AV1 3=AV2 4=AV3 5=Synthetic",
-    "lambda_source":     "Lambda/AFR: 0=off 1=CAN 2=AV1 3=AV2 4=AV3",
-    "fuel_lvl_src":      "Fuel level: 0=off 1=analog sensor 2=Synthetic",
-    "oil_warn_kpa":      "Oil pressure fault threshold kPa (0-1000). Flash below this.",
-    "coolant_warn_c":    "Coolant temp fault threshold deg C (50-200). Flash above this.",
+    "speed_source":      "Select where the speed signal comes from.",
+    "rpm_source":        "Select where the RPM signal comes from.",
+    "oil_prs_source":    "Select where the oil pressure signal comes from.",
+    "fuel_prs_source":   "Select where the fuel pressure signal comes from.",
+    "coolant_src":       "Select where the coolant temperature signal comes from.",
+    "oil_temp_src":      "Select where the oil temperature signal comes from.",
+    "map_source":        "Select where the MAP / boost signal comes from.",
+    "lambda_source":     "Select where the lambda / AFR signal comes from.",
+    "fuel_lvl_src":      "Select where the fuel level signal comes from.",
+    "oil_warn_kpa":      "Oil pressure fault threshold (0-1000 kPa or equivalent PSI). Flash below this.",
+    "coolant_warn_c":    "Engine temperature warning threshold (50-200 C or equivalent F). Flash above this.",
     "batt_warn_v":       "Battery voltage fault threshold V (5-16). Flash below this.",
     "engine_run_rpm":    "Min RPM to consider engine running for fault logic (0-2000).",
     "fuel_warn_pct":     "Low fuel warning threshold % (0-50). Flash below this.",
     "clock_offset":      "UTC offset hours (-12 to +12).",
-    "fuel_capacity":     "Fuel tank capacity in gallons (1-200).",
+    "fuel_capacity":     "Fuel tank capacity in gallons or liters (1-200 gallons).",
     "can_protocol":      "CAN protocol: 0=Haltech v2 1=Megasquirt 2=AiM 3=OBDII",
     "units":             "Unit system: 0=Metric 1=Imperial",
 }
@@ -177,6 +390,22 @@ class GaugeConfigApp:
         self._config_file = ConfigFile()
         self._vars: Dict[str, tk.StringVar] = {p: tk.StringVar(value="") for p in ALL_PARAMS}
         self._dirty: Dict[str, bool] = {p: False for p in ALL_PARAMS}
+        self._hall_speed_min_display_var = tk.StringVar(value="")
+        self._speedo_max_display_var = tk.StringVar(value="")
+        self._speedo_max_units_var = tk.StringVar(value="mph")
+        self._syncing_speed_display = False
+        self._speed_display_widgets: Dict[str, ttk.Entry] = {}
+        self._oil_warn_display_var = tk.StringVar(value="")
+        self._oil_warn_units_var = tk.StringVar(value="kPa")
+        self._coolant_warn_display_var = tk.StringVar(value="")
+        self._coolant_warn_units_var = tk.StringVar(value="C")
+        self._syncing_warning_display = False
+        self._fuel_capacity_display_var = tk.StringVar(value="")
+        self._fuel_capacity_units_var = tk.StringVar(value="gal")
+        self._syncing_fuel_capacity = False
+        self._param_widgets: Dict[str, ttk.Widget] = {}
+        self._param_labels: Dict[str, ttk.Label] = {}
+        self._source_dependent_widgets: Dict[str, list[ttk.Widget]] = {}
         self._splash_data: Dict[int, bytes] = {}
         self._port_devices: Dict[str, str] = {}
 
@@ -228,37 +457,380 @@ class GaugeConfigApp:
         tabs = [
             ("Connection",       self._build_tab_connection),
             ("Motor Config",     self._build_tab_motors),
-            ("Speed & Hall",     self._build_tab_speed),
-            ("Engine RPM",       self._build_tab_rpm),
+            ("Signal Source",    self._build_tab_signal_source),
+            ("Speed/RPM",        self._build_tab_speed_rpm),
             ("Sensors",          self._build_tab_sensors),
-            ("CAN Bus",          self._build_tab_can),
             ("LED Tach",         self._build_tab_led_tach),
             ("Display Settings", self._build_tab_display),
             ("Fault Warnings",   self._build_tab_faults),
-            ("Clock & Fuel",     self._build_tab_clock),
             ("Splash Screens",   self._build_tab_splash),
         ]
         for title, builder in tabs:
             frame = ttk.Frame(nb)
             nb.add(frame, text=title)
             builder(frame)
+        self._update_source_dependent_controls()
 
     def _param_row(self, parent: tk.Widget, row: int, col: int,
                    label: str, param: str, width: int = 12) -> ttk.Entry:
         lbl = ttk.Label(parent, text=label)
         lbl.grid(row=row, column=col, sticky="e", padx=4, pady=2)
-        entry = ttk.Entry(parent, textvariable=self._vars[param], width=width)
-        entry.grid(row=row, column=col + 1, sticky="w", padx=4, pady=2)
+        self._param_labels[param] = lbl
+        if param in SOURCE_OPTIONS:
+            options = SOURCE_OPTIONS[param]
+            display_var = tk.StringVar()
+            widget = ttk.Combobox(
+                parent, textvariable=display_var, values=options,
+                width=max(width, max(map(len, options))), state="readonly",
+            )
+            widget.bind(
+                "<<ComboboxSelected>>",
+                lambda _event, p=param, combo=widget: self._vars[p].set(str(combo.current())),
+            )
+
+            def update_source_display(*_args: object) -> None:
+                try:
+                    value = int(self._vars[param].get())
+                    display_var.set(options[value] if 0 <= value < len(options) else "Unsupported source")
+                except ValueError:
+                    display_var.set("Unsupported source" if self._vars[param].get() else "")
+
+            self._vars[param].trace_add("write", update_source_display)
+            update_source_display()
+        else:
+            widget = ttk.Entry(parent, textvariable=self._vars[param], width=width)
+        widget.grid(row=row, column=col + 1, sticky="w", padx=4, pady=2)
+        self._param_widgets[param] = widget
+        if param in ("tach_max", "tach_min"):
+            widget.bind("<FocusOut>", lambda _event: self._enforce_tach_min())
         if param in TOOLTIPS:
             ToolTip(lbl,   TOOLTIPS[param])
-            ToolTip(entry, TOOLTIPS[param])
+            ToolTip(widget, TOOLTIPS[param])
 
         def on_change(*_args: object) -> None:
             self._dirty[param] = True
-            entry.configure(foreground="blue")
+            widget.configure(foreground="blue")
 
         self._vars[param].trace_add("write", on_change)
-        return entry
+        if param in SOURCE_OPTIONS:
+            self._vars[param].trace_add(
+                "write", lambda *_args: self._update_source_dependent_controls(),
+            )
+        return widget
+
+    def _warning_threshold_row(
+        self,
+        parent: tk.Widget,
+        row: int,
+        label: str,
+        param: str,
+        units: tuple,
+        display_var: tk.StringVar,
+        units_var: tk.StringVar,
+    ) -> None:
+        lbl = ttk.Label(parent, text=label)
+        lbl.grid(row=row, column=0, sticky="e", padx=4, pady=2)
+        entry = ttk.Entry(parent, textvariable=display_var, width=12)
+        entry.grid(row=row, column=1, sticky="w", padx=4, pady=2)
+        self._param_labels[param] = lbl
+        self._param_widgets[param] = entry
+        ToolTip(lbl, TOOLTIPS[param])
+        ToolTip(entry, TOOLTIPS[param])
+        display_var.trace_add(
+            "write", lambda *_args, p=param: self._on_warning_display_changed(p),
+        )
+        self._vars[param].trace_add(
+            "write", lambda *_args, p=param: self._sync_warning_display(p),
+        )
+        self._vars[param].trace_add(
+            "write",
+            lambda *_args, p=param: self._mark_parameter_dirty(p),
+        )
+        self._unit_radio_group(
+            parent, row, 2, units_var, units,
+            lambda p=param: self._warning_units_changed(p),
+        )
+        self._sync_warning_display(param)
+
+    @staticmethod
+    def _unit_radio_group(
+        parent: tk.Widget,
+        row: int,
+        column: int,
+        units_var: tk.StringVar,
+        units: tuple,
+        command: Callable[[], None],
+    ) -> list[ttk.Radiobutton]:
+        group = ttk.Frame(parent)
+        group.grid(row=row, column=column, columnspan=2, sticky="w", padx=4, pady=2)
+        radios = []
+        for unit in units:
+            radio = ttk.Radiobutton(
+                group, text=unit, variable=units_var, value=unit,
+                command=command,
+            )
+            radio.pack(side="left", padx=(0, 8))
+            radios.append(radio)
+        return radios
+
+    def _mark_parameter_dirty(self, param: str) -> None:
+        self._dirty[param] = True
+        widget = self._param_widgets.get(param)
+        if widget:
+            widget.configure(foreground="blue")
+
+    def _selected_sources(self) -> Dict[str, str]:
+        return {
+            param: self._vars[param].get()
+            for param in SOURCE_OPTIONS
+        }
+
+    def _set_source_dependent_state(self, param: str, active: bool) -> None:
+        state = "!disabled" if active else "disabled"
+        widget = self._param_widgets.get(param)
+        if widget:
+            widget.state([state])
+        label = self._param_labels.get(param)
+        if label:
+            label.state([state])
+        for dependent in self._source_dependent_widgets.get(param, []):
+            dependent.state([state])
+
+    def _update_source_dependent_controls(self) -> None:
+        selected_sources = self._selected_sources()
+        dependent_params = set(SOURCE_DEPENDENT_PARAMS)
+        dependent_params.add("speedo_max")
+        for param in dependent_params:
+            self._set_source_dependent_state(
+                param, _source_uses_parameter(param, selected_sources),
+            )
+
+    def _enforce_tach_min(self) -> None:
+        try:
+            shift_rpm = int(self._vars["tach_max"].get())
+            min_display_rpm = int(self._vars["tach_min"].get())
+        except ValueError:
+            return
+        if min_display_rpm < shift_rpm:
+            self._vars["tach_min"].set(str(shift_rpm))
+
+    def _sync_speed_display(self, param: str) -> None:
+        if self._syncing_speed_display:
+            return
+        try:
+            raw = int(self._vars[param].get())
+        except ValueError:
+            return
+        if param == "hall_speed_min":
+            value = raw / 100
+            display_var = self._hall_speed_min_display_var
+        else:
+            value = raw / 100
+            if self._speedo_max_units_var.get() == "km/h":
+                value *= KMH_PER_MPH
+            display_var = self._speedo_max_display_var
+        self._syncing_speed_display = True
+        try:
+            display_var.set(_display_number(value))
+        finally:
+            self._syncing_speed_display = False
+
+    def _commit_speed_display(self, param: str) -> None:
+        self._on_speed_display_changed(param)
+        try:
+            if param == "hall_speed_min":
+                _hall_speed_min_to_raw(self._hall_speed_min_display_var.get())
+            else:
+                _speedo_max_to_raw(
+                    self._speedo_max_display_var.get(),
+                    self._speedo_max_units_var.get(),
+                )
+        except ValueError:
+            return
+        self._sync_speed_display(param)
+
+    def _on_speed_display_changed(self, param: str) -> None:
+        if self._syncing_speed_display:
+            return
+        self._dirty[param] = True
+        widget = self._speed_display_widgets.get(param)
+        if widget:
+            widget.configure(foreground="blue")
+        try:
+            if param == "hall_speed_min":
+                raw = _hall_speed_min_to_raw(self._hall_speed_min_display_var.get())
+            else:
+                raw = _speedo_max_to_raw(
+                    self._speedo_max_display_var.get(),
+                    self._speedo_max_units_var.get(),
+                )
+        except ValueError:
+            return
+        self._syncing_speed_display = True
+        try:
+            self._vars[param].set(str(raw))
+        finally:
+            self._syncing_speed_display = False
+
+    def _speedo_max_units_changed(self) -> None:
+        self._sync_speed_display("speedo_max")
+
+    def _validate_speed_inputs(self) -> bool:
+        try:
+            sources = self._selected_sources()
+            hall_min = None
+            if _source_uses_parameter("hall_speed_min", sources):
+                hall_value = self._hall_speed_min_display_var.get()
+                if hall_value:
+                    hall_min = _hall_speed_min_to_raw(hall_value)
+                elif self._dirty["hall_speed_min"]:
+                    raise ValueError("Minimum Speed Cutoff must be a number from 0 to 1 km/h.")
+            speedo_max = None
+            if _source_uses_parameter("speedo_max", sources):
+                speedo_value = self._speedo_max_display_var.get()
+                if speedo_value:
+                    speedo_max = _speedo_max_to_raw(
+                        speedo_value, self._speedo_max_units_var.get(),
+                    )
+                elif self._dirty["speedo_max"]:
+                    raise ValueError("Speedometer Max must be a number.")
+        except ValueError as exc:
+            messagebox.showerror("Invalid speed setting", str(exc))
+            return False
+        if hall_min is not None and self._vars["hall_speed_min"].get() != str(hall_min):
+            self._vars["hall_speed_min"].set(str(hall_min))
+        if speedo_max is not None and self._vars["speedo_max"].get() != str(speedo_max):
+            self._vars["speedo_max"].set(str(speedo_max))
+        return True
+
+    def _sync_warning_display(self, param: str) -> None:
+        if self._syncing_warning_display:
+            return
+        raw_value = self._vars[param].get()
+        if not raw_value:
+            return
+        if param == "oil_warn_kpa":
+            display_var = self._oil_warn_display_var
+            units = self._oil_warn_units_var.get()
+        else:
+            display_var = self._coolant_warn_display_var
+            units = self._coolant_warn_units_var.get()
+        try:
+            display_value = _warning_display_value(raw_value, param, units)
+        except ValueError:
+            return
+        self._syncing_warning_display = True
+        try:
+            display_var.set(display_value)
+        finally:
+            self._syncing_warning_display = False
+
+    def _on_warning_display_changed(self, param: str) -> None:
+        if self._syncing_warning_display:
+            return
+        self._dirty[param] = True
+        if param == "oil_warn_kpa":
+            display_var = self._oil_warn_display_var
+            units = self._oil_warn_units_var.get()
+        else:
+            display_var = self._coolant_warn_display_var
+            units = self._coolant_warn_units_var.get()
+        try:
+            if param == "oil_warn_kpa":
+                raw_value = _oil_warning_to_raw(display_var.get(), units)
+            else:
+                raw_value = _temperature_warning_to_raw(display_var.get(), units)
+        except ValueError:
+            return
+        self._syncing_warning_display = True
+        try:
+            self._vars[param].set(f"{raw_value:.2f}".rstrip("0").rstrip("."))
+        finally:
+            self._syncing_warning_display = False
+
+    def _warning_units_changed(self, param: str) -> None:
+        self._sync_warning_display(param)
+
+    def _validate_warning_inputs(self) -> bool:
+        try:
+            warning_values = (
+                ("oil_warn_kpa", self._oil_warn_display_var.get(), self._oil_warn_units_var.get()),
+                ("coolant_warn_c", self._coolant_warn_display_var.get(), self._coolant_warn_units_var.get()),
+            )
+            for param, display_value, units in warning_values:
+                if not display_value:
+                    if self._dirty[param]:
+                        raise ValueError(f"{param} must be a number.")
+                    continue
+                raw_value = (
+                    _oil_warning_to_raw(display_value, units)
+                    if param == "oil_warn_kpa"
+                    else _temperature_warning_to_raw(display_value, units)
+                )
+                raw_text = f"{raw_value:.2f}".rstrip("0").rstrip(".")
+                if self._vars[param].get() != raw_text:
+                    self._vars[param].set(raw_text)
+        except ValueError as exc:
+            messagebox.showerror("Invalid warning threshold", str(exc))
+            return False
+        return True
+
+    def _sync_fuel_capacity_display(self) -> None:
+        if self._syncing_fuel_capacity:
+            return
+        raw_value = self._vars["fuel_capacity"].get()
+        if not raw_value:
+            return
+        try:
+            display_value = _fuel_capacity_display_value(
+                raw_value, self._fuel_capacity_units_var.get(),
+            )
+        except ValueError:
+            return
+        self._syncing_fuel_capacity = True
+        try:
+            self._fuel_capacity_display_var.set(display_value)
+        finally:
+            self._syncing_fuel_capacity = False
+
+    def _on_fuel_capacity_display_changed(self) -> None:
+        if self._syncing_fuel_capacity:
+            return
+        self._dirty["fuel_capacity"] = True
+        try:
+            raw_value = _fuel_capacity_to_raw(
+                self._fuel_capacity_display_var.get(),
+                self._fuel_capacity_units_var.get(),
+            )
+        except ValueError:
+            return
+        self._syncing_fuel_capacity = True
+        try:
+            raw_text = f"{raw_value:.2f}".rstrip("0").rstrip(".")
+            if self._vars["fuel_capacity"].get() != raw_text:
+                self._vars["fuel_capacity"].set(raw_text)
+        finally:
+            self._syncing_fuel_capacity = False
+
+    def _fuel_capacity_units_changed(self) -> None:
+        self._sync_fuel_capacity_display()
+
+    def _validate_fuel_capacity(self) -> bool:
+        value = self._fuel_capacity_display_var.get()
+        if not value:
+            if self._dirty["fuel_capacity"]:
+                messagebox.showerror("Invalid fuel capacity", "Fuel tank capacity must be a number.")
+                return False
+            return True
+        try:
+            raw_value = _fuel_capacity_to_raw(value, self._fuel_capacity_units_var.get())
+        except ValueError as exc:
+            messagebox.showerror("Invalid fuel capacity", str(exc))
+            return False
+        raw_text = f"{raw_value:.2f}".rstrip("0").rstrip(".")
+        if self._vars["fuel_capacity"].get() != raw_text:
+            self._vars["fuel_capacity"].set(raw_text)
+        return True
 
     # ------ Tab 1: Connection ------
     def _build_tab_connection(self, frame: ttk.Frame) -> None:
@@ -576,74 +1148,147 @@ class GaugeConfigApp:
         sw_grp.grid(row=len(motors) + 1, column=0, padx=10, pady=6, sticky="ew")
         self._param_row(sw_grp, 0, 0, "Sweep time (ms):", "motor_sweep_ms")
 
-    # ------ Tab 3: Speed ------
+    # ------ Signal source tab ------
+    def _build_tab_signal_source(self, frame: ttk.Frame) -> None:
+        canvas = tk.Canvas(frame, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(frame, orient="vertical", command=canvas.yview)
+        content = ttk.Frame(canvas)
+        window = canvas.create_window((0, 0), window=content, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        content.bind(
+            "<Configure>",
+            lambda _event: canvas.configure(scrollregion=canvas.bbox("all")),
+        )
+        canvas.bind(
+            "<Configure>",
+            lambda event: canvas.itemconfigure(window, width=event.width),
+        )
+        scrollbar.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+
+        protocol = ttk.LabelFrame(content, text="CAN Bus")
+        protocol.pack(padx=10, pady=6, fill="x")
+        self._param_row(protocol, 0, 0, "CAN protocol:", "can_protocol")
+        ttk.Label(
+            protocol, text="0=Haltech v2  1=Megasquirt  2=AiM  3=OBDII",
+            foreground="gray",
+        ).grid(row=0, column=2, sticky="w", padx=8)
+
+        speed_source = ttk.LabelFrame(content, text="Speed Source")
+        speed_source.pack(padx=10, pady=6, fill="x")
+        self._param_row(speed_source, 0, 0, "Speed source:", "speed_source")
+
+        rpm_source = ttk.LabelFrame(content, text="RPM Source")
+        rpm_source.pack(padx=10, pady=6, fill="x")
+        self._param_row(rpm_source, 0, 0, "RPM source:", "rpm_source")
+
+        other_sources = ttk.LabelFrame(content, text="Other Signal Sources")
+        other_sources.pack(padx=10, pady=6, fill="x")
+        for i, (label, param) in enumerate([
+            ("Oil pressure:", "oil_prs_source"),
+            ("Fuel pressure:", "fuel_prs_source"),
+            ("Coolant temp:", "coolant_src"),
+            ("Oil temp:", "oil_temp_src"),
+            ("MAP / boost:", "map_source"),
+            ("Lambda / AFR:", "lambda_source"),
+            ("Fuel level:", "fuel_lvl_src"),
+        ]):
+            self._param_row(other_sources, i, 0, label, param)
+
+    def _build_tab_speed_rpm(self, frame: ttk.Frame) -> None:
+        self._build_tab_speed(frame)
+        self._build_tab_rpm(frame)
+        odo = ttk.LabelFrame(frame, text="Mechanical odometer calibration")
+        odo.pack(padx=10, pady=6, fill="both")
+        self._param_row(odo, 0, 0, "Steps per revolution:", "odo_steps")
+        self._param_row(odo, 1, 0, "Motor gear teeth:",     "odo_motor_teeth")
+        self._param_row(odo, 2, 0, "Driven gear teeth:",    "odo_gear_teeth")
+
+    # ------ Speed source configuration ------
     def _build_tab_speed(self, frame: ttk.Frame) -> None:
         grp = ttk.LabelFrame(frame, text="Speed & Hall Sensor")
         grp.pack(padx=10, pady=10, fill="both")
-        self._param_row(grp, 0, 0, "Speed source:",   "speed_source")
-        self._param_row(grp, 1, 0, "Revs per km:",    "revs_per_km")
-        self._param_row(grp, 2, 0, "Teeth per rev:",  "teeth_per_rev")
-        self._param_row(grp, 3, 0, "Hall speed min:", "hall_speed_min")
-        self._param_row(grp, 4, 0, "Hall filter:",    "filter_hall")
-        self._param_row(grp, 5, 0, "Speedo max:",     "speedo_max")
+        self._param_row(grp, 0, 0, "Revs per km:",    "revs_per_km")
+        self._param_row(grp, 1, 0, "Teeth per rev:",  "teeth_per_rev")
+        hall_label = ttk.Label(grp, text="Minimum Speed Cutoff (km/h):")
+        hall_label.grid(row=2, column=0, sticky="e", padx=4, pady=2)
+        self._param_labels["hall_speed_min"] = hall_label
+        hall_entry = ttk.Entry(grp, textvariable=self._hall_speed_min_display_var, width=12)
+        hall_entry.grid(row=2, column=1, sticky="w", padx=4, pady=2)
+        self._param_widgets["hall_speed_min"] = hall_entry
+        hall_entry.bind(
+            "<FocusOut>",
+            lambda _event: self._commit_speed_display("hall_speed_min"),
+        )
+        self._speed_display_widgets["hall_speed_min"] = hall_entry
+        ToolTip(hall_label, TOOLTIPS["hall_speed_min"])
+        ToolTip(hall_entry, TOOLTIPS["hall_speed_min"])
+        self._hall_speed_min_display_var.trace_add(
+            "write", lambda *_args: self._on_speed_display_changed("hall_speed_min"),
+        )
+        self._vars["hall_speed_min"].trace_add(
+            "write", lambda *_args: self._sync_speed_display("hall_speed_min"),
+        )
+        self._param_row(grp, 3, 0, "Hall filter:",    "filter_hall")
+        speedo_label = ttk.Label(grp, text="Speedometer Max:")
+        speedo_label.grid(row=4, column=0, sticky="e", padx=4, pady=2)
+        self._param_labels["speedo_max"] = speedo_label
+        speedo_entry = ttk.Entry(grp, textvariable=self._speedo_max_display_var, width=12)
+        speedo_entry.grid(row=4, column=1, sticky="w", padx=4, pady=2)
+        self._param_widgets["speedo_max"] = speedo_entry
+        speedo_entry.bind(
+            "<FocusOut>",
+            lambda _event: self._commit_speed_display("speedo_max"),
+        )
+        self._speed_display_widgets["speedo_max"] = speedo_entry
+        ToolTip(speedo_label, TOOLTIPS["speedo_max"])
+        ToolTip(speedo_entry, TOOLTIPS["speedo_max"])
+        self._speedo_max_display_var.trace_add(
+            "write", lambda *_args: self._on_speed_display_changed("speedo_max"),
+        )
+        self._vars["speedo_max"].trace_add(
+            "write", lambda *_args: self._sync_speed_display("speedo_max"),
+        )
+        speed_units = self._unit_radio_group(
+            grp, 4, 2, self._speedo_max_units_var, SPEEDO_MAX_UNITS,
+            self._speedo_max_units_changed,
+        )
+        self._source_dependent_widgets["speedo_max"] = speed_units
+        self._sync_speed_display("hall_speed_min")
+        self._sync_speed_display("speedo_max")
 
-    # ------ Tab 4: RPM ------
+    # ------ RPM source configuration ------
     def _build_tab_rpm(self, frame: ttk.Frame) -> None:
         grp = ttk.LabelFrame(frame, text="Engine RPM Sensor")
         grp.pack(padx=10, pady=10, fill="both")
-        self._param_row(grp, 0, 0, "RPM source:",      "rpm_source")
-        self._param_row(grp, 1, 0, "Cylinder count:",  "cyl_count")
-        self._param_row(grp, 2, 0, "Debounce (us):",   "rpm_debounce_us")
-        self._param_row(grp, 3, 0, "Engine RPM min:",  "engine_rpm_min")
-        self._param_row(grp, 4, 0, "RPM filter:",      "filter_rpm")
+        self._param_row(grp, 0, 0, "Cylinder count:",  "cyl_count")
+        self._param_row(grp, 1, 0, "Debounce (us):",   "rpm_debounce_us")
+        self._param_row(grp, 2, 0, "Engine RPM min:",  "engine_rpm_min")
+        self._param_row(grp, 3, 0, "RPM filter:",      "filter_rpm")
 
     # ------ Tab 5: Sensors ------
     def _build_tab_sensors(self, frame: ttk.Frame) -> None:
-        nb = ttk.Notebook(frame)
-        nb.pack(fill="both", expand=True, padx=4, pady=4)
-        therm = ttk.Frame(nb)
-        nb.add(therm, text="Thermistor")
-        g = ttk.LabelFrame(therm, text="Filter")
-        g.pack(padx=10, pady=10, fill="x")
-        self._param_row(g, 0, 0, "Therm filter:", "filter_therm")
-        fuel = ttk.Frame(nb)
-        nb.add(fuel, text="Fuel Level")
-        g2 = ttk.LabelFrame(fuel, text="Filter")
-        g2.pack(padx=10, pady=10, fill="x")
-        self._param_row(g2, 0, 0, "Fuel filter:", "filter_fuel")
-        av = ttk.Frame(nb)
-        nb.add(av, text="AV1/AV2/AV3")
-        g3 = ttk.LabelFrame(av, text="Analog sensor filters")
-        g3.pack(padx=10, pady=10, fill="x")
-        self._param_row(g3, 0, 0, "AV1 filter:", "filter_av1")
-        self._param_row(g3, 1, 0, "AV2 filter:", "filter_av2")
-        self._param_row(g3, 2, 0, "AV3 filter:", "filter_av3")
-        batt = ttk.Frame(nb)
-        nb.add(batt, text="Battery")
-        g4 = ttk.LabelFrame(batt, text="Battery voltage sensor")
-        g4.pack(padx=10, pady=10, fill="x")
-        self._param_row(g4, 0, 0, "Vbatt filter:", "filter_vbatt")
-        self._param_row(g4, 1, 0, "Vbatt scaler:", "vbatt_scaler")
+        for col in range(2):
+            frame.columnconfigure(col, weight=1)
 
-    # ------ Tab 6: CAN ------
-    def _build_tab_can(self, frame: ttk.Frame) -> None:
-        grp = ttk.LabelFrame(frame, text="CAN Bus")
-        grp.pack(padx=10, pady=10, fill="x")
-        self._param_row(grp, 0, 0, "CAN protocol:", "can_protocol")
-        ttk.Label(grp, text="0=Haltech v2  1=Megasquirt  2=AiM  3=OBDII",
-                  foreground="gray").grid(row=0, column=2, sticky="w", padx=8)
-        src_grp = ttk.LabelFrame(frame, text="Signal sources")
-        src_grp.pack(padx=10, pady=6, fill="both")
-        for i, (lbl, p) in enumerate([
-            ("Oil pressure:",  "oil_prs_source"),
-            ("Fuel pressure:", "fuel_prs_source"),
-            ("Coolant temp:",  "coolant_src"),
-            ("Oil temp:",      "oil_temp_src"),
-            ("MAP / boost:",   "map_source"),
-            ("Lambda / AFR:",  "lambda_source"),
-            ("Fuel level:",    "fuel_lvl_src"),
-        ]):
-            self._param_row(src_grp, i, 0, lbl, p)
+        therm = ttk.LabelFrame(frame, text="Thermistor")
+        therm.grid(row=0, column=0, padx=10, pady=10, sticky="nw")
+        self._param_row(therm, 0, 0, "Therm filter:", "filter_therm")
+
+        fuel = ttk.LabelFrame(frame, text="Fuel Level")
+        fuel.grid(row=0, column=1, padx=10, pady=10, sticky="nw")
+        self._param_row(fuel, 0, 0, "Fuel filter:", "filter_fuel")
+
+        av = ttk.LabelFrame(frame, text="Analog Sensor Filters")
+        av.grid(row=1, column=0, padx=10, pady=10, sticky="nw")
+        self._param_row(av, 0, 0, "AV1 filter:", "filter_av1")
+        self._param_row(av, 1, 0, "AV2 filter:", "filter_av2")
+        self._param_row(av, 2, 0, "AV3 filter:", "filter_av3")
+
+        batt = ttk.LabelFrame(frame, text="Battery Voltage Sensor")
+        batt.grid(row=1, column=1, padx=10, pady=10, sticky="nw")
+        self._param_row(batt, 0, 0, "Vbatt filter:", "filter_vbatt")
+        self._param_row(batt, 1, 0, "Vbatt scaler:", "vbatt_scaler")
 
     # ------ Tab 7: LED Tach ------
     def _build_tab_led_tach(self, frame: ttk.Frame) -> None:
@@ -671,32 +1316,54 @@ class GaugeConfigApp:
             "15: Trip Odometer", "16: Clock", "17: Falcon Script logo",
         ]
         for i, name in enumerate(screens):
-            r, c = divmod(i, 3)
-            ttk.Label(info, text=name, width=24).grid(row=r, column=c, sticky="w", padx=4, pady=1)
+            ttk.Label(info, text=name, width=24).grid(row=i, column=0, sticky="w", padx=4, pady=1)
+        self._build_tab_clock(frame)
 
     # ------ Tab 9: Faults ------
     def _build_tab_faults(self, frame: ttk.Frame) -> None:
         grp = ttk.LabelFrame(frame, text="Fault Warning Thresholds")
         grp.pack(padx=10, pady=10, fill="both")
-        self._param_row(grp, 0, 0, "Oil pressure (kPa):",  "oil_warn_kpa")
-        self._param_row(grp, 1, 0, "Coolant temp (deg C):", "coolant_warn_c")
+        self._warning_threshold_row(
+            grp, 0, "Oil pressure warning:", "oil_warn_kpa",
+            OIL_WARNING_UNITS, self._oil_warn_display_var, self._oil_warn_units_var,
+        )
+        self._warning_threshold_row(
+            grp, 1, "Engine temp warning:", "coolant_warn_c",
+            TEMPERATURE_UNITS, self._coolant_warn_display_var, self._coolant_warn_units_var,
+        )
         self._param_row(grp, 2, 0, "Battery voltage (V):", "batt_warn_v")
         self._param_row(grp, 3, 0, "Engine running RPM:",  "engine_run_rpm")
         self._param_row(grp, 4, 0, "Low fuel (%):",        "fuel_warn_pct")
 
-    # ------ Tab 10: Clock & Fuel ------
+    # ------ Display Settings: Clock & Fuel group ------
     def _build_tab_clock(self, frame: ttk.Frame) -> None:
         grp = ttk.LabelFrame(frame, text="Clock & Fuel")
         grp.pack(padx=10, pady=10, fill="both")
         self._param_row(grp, 0, 0, "UTC offset (hours):",       "clock_offset")
-        self._param_row(grp, 1, 0, "Fuel tank capacity (gal):", "fuel_capacity")
-        odo = ttk.LabelFrame(frame, text="Odometer motor calibration")
-        odo.pack(padx=10, pady=6, fill="both")
-        self._param_row(odo, 0, 0, "Steps per revolution:", "odo_steps")
-        self._param_row(odo, 1, 0, "Motor gear teeth:",     "odo_motor_teeth")
-        self._param_row(odo, 2, 0, "Driven gear teeth:",    "odo_gear_teeth")
+        fuel_label = ttk.Label(grp, text="Fuel tank capacity:")
+        fuel_label.grid(row=1, column=0, sticky="e", padx=4, pady=2)
+        fuel_entry = ttk.Entry(grp, textvariable=self._fuel_capacity_display_var, width=12)
+        fuel_entry.grid(row=1, column=1, sticky="w", padx=4, pady=2)
+        self._param_labels["fuel_capacity"] = fuel_label
+        self._param_widgets["fuel_capacity"] = fuel_entry
+        ToolTip(fuel_label, TOOLTIPS["fuel_capacity"])
+        ToolTip(fuel_entry, TOOLTIPS["fuel_capacity"])
+        self._fuel_capacity_display_var.trace_add(
+            "write", lambda *_args: self._on_fuel_capacity_display_changed(),
+        )
+        self._vars["fuel_capacity"].trace_add(
+            "write", lambda *_args: self._sync_fuel_capacity_display(),
+        )
+        self._vars["fuel_capacity"].trace_add(
+            "write", lambda *_args: self._mark_parameter_dirty("fuel_capacity"),
+        )
+        self._unit_radio_group(
+            grp, 1, 2, self._fuel_capacity_units_var, FUEL_CAPACITY_UNITS,
+            self._fuel_capacity_units_changed,
+        )
+        self._sync_fuel_capacity_display()
 
-    # ------ Tab 11: Splash ------
+    # ------ Tab 9: Splash ------
     def _build_tab_splash(self, frame: ttk.Frame) -> None:
         for slot in (1, 2):
             grp = ttk.LabelFrame(frame, text=f"Splash Slot {slot}")
@@ -812,6 +1479,10 @@ class GaugeConfigApp:
                 if k in self._vars:
                     self._vars[k].set(v)
                     self._dirty[k] = False
+            self._enforce_tach_min()
+            self._sync_warning_display("oil_warn_kpa")
+            self._sync_warning_display("coolant_warn_c")
+            self._sync_fuel_capacity_display()
             self._set_status(f"Read {len(params)} parameters from device.")
         except Exception as exc:
             messagebox.showerror("Read error", str(exc))
@@ -820,7 +1491,19 @@ class GaugeConfigApp:
         if not self._serial or not self._serial.is_connected:
             messagebox.showwarning("Not connected", "Connect to the Arduino first.")
             return
-        dirty = [p for p in ALL_PARAMS if self._dirty[p] and self._vars[p].get()]
+        self._enforce_tach_min()
+        if not self._validate_speed_inputs():
+            return
+        if not self._validate_warning_inputs():
+            return
+        if not self._validate_fuel_capacity():
+            return
+        selected_sources = self._selected_sources()
+        dirty = [
+            p for p in ALL_PARAMS
+            if self._dirty[p] and self._vars[p].get()
+            and _source_uses_parameter(p, selected_sources)
+        ]
         if not dirty:
             messagebox.showinfo("Nothing to write", "No parameters have been edited.")
             return
@@ -855,7 +1538,19 @@ class GaugeConfigApp:
         )
         if not path:
             return
+        self._enforce_tach_min()
+        if not self._validate_speed_inputs():
+            return
+        if not self._validate_warning_inputs():
+            return
+        if not self._validate_fuel_capacity():
+            return
         params = {p: self._vars[p].get() for p in ALL_PARAMS if self._vars[p].get()}
+        params["config_format"] = str(CONFIG_FILE_FORMAT)
+        params["speedo_max_units"] = self._speedo_max_units_var.get()
+        params["oil_warn_units"] = self._oil_warn_units_var.get()
+        params["coolant_warn_units"] = self._coolant_warn_units_var.get()
+        params["fuel_capacity_units"] = self._fuel_capacity_units_var.get()
         try:
             self._config_file.save_to_file(path, params)
             self._set_status(f"Configuration saved to {path}")
@@ -871,11 +1566,27 @@ class GaugeConfigApp:
             return
         try:
             params = self._config_file.load_from_file(path)
+            converted_params, units = _decode_config_units(params)
+            self._speedo_max_units_var.set(units["speedo_max_units"])
+            self._oil_warn_units_var.set(units["oil_warn_units"])
+            self._coolant_warn_units_var.set(units["coolant_warn_units"])
+            self._fuel_capacity_units_var.set(units["fuel_capacity_units"])
+            loaded_count = 0
             for k, v in params.items():
+                if k in (
+                    "config_format", "speedo_max_units",
+                    "oil_warn_units", "coolant_warn_units", "fuel_capacity_units",
+                ):
+                    continue
                 if k in self._vars:
-                    self._vars[k].set(v)
+                    self._vars[k].set(converted_params.get(k, v))
                     self._dirty[k] = True
-            self._set_status(f"Loaded {len(params)} parameters from {os.path.basename(path)}")
+                    loaded_count += 1
+            self._enforce_tach_min()
+            self._sync_warning_display("oil_warn_kpa")
+            self._sync_warning_display("coolant_warn_c")
+            self._sync_fuel_capacity_display()
+            self._set_status(f"Loaded {loaded_count} parameters from {os.path.basename(path)}")
         except Exception as exc:
             messagebox.showerror("Load error", str(exc))
 
