@@ -57,6 +57,11 @@ uint8_t SHIFT_LEDS = 2;             // Shift light LEDs
 unsigned int TACH_MAX = 6000;       // RPM at shift point
 unsigned int TACH_MIN = 3000;       // Minimum RPM to show
 
+// ===== SPEEDOMETER BACKLIGHT =====
+// Warm white 3500K at 25% brightness using the LED tachometer strip.
+// Set to 1 to enable backlight, 0 to disable.
+uint8_t SPEEDO_BACKLIGHT_ENABLED = 1;  // 0=disabled, 1=enabled
+
 // ===== ODOMETER MOTOR CALIBRATION =====
 // 28BYJ-48 stepper motor step count depends on drive mode:
 //   Half-step mode : 4096 steps per revolution (NOT used here)
