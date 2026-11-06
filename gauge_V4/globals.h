@@ -136,6 +136,9 @@ extern float spdMph;                // Vehicle speed in miles per hour
 // Values set via serial commands when SPEED_SOURCE=6 or RPM_SOURCE=4
 extern int spdSerial;               // Speed set via serial (km/h * 100), used when SPEED_SOURCE == 6
 extern int rpmSerial;               // RPM set via serial, used when RPM_SOURCE == 4
+extern float oilPrsSerial;          // Oil pressure (kPa gauge) set via serial, used when OIL_PRS_SOURCE == 6
+extern float coolantTempSerial;     // Coolant temperature (Celsius) set via serial, used when COOLANT_TEMP_SOURCE == 4
+extern float fuelLvlSerial;         // Fuel level (% of capacity) set via serial, used when FUEL_LVL_SOURCE == 3
 
 // ===== CAN BUS COMMUNICATION BUFFERS =====
 extern byte canMessageData[8];      // Received CAN message data
@@ -159,6 +162,10 @@ extern byte odoAddress;             // Total odometer value (4 bytes)
 extern byte odoTripAddress;         // Trip odometer value (4 bytes)
 extern byte fuelSensorRawAddress;   // Last fuel sensor reading (4 bytes)
 extern byte unitsAddress;           // Unit system selection (1 byte)
+extern uint16_t splashValidFlag1Address; // Splash slot 1 validity flag address
+extern uint16_t splashValidFlag2Address; // Splash slot 2 validity flag address
+extern uint16_t customSplash1Address;    // Custom splash image slot 1 start address
+extern uint16_t customSplash2Address;    // Custom splash image slot 2 start address
 
 // ===== MENU NAVIGATION VARIABLES =====
 extern byte menuLevel;              // Current menu depth

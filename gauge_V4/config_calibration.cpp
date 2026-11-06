@@ -13,6 +13,24 @@ uint16_t M3_SWEEP = 58 * 12;        // Motor 3: 58 degrees * 3 steps/degree * 4 
 uint16_t M4_SWEEP = 58 * 12;        // Motor 4: 58 degrees * 3 steps/degree * 4 microsteps/step = 696 steps
 uint16_t MS_SWEEP = 8064;           // Motor S: (118° / 0.9°) * 32 microsteps = 4195.555 ≈ 4196 steps (speedometer)
 
+// ===== MOTOR 1-4 FUNCTION ASSIGNMENT =====
+// 0=Off, 1=Fuel level, 2=Coolant temperature
+uint8_t M1_FUNCTION = MOTOR_FUNC_FUEL_LEVEL;
+uint8_t M2_FUNCTION = MOTOR_FUNC_COOLANT_TEMP;
+uint8_t M3_FUNCTION = MOTOR_FUNC_FUEL_LEVEL;
+uint8_t M4_FUNCTION = MOTOR_FUNC_COOLANT_TEMP;
+
+// ===== MOTOR 1-4 GAUGE SCALE (units follow the assigned function) =====
+// Fuel level: percent of tank capacity. Coolant temp: degrees C.
+int16_t M1_MIN = 10;
+int16_t M1_MAX = 100;
+int16_t M2_MIN = 50;
+int16_t M2_MAX = 115;
+int16_t M3_MIN = 10;
+int16_t M3_MAX = 100;
+int16_t M4_MIN = 50;
+int16_t M4_MAX = 115;
+
 // ===== MOTOR S (NEMA14 / TMC2209) ZEROING PARAMETERS =====
 // 500 µs/step = 2000 steps/sec — a smooth, controlled rate for the NEMA14 during zeroing.
 // The SwitecX12 accel table peaks at ~90 µs/step (11 111 steps/sec); this default is slower

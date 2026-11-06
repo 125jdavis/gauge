@@ -706,6 +706,9 @@ void sigSelect (void) {
         case 5:  // Synthetic oil pressure (debug)
             oilPrs = generateSyntheticOilPressure();
             break;
+        case 6:  // Serial signal source
+            oilPrs = oilPrsSerial;
+            break;
         default:  // Fallback to off
             oilPrs = 0;
             break;
@@ -749,6 +752,9 @@ void sigSelect (void) {
             break;
         case 3:  // Synthetic coolant temperature (debug)
             coolantTemp = generateSyntheticCoolantTemp();
+            break;
+        case 4:  // Serial signal source
+            coolantTemp = coolantTempSerial;
             break;
         default:  // Fallback to off
             coolantTemp = 0;
@@ -834,6 +840,9 @@ void sigSelect (void) {
             break;
         case 2:  // Synthetic fuel level (debug)
             fuelLvl = (generateSyntheticFuelLevel() / 100.0) * fuelCapacity;
+            break;
+        case 3:  // Serial signal source (percent of capacity)
+            fuelLvl = (fuelLvlSerial / 100.0) * fuelCapacity;
             break;
         default:  // Fallback to off
             fuelLvl = 0;

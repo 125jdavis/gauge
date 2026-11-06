@@ -151,13 +151,23 @@ float mapFloat(float x, float in_min, float in_max, float out_min, float out_max
 /**
  * processSerialCommands - Parse and execute serial input commands
  * 
- * Reads serial input and processes commands for manual signal injection:
+ * Reads serial input and processes commands for manual signal injection
+ * and PC configuration tool communication:
  *   "spd <kph>"       - Set speed in km/h (sets spdSerial used when SPEED_SOURCE == 6)
  *   "rpm <value>"     - Set RPM (sets rpmSerial used when RPM_SOURCE == 4)
  *   "odo motor <N>"   - Rotate odometer motor N revolutions (negative = reverse)
  *                       Only allowed when speed is 0; prints error otherwise.
+ *   "ping"            - Responds "pong" (connectivity check)
+ *   "version"         - Responds "version 4.0"
+ *   "get <param>"     - Read a calibration parameter by name
+ *   "set <param> <v>" - Write a calibration parameter to RAM
+ *   "save"            - Flush all changed values to EEPROM
+ *   "load"            - Re-read all values from EEPROM
+ *   "dump"            - Print all parameters, then "end"
+ *   "reset"           - Restore all parameters to firmware defaults
+ *   "splash ..."      - Splash screen upload/test/clear commands
  * 
- * Memory-efficient: uses a 20-byte static buffer, F() for string literals.
+ * Buffer: 64-byte static buffer; F() for string literals.
  * 
  * Called from: main loop (gauge_V4.ino)
  */

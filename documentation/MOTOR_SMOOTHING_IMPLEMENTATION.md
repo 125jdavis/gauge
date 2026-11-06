@@ -94,9 +94,9 @@ int interpolatedPosition = motorS_previousTarget + (int)interpolation;
 ```
 
 This is safe because:
-- Max positionDelta: ±8000 steps (full gauge range)
+- Max positionDelta: ±16000 steps (full gauge range)
 - Max elapsed: 500ms (sanity limit)
-- Max product: ±4,000,000 (well within `long` range of ±2,147,483,647)
+- Max product: ±8,000,000 (well within `long` range of ±2,147,483,647)
 
 ### Edge Case Handling
 

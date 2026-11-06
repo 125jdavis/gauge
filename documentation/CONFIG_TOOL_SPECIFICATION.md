@@ -190,7 +190,10 @@ The Arduino Mega 2560 has **256 KB** of flash. All `PROGMEM` bitmaps, lookup tab
 | `m2_sweep` | uint16 | 100–4095 | Motor 2 full sweep steps |
 | `m3_sweep` | uint16 | 100–4095 | Motor 3 full sweep steps |
 | `m4_sweep` | uint16 | 100–4095 | Motor 4 full sweep steps |
-| `ms_sweep` | uint16 | 100–8000 | Motor S (speedometer) full sweep steps |
+| `ms_sweep` | uint16 | 100–16000 | Motor S (speedometer) full sweep steps |
+| `m1_func` … `m4_func` | uint8 | 0–2 | Signal shown by motors 1–4: 0=Off, 1=Fuel level, 2=Coolant temp |
+| `m1_min` … `m4_min` | int16 | -50–1000 | Gauge value at the zero end of the dial (fuel: %, coolant: °C) |
+| `m1_max` … `m4_max` | int16 | -50–1000 | Gauge value at the full end of the dial. Must differ from min; min > max reverses (CCW) the needle's travel. The tool's CW/CCW radios just swap these two values |
 | `ms_zero_delay` | uint16 | 10–5000 | Motor S zeroing step delay (µs) |
 | `ms_zero_factor` | float | 0.1–1.0 | Motor S zeroing sweep fraction |
 | `motor_sweep_ms` | uint16 | 100–5000 | Startup test sweep duration (ms) |
@@ -204,12 +207,12 @@ The Arduino Mega 2560 has **256 KB** of flash. All `PROGMEM` bitmaps, lookup tab
 | `revs_per_km` | uint16 | 100–10000 | VSS pulses per km |
 | `teeth_per_rev` | uint8 | 1–64 | VSS teeth per shaft revolution |
 | `filter_hall` | uint8 | 1–255 | Hall speed EMA coefficient |
-| `hall_speed_min` | uint8 | 0–100 | Min reportable speed (km/h×100) |
+| `hall_speed_min` | uint8 | 0–100 | Min reportable speed (km/h×100); GUI accepts km/h (0–1) |
 | `cyl_count` | uint8 | 2–16 | Engine cylinder count |
 | `filter_rpm` | uint8 | 1–255 | RPM EMA filter coefficient |
 | `rpm_debounce_us` | uint16 | 100–20000 | RPM pulse debounce window (µs) |
 | `engine_rpm_min` | uint8 | 0–255 | Min reportable RPM |
-| `speedo_max` | uint16 | 1000–30000 | Max speedometer (mph×100) |
+| `speedo_max` | uint16 | 1000–30000 | Max speedometer (mph×100); GUI accepts km/h or mph |
 | `num_leds` | uint8 | 1–64 | LED strip length |
 | `warn_leds` | uint8 | 0–32 | Warning zone LED count |
 | `shift_leds` | uint8 | 0–16 | Shift light LED count |
@@ -227,13 +230,13 @@ The Arduino Mega 2560 has **256 KB** of flash. All `PROGMEM` bitmaps, lookup tab
 | `map_source` | uint8 | 0–5 | MAP / boost source |
 | `lambda_source` | uint8 | 0–4 | Lambda / AFR source |
 | `fuel_lvl_src` | uint8 | 0–2 | Fuel level source |
-| `oil_warn_kpa` | float | 0–1000 | Oil pressure warning threshold (kPa gauge) |
-| `coolant_warn_c` | float | 50–200 | Coolant temp warning threshold (°C) |
+| `oil_warn_kpa` | float | 0–1000 | Oil pressure warning threshold (kPa gauge); GUI accepts kPa or PSI |
+| `coolant_warn_c` | float | 50–200 | Engine temperature warning threshold (°C); GUI accepts °C or °F |
 | `batt_warn_v` | float | 5–16 | Battery voltage warning threshold (V) |
 | `engine_run_rpm` | int | 0–2000 | Min RPM to consider engine running |
 | `fuel_warn_pct` | uint8 | 0–50 | Low fuel warning threshold (%) |
 | `clock_offset` | int8 | −12–12 | Time zone offset from UTC (hours) |
-| `fuel_capacity` | float | 1–200 | Fuel tank capacity (gallons) |
+| `fuel_capacity` | float | 1–200 | Fuel tank capacity (gallons); GUI accepts gallons or liters |
 | `can_protocol` | uint8 | 0–3 | CAN protocol: 0=Haltech v2, 1=Megasquirt, 2=AiM, 3=OBDII |
 | `units` | uint8 | 0–1 | 0 = metric, 1 = imperial |
 
@@ -445,7 +448,7 @@ class SplashID(IntEnum):
 | M2_SWEEP | 696 | 100 | 4095 | |
 | M3_SWEEP | 696 | 100 | 4095 | |
 | M4_SWEEP | 696 | 100 | 4095 | |
-| MS_SWEEP | 4032 | 100 | 8000 | Speedometer NEMA14; (118°/0.9°) × 32 microsteps |
+| MS_SWEEP | 4032 | 100 | 16000 | Speedometer NEMA14; (118°/0.9°) × 32 microsteps |
 | MS_ZERO_STEP_DELAY_US | 40 | 10 | 5000 | µs/step during zeroing |
 | MS_ZERO_SWEEP_FACTOR | 0.25 | 0.1 | 1.0 | Fraction of MS_SWEEP for zeroing |
 | MOTOR_SWEEP_TIME_MS | 1000 | 100 | 5000 | Startup test duration (ms) |
@@ -1174,6 +1177,19 @@ struct (stdlib)
 | Status label | Label | "Connected" / "Disconnected" |
 | Firmware version | Label | Populated after `version` command |
 
+**Firmware Update group** (see §13 for the procedure):
+
+| Widget | Type | Description |
+|--------|------|-------------|
+| Firmware file | Entry + Browse | Pre-compiled `.hex`; auto-filled from `firmware/` and validated on selection |
+| Update Firmware | Button | Confirms, then flashes on a worker thread |
+| Progress bar | Progressbar | Write pass 0–50%, verify pass 50–100% |
+| Log pane | ScrolledText | Plain-language progress and errors |
+
+Deliberately minimal: no MCU, programmer, or tool-path fields. Customers do not
+have a toolchain to configure, and the board is always an ATmega2560 — which the
+tool confirms by reading the device signature rather than asking.
+
 #### Tab 2 — Motor Configuration
 
 One group box per motor (Motor 1, 2, 3, 4, S). Each contains:
@@ -1181,55 +1197,36 @@ One group box per motor (Motor 1, 2, 3, 4, S). Each contains:
 | Widget | Type | Description |
 |--------|------|-------------|
 | Signal source | Combobox | MotorSource enum values |
-| Sweep steps | Spinbox | 100–8000 |
+| Sweep steps | Spinbox | 100–16000 |
 | Input low | Spinbox | Physical input at needle minimum |
 | Input mid | Spinbox | Physical input at needle midpoint |
 | Input high | Spinbox | Physical input at needle maximum |
 | Live preview | Canvas | Animated needle at current sensor value |
 
-#### Tab 3 — Speed & Hall Sensor
+#### Tab 3 — Signal Source
 
 | Widget | Description |
 |--------|-------------|
-| Speed source | Combobox (SpeedSource enum) |
-| Revs per km | Spinbox |
-| Teeth per rev | Spinbox |
-| Hall speed min | Spinbox |
-| Hall filter | Slider 1–255 |
-| Speedometer max | Spinbox (mph × 100) |
-
-#### Tab 4 — Engine RPM
-
-| Widget | Description |
-|--------|-------------|
+| CAN protocol | Combobox; remains editable regardless of selected sources |
+| Speed source | Combobox |
 | RPM source | Combobox |
-| Cylinder count | Combobox (2, 3, 4, 5, 6, 8, 10, 12) |
-| Debounce window (µs) | Spinbox |
-| Engine RPM min | Spinbox |
-| RPM filter | Slider 1–255 |
+| Other signal sources | Comboboxes for oil/fuel pressure, coolant/oil temperature, MAP, lambda, and fuel level |
 
-#### Tab 5 — Sensors & Curves
-
-Sub-tabs for each sensor:
-- **Thermistor** — curve editor (up to 8 points), voltage divider helper
-- **Fuel Level** — curve editor, sender type presets (0–30Ω, 0–90Ω, 10–180Ω)
-- **AV1 / AV2 / AV3** — raw filter sliders, optional curve editors
-
-**Curve Editor Widget:**
-- Table with N rows (mV | value)
-- Add/Remove point buttons
-- Live graph preview
-- Preset loader dropdown
-
-#### Tab 6 — CAN Bus
+#### Tab 4 — Speed/RPM
 
 | Widget | Description |
 |--------|-------------|
-| Protocol | Combobox (CANProtocol enum) |
-| Signal sources | Grid of comboboxes (one per signal: Oil Prs, Coolant, etc.) |
-| OBD-II PIDs | Checkbox list for polled parameters |
+| Revs per km, teeth per rev, minimum cutoff, Hall filter | Enabled only for Hall speed source |
+| Speedometer Max | Numeric input with km/h and mph radio buttons; disabled when speed is Off |
+| Cylinder count, debounce window, RPM minimum, RPM filter | Enabled only for coil RPM source |
+| Mechanical odometer calibration | Steps per revolution, motor gear teeth, driven gear teeth |
 
-#### Tab 7 — LED Tachometer
+#### Tab 5 — Sensors
+
+Sensor filter groups are shown together on one page: thermistor, fuel level,
+analog inputs AV1/AV2/AV3, and battery voltage.
+
+#### Tab 6 — LED Tachometer
 
 | Widget | Description |
 |--------|-------------|
@@ -1240,7 +1237,7 @@ Sub-tabs for each sensor:
 | Shift LEDs | Spinbox |
 | Live preview | Canvas showing LED strip simulation |
 
-#### Tab 8 — Display Settings
+#### Tab 7 — Display Settings
 
 | Widget | Description |
 |--------|-------------|
@@ -1248,25 +1245,19 @@ Sub-tabs for each sensor:
 | Display 2 active screen | Combobox |
 | Screen enable checkboxes | One per screen (18 for D1, 10 for D2) |
 | Unit system | Radio buttons: Metric / Imperial |
+| Clock & Fuel | UTC offset and fuel tank capacity with gallon / liter radio buttons |
 
-#### Tab 9 — Fault Warnings
+#### Tab 8 — Fault Warnings
 
 | Widget | Description |
 |--------|-------------|
-| Oil pressure threshold | Spinbox (kPa) |
-| Coolant temp threshold | Spinbox (°C or °F) |
+| Oil pressure threshold | Numeric input with kPa / PSI radio buttons |
+| Engine temperature threshold | Numeric input with °C / °F radio buttons |
 | Battery voltage threshold | Spinbox (V) |
 | Engine running RPM min | Spinbox |
 | Low fuel threshold | Spinbox (%) |
 
-#### Tab 10 — Clock & Fuel
-
-| Widget | Description |
-|--------|-------------|
-| UTC offset | Spinbox −12 to +12 |
-| Fuel tank capacity | Spinbox (gallons) |
-
-#### Tab 11 — Splash Screens (v1.2)
+#### Tab 9 — Splash Screens (v1.2)
 
 | Widget | Description |
 |--------|-------------|
@@ -1281,7 +1272,7 @@ Sub-tabs for each sensor:
 
 | Parameter | Rule |
 |-----------|------|
-| Sweep values | Must be ≥ 100 and ≤ 8000; warn if < 200 |
+| Sweep values | Must be ≥ 100 and ≤ 16000; warn if < 200 |
 | Filter coefficients | Must be 1–255 |
 | Curve X values | Must be strictly increasing (0 < x[0] < x[1] < … < 5000) |
 | Curve Y values | No restriction, but warn if monotonically non-decreasing expected |
@@ -1291,15 +1282,39 @@ Sub-tabs for each sensor:
 
 ### File Format (.txt config files)
 
+Format 5 config parameter values use the same canonical units and scaling as
+the firmware protocol. For example, `hall_speed_min` is km/h × 100 and
+`speedo_max` is mph × 100; warning thresholds are kPa and °C, and fuel
+capacity is gallons. The `*_units` keys preserve the GUI's display preference
+only. The GUI handles conversions between display units and these canonical
+values.
+
+Formats 2–4 remain supported: format 2 stores human-readable speed values;
+format 3 also stores human-readable warning thresholds; format 4 also stores
+human-readable fuel capacity. The loader converts those fields to firmware
+units. Fields not introduced as human-readable in a given format remain in
+firmware units. Files without a `config_format` continue to load using legacy
+raw firmware values.
+
 ```
 # Gauge V4 Configuration
 # Generated by gauge-config-tool v1.0
 # Date: 2025-01-01
 
+config_format=5
 m1_sweep=696
 m2_sweep=696
 ms_sweep=4032
 filter_vbatt=32
+hall_speed_min=50
+speedo_max=10000
+speedo_max_units=mph
+oil_warn_kpa=60
+oil_warn_units=kPa
+coolant_warn_c=110
+coolant_warn_units=C
+fuel_capacity=16
+fuel_capacity_units=gal
 # ... (one key=value per line; lines starting with # are comments)
 ```
 
@@ -1307,59 +1322,162 @@ filter_vbatt=32
 
 ## 13. Firmware Upload Procedure
 
-### avrdude Integration
+Customers do not have the Arduino IDE, a toolchain, or Python. They receive a
+`.hex` built in-house and a standalone executable. The tool therefore speaks the
+ATmega2560 bootloader protocol **directly over USB serial** — there is no
+avrdude, no compilation, and nothing to install.
 
-The PC tool can flash new firmware using `avrdude`:
+> The customer-facing instructions are in
+> [FIRMWARE_UPDATE_GUIDE.md](FIRMWARE_UPDATE_GUIDE.md). This section is the
+> implementation reference.
 
-```python
-import subprocess, shutil
+| Module | Responsibility |
+|--------|----------------|
+| `config_tool/intel_hex.py` | Parse a `.hex` into a flat, 0xFF-padded flash image |
+| `config_tool/stk500v2.py` | Speak STK500v2 to the bootloader over pyserial |
+| `config_tool/firmware_uploader.py` | Locate, validate, and flash the image |
+| `config_tool/build_exe.py` | Build `GaugeConfig.exe` with PyInstaller |
 
-def upload_firmware(hex_path: str, port: str) -> tuple[bool, str]:
-    avrdude = shutil.which("avrdude")
-    if not avrdude:
-        return False, "avrdude not found in PATH"
-    cmd = [
-        avrdude, "-c", "arduino", "-p", "m2560",
-        "-P", port, "-b", "115200",
-        "-U", f"flash:w:{hex_path}:i"
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-    return result.returncode == 0, result.stderr
-```
-
-### Safety Checks Before Upload
-
-1. Verify firmware `.hex` file has valid Intel HEX format (first byte `:`).
-2. Warn if file size > 230 KB (near flash limit).
-3. Prompt user to confirm: "This will overwrite existing firmware."
-4. After upload, wait 3 seconds, then send `ping` to verify Arduino is responsive.
-5. If `ping` fails, display "Upload may have failed — check connections."
-
-### Upload Workflow
+### Customer workflow
 
 ```
 ┌────────────────────────────────────────────────────┐
-│  1. User selects .hex file                         │
-│  2. Tool verifies file format                      │
-│  3. User confirms port selection                   │
-│  4. Tool closes active serial connection           │
-│  5. avrdude flashes firmware                       │
-│  6. Tool waits 3 seconds for bootloader exit       │
-│  7. Tool re-opens serial port                      │
-│  8. Tool sends "ping" → expects "pong"             │
-│  9. Tool reads "version" → updates status bar      │
-│ 10. Tool sends "load" → refreshes UI from EEPROM   │
+│  1. Customer unzips the tool and runs GaugeConfig  │
+│  2. Tool finds the .hex in firmware/ and pre-      │
+│     selects it (Browse to override)                │
+│  3. Customer picks the port and clicks Update      │
+│  4. Tool confirms, then closes its own connection  │
+│  5. DTR/RTS pulse resets the board into bootloader │
+│  6. Device signature checked against ATmega2560    │
+│  7. Flash written page by page, then read back     │
+│     and verified                                   │
+│  8. Bootloader leaves programming mode; sketch runs│
+│  9. Tool reconnects, pings, reads version          │
+│ 10. Tool re-reads parameters to refresh the UI     │
 └────────────────────────────────────────────────────┘
 ```
 
-### Error Handling
+Steps 9–10 run only if the tool was connected before the update, since step 4 is
+what closed that connection. If it was not, the port is left free and the log
+says to press Connect.
+
+### Finding the firmware image
+
+`firmware_uploader.find_firmware()` searches, in order:
+
+1. `firmware/` beside the executable
+2. the executable's own folder
+3. `gauge_V4/build/` (convenience when running from a source checkout)
+
+The newest `.hex` wins and is pre-selected at startup; anything named
+`with_bootloader` is skipped, because flashing that image over the serial
+bootloader would overwrite the bootloader mid-upload.
+
+Under PyInstaller, `app_dir()` resolves to the folder holding the `.exe`, not
+the temporary extraction directory, so a new `.hex` can be dropped beside the
+executable without rebuilding it.
+
+### STK500v2 protocol
+
+The Mega 2560 bootloader (`stk500boot`) speaks STK500v2 at 115200 8N1.
+
+```
+Frame:  0x1B <seq> <size hi> <size lo> 0x0E <body...> <xor checksum>
+Reply:  echoes the command byte, then a status byte (0x00 = OK)
+```
+
+Three behaviours of the bootloader constrain the client, and each has a
+regression test:
+
+- **`CMD_LOAD_ADDRESS` takes a *word* address** and shifts it left by one to get
+  a byte address. avrdude's "extended address" bit 31 is shifted off the top and
+  is harmless, so it is always set. Getting this wrong truncates every address
+  past 64 KB — which is most of a Mega sketch.
+- **`CMD_PROGRAM_FLASH_ISP` erases one page per call** using an internal cursor
+  that starts at 0 and advances independently of the loaded address. Pages must
+  therefore be written **in order from address 0**, or erase and write
+  desynchronise and the image is silently corrupted.
+- **The mode/delay/cmd/poll header bytes are ignored** by the bootloader (it uses
+  `boot_page_*`), but are sent for avrdude compatibility.
+
+Commands used: `CMD_SIGN_ON`, `CMD_READ_SIGNATURE_ISP`, `CMD_ENTER_PROGMODE_ISP`,
+`CMD_LOAD_ADDRESS`, `CMD_PROGRAM_FLASH_ISP`, `CMD_READ_FLASH_ISP`,
+`CMD_LEAVE_PROGMODE_ISP`.
+
+### Entering the bootloader
+
+The board is reset the same way the Arduino IDE does it: drop DTR and RTS to
+discharge the auto-reset capacitor, wait 250 ms, raise them again to pull RESET
+low, then sync with `CMD_SIGN_ON`, retrying while the bootloader starts. The
+bootloader hands off to the sketch after a short window, so sync happens
+immediately after the reset.
+
+### Safety checks before writing
+
+Run when the file is picked and again immediately before flashing.
+
+**Blocking — the upload does not start:**
+
+1. The file exists, is non-empty, and has a `.hex` extension.
+2. Every record is well-formed Intel HEX: leading `:`, even hex-digit count,
+   byte-count field matching the record, and a correct two's-complement
+   checksum. A corrupt or truncated file is named with its line number.
+3. An end-of-file record is present, with no data after it.
+4. The image fits the 248 KB application area. A `with_bootloader` image fails
+   here, with a message saying to use the plain `.hex`.
+5. The device signature read from the board is the ATmega2560's
+   (`1E 98 01`). A different AVR is named in the error and nothing is written.
+
+**Warning — shown in the confirmation dialog:**
+
+6. The image fills more than 90% of the application area.
+
+After writing, flash is read back page by page and compared; a mismatch names
+the first differing address.
+
+### Intel HEX
+
+Record types 00 (data), 01 (EOF), 02 (extended segment), 03, 04 (extended
+linear) and 05 are handled; gaps are padded with 0xFF.
+
+> **Type 02 matters.** Real avr-gcc output uses extended *segment* records, not
+> the extended *linear* records a naive parser tends to implement — the Arduino
+> AVR core's own `stk500boot_v2_mega2560.hex` is addressed that way. A parser
+> that handles only type 04 folds the upper half of a sketch onto the lower half.
+
+The parser is cross-checked in the test suite against `avr-objcopy` output for
+every `.hex` shipped with an installed Arduino AVR core (36 files), skipped when
+no core is present.
+
+### Threading
+
+Flashing runs on a daemon worker thread; log lines and progress percentages
+reach the Tk thread through a `queue.Queue` drained by a `root.after(100, ...)`
+poll. The Connect and Update buttons are disabled for the duration. Progress is
+split evenly between the write and verify passes.
+
+### Error handling
 
 | Error | Response |
 |-------|----------|
-| Port busy | "Close all other serial monitors, then retry." |
-| avrdude timeout | "Check USB cable and board power." |
-| CRC mismatch after upload | "Re-flash; file may be corrupted." |
-| `ping` no response | "Upload may have failed. Try again." |
+| Port busy | "Close any other program using the port, then retry." |
+| No response after reset | "Check the USB cable, confirm the port, and make sure no other program is using it." |
+| Wrong device signature | Names the AVR that was found; nothing is written. |
+| Corrupt / truncated `.hex` | Rejected at selection, with the offending line number. |
+| Image too large | "Use the plain .hex instead" (a `with_bootloader` file). |
+| Verification mismatch | Names the first differing flash address. |
+| `ping` no response | "Unplug it, plug it back in, then press Connect." |
+
+### Packaging
+
+`python build_exe.py` produces `dist/GaugeConfig.exe` (PyInstaller, `--onefile
+--windowed`) plus an empty `dist/firmware/` folder, and stages any exported
+`.hex` from `gauge_V4/build/` into it. pyserial's platform-specific
+`list_ports_*` backends are named as hidden imports, because they are reached
+through conditional imports the dependency scan does not follow.
+
+To ship: build, drop the customer's `.hex` into `dist/firmware/`, zip the `.exe`
+and that folder together.
 
 ---
 

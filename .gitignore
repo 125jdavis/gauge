@@ -1,9 +1,21 @@
+# Python
 __pycache__/
 *.py[cod]
+*.pyo
 .pytest_cache/
-*.elf
 
+# Build artifacts
+*.o
+*.elf
+*.hex
+*.bin
+
+# Arduino build output (keep only the released .hex files)
 /gauge_V4/build/*
 !/gauge_V4/build/arduino.avr.mega/
 /gauge_V4/build/arduino.avr.mega/*
 !/gauge_V4/build/arduino.avr.mega/*.hex
+
+# PyInstaller output (config_tool/build_exe.py)
+config_tool/dist/
+config_tool/build_pyinstaller/
