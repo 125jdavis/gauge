@@ -362,7 +362,7 @@ void updateMotorSSmoothing(void) {
   // interpolatedPos = previous + (delta * elapsed) / updateInterval
   // Note: positionDelta can be negative (moving backward), which is fine
   // long (32-bit signed) can handle values up to ±2 billion, so no overflow risk
-  // Max calculation: positionDelta (-8000 to +8000) * elapsed (0-500) = ±4,000,000
+  // Max calculation: positionDelta (-16000 to +16000) * elapsed (0-500) = ±8,000,000
   long interpolation = ((long)positionDelta * (long)elapsed) / (long)motorS_updateInterval;
   int interpolatedPosition = motorS_previousTarget + (int)interpolation;
   
@@ -478,15 +478,16 @@ void updateMotors1to4Smoothing(void) {
  * Converts fuel level in gallons/liters to motor angle.
  * Uses percentage of tank capacity for linear gauge response.
  * 
- * @param sweep - Maximum motor steps for full gauge sweep
+ * @param sweep  - Maximum motor steps for full gauge sweep
+ * @param minPct - Fuel percentage at the zero end of the gauge
+ * @param maxPct - Fuel percentage at the full end of the gauge
  * @return Motor angle in steps (1 to sweep-1)
- * 
- * Range: 10-100% of tank capacity (doesn't go to absolute zero for gauge geometry)
  */
-int fuelLvlAngle(int sweep) {
+int fuelLvlAngle(int sweep, int minPct, int maxPct) {
   float fuelLvlPct = (fuelLvl/fuelCapacity)*1000;  // Fuel percentage * 1000 for precision
   fuelLevelPct_g = (unsigned int)fuelLvlPct;
-  int angle = map(fuelLevelPct_g, 100, 1000, 1, sweep-1);  // Map 10-100% to gauge range
+  if (minPct == maxPct) return 1;
+  int angle = map((long)fuelLevelPct_g, (long)minPct * 10, (long)maxPct * 10, 1, sweep-1);
   angle = constrain(angle, 1, sweep-1);
   return angle;
 } 
@@ -496,28 +497,54 @@ int fuelLvlAngle(int sweep) {
  * Non-linear mapping for temperature gauge with compressed cool range
  * and expanded hot range (important for detecting overheating).
  * 
- * @param sweep - Maximum motor steps for full gauge sweep
+ * @param sweep   - Maximum motor steps for full gauge sweep
+ * @param minTemp - Temperature (°C) at the zero end of the gauge
+ * @param maxTemp - Temperature (°C) at the full end of the gauge
  * @return Motor angle in steps (1 to sweep-1)
  * 
- * Gauge zones:
- * - Cool zone (60-95°C): First half of gauge (slow rise)
- * - Hot zone (95-115°C): Second half of gauge (fast rise for warning)
+ * When the 90°C knee lies between min and max (default 50-115°C):
+ * - min..90°C: First half of gauge (slow rise)
+ * - 90°C..max: Second half of gauge (fast rise for warning)
+ * Otherwise the range is mapped linearly. min may exceed max to reverse the gauge;
+ * map() handles reversed input ranges.
  * 
  * This gives driver better visibility of overheating condition.
  */
-int coolantTempAngle(int sweep) {
+int coolantTempAngle(int sweep, int minTemp, int maxTemp) {
+  if (minTemp == maxTemp) return 1;
+  const int knee = 90;
   int angle;
-  if (coolantTemp < 90){
-    // Normal operating range: 50-90°C maps to first half of gauge
-    angle = map((long)coolantTemp, 50, 90, 1, sweep/2);
-  }
-  else {
-    // Warning range: 90-115°C maps to second half of gauge (more sensitive)
-    angle = map((long)coolantTemp, 90, 115, sweep/2, sweep-1);
+  bool kneeInside = (minTemp < knee && maxTemp > knee) || (maxTemp < knee && minTemp > knee);
+  if (kneeInside) {
+    bool belowKnee = (minTemp < maxTemp) ? (coolantTemp < knee) : (coolantTemp > knee);
+    if (belowKnee) {
+      angle = map((long)coolantTemp, minTemp, knee, 1, sweep/2);
+    } else {
+      angle = map((long)coolantTemp, knee, maxTemp, sweep/2, sweep-1);
+    }
+  } else {
+    angle = map((long)coolantTemp, minTemp, maxTemp, 1, sweep-1);
   }
   angle = constrain(angle, 1, sweep-1);
   return angle;
 }
+/**
+ * motorFunctionAngle - Needle angle for the signal assigned to a gauge motor
+ *
+ * @param func   MOTOR_FUNC_* value (M1_FUNCTION..M4_FUNCTION)
+ * @param sweep  Maximum motor steps for full gauge sweep
+ * @param minVal Gauge minimum in the function's units
+ * @param maxVal Gauge maximum in the function's units
+ * @return Motor angle in steps (1 to sweep-1); 1 (zero) when off or unknown
+ */
+int motorFunctionAngle(uint8_t func, int sweep, int minVal, int maxVal) {
+  switch (func) {
+    case MOTOR_FUNC_FUEL_LEVEL:   return fuelLvlAngle(sweep, minVal, maxVal);
+    case MOTOR_FUNC_COOLANT_TEMP: return coolantTempAngle(sweep, minVal, maxVal);
+    default:                      return 1;
+  }
+}
+
 void motorZeroSynchronous(void){
   // motorS (NEMA14/TMC2209) uses a partial sweep and fixed step rate to reduce zeroing vibration.
   // MS_ZERO_SWEEP_FACTOR limits how far back motorS sweeps (e.g. 0.5 = 50% of full range).
@@ -787,9 +814,22 @@ void moveOdometerMotor(float distanceKm) {
  * Called from: processSerialCommands() when "odo motor <N>" is received
  */
 void moveOdometerMotorRevs(int revs) {
+    if (revs > 100) revs = 100;
+    if (revs < -100) revs = -100;
     int32_t steps = revs * (int32_t)ODO_STEPS;
     noInterrupts();
     odoSerialSteps += steps;
+    interrupts();
+}
+
+/**
+ * stopOdometerMotor - Cancel any pending serial-commanded odometer movement
+ *
+ * Called from: processSerialCommands() when "odo stop" is received
+ */
+void stopOdometerMotor(void) {
+    noInterrupts();
+    odoSerialSteps = 0;
     interrupts();
 }
 

@@ -21,8 +21,9 @@ Usage example::
 
 from __future__ import annotations
 
+import threading
 import time
-from typing import Dict, Optional
+from typing import Callable, Dict, Optional
 
 try:
     import serial
@@ -38,6 +39,10 @@ class SerialError(RuntimeError):
 
 class NotConnectedError(RuntimeError):
     """Raised when an operation is attempted without an open connection."""
+
+
+class ConnectCancelled(RuntimeError):
+    """Raised when the user cancels a connection attempt."""
 
 
 class GaugeSerial:
@@ -72,16 +77,63 @@ class GaugeSerial:
             ports.append((port.device, display_name))
         return ports
 
-    def connect(self, port: str, baud: int = DEFAULT_BAUD) -> None:
-        """Open *port* at *baud* and wait for the Arduino to reset."""
+    def connect(self, port: str, baud: int = DEFAULT_BAUD,
+                progress: "Optional[Callable[[str], None]]" = None,
+                cancel: "Optional[threading.Event]" = None) -> None:
+        """Open *port* at *baud* and wait for the Arduino to reset.
+
+        *progress* receives short status messages; setting *cancel* aborts the
+        wait, closes the port and raises ``ConnectCancelled``.
+        """
         if not HAS_SERIAL:
             raise RuntimeError("pyserial is not installed. Run: pip install pyserial")
+        note = progress or (lambda _msg: None)
+
+        def wait(seconds: float) -> None:
+            end = time.monotonic() + seconds
+            while time.monotonic() < end:
+                if cancel is not None and cancel.is_set():
+                    self.disconnect()
+                    raise ConnectCancelled("Connection cancelled.")
+                time.sleep(0.05)
+
         if self._ser and self._ser.is_open:
             self._ser.close()
+        note(f"Opening {port}...")
         self._ser = serial.Serial(port, baud, timeout=self.DEFAULT_TIMEOUT)
         # Wait for Arduino bootloader to exit after DTR reset
-        time.sleep(2.0)
-        # Flush any startup text
+        note("Waiting for the gauge to restart...")
+        wait(2.0)
+        # Boot (splash, display/CAN init) may take longer than the fixed wait,
+        # so keep pinging until the firmware answers or ~20 s have elapsed
+        # (the first boot after a firmware update can be slower).
+        deadline = time.monotonic() + 20.0
+        old_timeout = self._ser.timeout
+        self._ser.timeout = 0.5
+        try:
+            while time.monotonic() < deadline:
+                if cancel is not None and cancel.is_set():
+                    self.disconnect()
+                    raise ConnectCancelled("Connection cancelled.")
+                note("Waiting for the gauge to answer...")
+                self._ser.reset_input_buffer()
+                self._ser.write(b"ping\n")
+                lines = []
+                end = time.monotonic() + 0.6
+                while time.monotonic() < end:
+                    lines.append(self._ser.readline().decode("ascii", errors="replace").strip())
+                if "pong" in lines:
+                    break
+        finally:
+            if self._ser is not None:
+                self._ser.timeout = old_timeout
+        # Pings queued during boot are answered late (and a garbled one may
+        # yield an error line); let them arrive, then discard them.
+        note("Finishing up...")
+        wait(1.0)
+        # Terminate any partial command left in the firmware's line buffer.
+        self._ser.write(b"\n")
+        wait(0.3)
         self._ser.reset_input_buffer()
 
     def disconnect(self) -> None:
@@ -179,6 +231,44 @@ class GaugeSerial:
             if len(parts) == 2:
                 params[parts[0]] = parts[1]
         return params
+
+    # ------------------------------------------------------------------
+    # Test commands (runtime signal injection)
+    # ------------------------------------------------------------------
+
+    def test_speed(self, kph: int) -> None:
+        """Inject speed in km/h (effective when speed_source is Serial)."""
+        self._expect_ok(f"spd {int(kph)}")
+
+    def test_rpm(self, rpm: int) -> None:
+        """Inject engine RPM (effective when rpm_source is Serial)."""
+        self._expect_ok(f"rpm {int(rpm)}")
+
+    def test_oil_pressure(self, kpa: float) -> None:
+        """Inject oil pressure in kPa (effective when oil_prs_source is Serial)."""
+        self._expect_ok(f"oilp {kpa:g}")
+
+    def test_coolant_temp(self, celsius: float) -> None:
+        """Inject coolant temperature in Celsius (effective when coolant_src is Serial)."""
+        self._expect_ok(f"coolant {celsius:g}")
+
+    def test_fuel_level(self, percent: float) -> None:
+        """Inject fuel level in percent of capacity (effective when fuel_lvl_src is Serial)."""
+        self._expect_ok(f"fuel {percent:g}")
+
+    def test_odo_motor(self, revs: int) -> None:
+        """Queue *revs* (-100..100) odometer motor revolutions; speed must be 0.
+
+        The firmware acknowledges immediately and the motor runs at ~4 RPM.
+        """
+        revs = int(revs)
+        if not -100 <= revs <= 100:
+            raise ValueError("revs must be between -100 and 100")
+        self._expect_ok(f"odo motor {revs}")
+
+    def test_odo_stop(self) -> None:
+        """Cancel any pending odometer motor movement."""
+        self._expect_ok("odo stop")
 
     # ------------------------------------------------------------------
     # Splash screen upload

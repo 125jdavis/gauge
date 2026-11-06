@@ -63,6 +63,18 @@ void handleGet(const char *param) {
     if (strcmp_P(param, PSTR("m3_sweep"))        == 0) { printUint16Param("m3_sweep",        M3_SWEEP);                   return; }
     if (strcmp_P(param, PSTR("m4_sweep"))        == 0) { printUint16Param("m4_sweep",        M4_SWEEP);                   return; }
     if (strcmp_P(param, PSTR("ms_sweep"))        == 0) { printUint16Param("ms_sweep",        MS_SWEEP);                   return; }
+    if (strcmp_P(param, PSTR("m1_func"))         == 0) { printUint8Param ("m1_func",         M1_FUNCTION);                return; }
+    if (strcmp_P(param, PSTR("m2_func"))         == 0) { printUint8Param ("m2_func",         M2_FUNCTION);                return; }
+    if (strcmp_P(param, PSTR("m3_func"))         == 0) { printUint8Param ("m3_func",         M3_FUNCTION);                return; }
+    if (strcmp_P(param, PSTR("m4_func"))         == 0) { printUint8Param ("m4_func",         M4_FUNCTION);                return; }
+    if (strcmp_P(param, PSTR("m1_min"))          == 0) { printIntParam   ("m1_min",          M1_MIN);                     return; }
+    if (strcmp_P(param, PSTR("m1_max"))          == 0) { printIntParam   ("m1_max",          M1_MAX);                     return; }
+    if (strcmp_P(param, PSTR("m2_min"))          == 0) { printIntParam   ("m2_min",          M2_MIN);                     return; }
+    if (strcmp_P(param, PSTR("m2_max"))          == 0) { printIntParam   ("m2_max",          M2_MAX);                     return; }
+    if (strcmp_P(param, PSTR("m3_min"))          == 0) { printIntParam   ("m3_min",          M3_MIN);                     return; }
+    if (strcmp_P(param, PSTR("m3_max"))          == 0) { printIntParam   ("m3_max",          M3_MAX);                     return; }
+    if (strcmp_P(param, PSTR("m4_min"))          == 0) { printIntParam   ("m4_min",          M4_MIN);                     return; }
+    if (strcmp_P(param, PSTR("m4_max"))          == 0) { printIntParam   ("m4_max",          M4_MAX);                     return; }
     if (strcmp_P(param, PSTR("ms_zero_delay"))   == 0) { printUint16Param("ms_zero_delay",   MS_ZERO_STEP_DELAY_US);      return; }
     if (strcmp_P(param, PSTR("ms_zero_factor"))  == 0) { printFloatParam ("ms_zero_factor",  MS_ZERO_SWEEP_FACTOR, 4);   return; }
     if (strcmp_P(param, PSTR("motor_sweep_ms"))  == 0) { printUint16Param("motor_sweep_ms",  MOTOR_SWEEP_TIME_MS);        return; }
@@ -153,8 +165,68 @@ void handleSet(const char *param, const char *value) {
     }
     if (strcmp_P(param, PSTR("ms_sweep")) == 0) {
         uint16_t v = (uint16_t)atol(value);
-        if (v < 100 || v > 8000) { SERIAL_PRINTLN_F("err: range"); return; }
+        if (v < 100 || v > 16000) { SERIAL_PRINTLN_F("err: range"); return; }
         MS_SWEEP = v; SERIAL_PRINTLN_F("ok"); return;
+    }
+    if (strcmp_P(param, PSTR("m1_func")) == 0) {
+        uint8_t v = (uint8_t)atoi(value);
+        if (v >= MOTOR_FUNC_COUNT) { SERIAL_PRINTLN_F("err: range"); return; }
+        M1_FUNCTION = v; SERIAL_PRINTLN_F("ok"); return;
+    }
+    if (strcmp_P(param, PSTR("m2_func")) == 0) {
+        uint8_t v = (uint8_t)atoi(value);
+        if (v >= MOTOR_FUNC_COUNT) { SERIAL_PRINTLN_F("err: range"); return; }
+        M2_FUNCTION = v; SERIAL_PRINTLN_F("ok"); return;
+    }
+    if (strcmp_P(param, PSTR("m3_func")) == 0) {
+        uint8_t v = (uint8_t)atoi(value);
+        if (v >= MOTOR_FUNC_COUNT) { SERIAL_PRINTLN_F("err: range"); return; }
+        M3_FUNCTION = v; SERIAL_PRINTLN_F("ok"); return;
+    }
+    if (strcmp_P(param, PSTR("m4_func")) == 0) {
+        uint8_t v = (uint8_t)atoi(value);
+        if (v >= MOTOR_FUNC_COUNT) { SERIAL_PRINTLN_F("err: range"); return; }
+        M4_FUNCTION = v; SERIAL_PRINTLN_F("ok"); return;
+    }
+    if (strcmp_P(param, PSTR("m1_min")) == 0) {
+        int v = atoi(value);
+        if (v < -50 || v > 1000) { SERIAL_PRINTLN_F("err: range"); return; }
+        M1_MIN = (int16_t)v; SERIAL_PRINTLN_F("ok"); return;
+    }
+    if (strcmp_P(param, PSTR("m1_max")) == 0) {
+        int v = atoi(value);
+        if (v < -50 || v > 1000) { SERIAL_PRINTLN_F("err: range"); return; }
+        M1_MAX = (int16_t)v; SERIAL_PRINTLN_F("ok"); return;
+    }
+    if (strcmp_P(param, PSTR("m2_min")) == 0) {
+        int v = atoi(value);
+        if (v < -50 || v > 1000) { SERIAL_PRINTLN_F("err: range"); return; }
+        M2_MIN = (int16_t)v; SERIAL_PRINTLN_F("ok"); return;
+    }
+    if (strcmp_P(param, PSTR("m2_max")) == 0) {
+        int v = atoi(value);
+        if (v < -50 || v > 1000) { SERIAL_PRINTLN_F("err: range"); return; }
+        M2_MAX = (int16_t)v; SERIAL_PRINTLN_F("ok"); return;
+    }
+    if (strcmp_P(param, PSTR("m3_min")) == 0) {
+        int v = atoi(value);
+        if (v < -50 || v > 1000) { SERIAL_PRINTLN_F("err: range"); return; }
+        M3_MIN = (int16_t)v; SERIAL_PRINTLN_F("ok"); return;
+    }
+    if (strcmp_P(param, PSTR("m3_max")) == 0) {
+        int v = atoi(value);
+        if (v < -50 || v > 1000) { SERIAL_PRINTLN_F("err: range"); return; }
+        M3_MAX = (int16_t)v; SERIAL_PRINTLN_F("ok"); return;
+    }
+    if (strcmp_P(param, PSTR("m4_min")) == 0) {
+        int v = atoi(value);
+        if (v < -50 || v > 1000) { SERIAL_PRINTLN_F("err: range"); return; }
+        M4_MIN = (int16_t)v; SERIAL_PRINTLN_F("ok"); return;
+    }
+    if (strcmp_P(param, PSTR("m4_max")) == 0) {
+        int v = atoi(value);
+        if (v < -50 || v > 1000) { SERIAL_PRINTLN_F("err: range"); return; }
+        M4_MAX = (int16_t)v; SERIAL_PRINTLN_F("ok"); return;
     }
     if (strcmp_P(param, PSTR("ms_zero_delay")) == 0) {
         uint16_t v = (uint16_t)atol(value);
@@ -309,7 +381,7 @@ void handleSet(const char *param, const char *value) {
     }
     if (strcmp_P(param, PSTR("oil_prs_source")) == 0) {
         uint8_t v = (uint8_t)atoi(value);
-        if (v > 5) { SERIAL_PRINTLN_F("err: range"); return; }
+        if (v > 6) { SERIAL_PRINTLN_F("err: range"); return; }
         OIL_PRS_SOURCE = v; SERIAL_PRINTLN_F("ok"); return;
     }
     if (strcmp_P(param, PSTR("fuel_prs_source")) == 0) {
@@ -319,7 +391,7 @@ void handleSet(const char *param, const char *value) {
     }
     if (strcmp_P(param, PSTR("coolant_src")) == 0) {
         uint8_t v = (uint8_t)atoi(value);
-        if (v > 3) { SERIAL_PRINTLN_F("err: range"); return; }
+        if (v > 4) { SERIAL_PRINTLN_F("err: range"); return; }
         COOLANT_TEMP_SOURCE = v; SERIAL_PRINTLN_F("ok"); return;
     }
     if (strcmp_P(param, PSTR("oil_temp_src")) == 0) {
@@ -339,7 +411,7 @@ void handleSet(const char *param, const char *value) {
     }
     if (strcmp_P(param, PSTR("fuel_lvl_src")) == 0) {
         uint8_t v = (uint8_t)atoi(value);
-        if (v > 2) { SERIAL_PRINTLN_F("err: range"); return; }
+        if (v > 3) { SERIAL_PRINTLN_F("err: range"); return; }
         FUEL_LVL_SOURCE = v; SERIAL_PRINTLN_F("ok"); return;
     }
     // ---- Fault thresholds ----
@@ -440,6 +512,18 @@ void handleDump(void) {
     printUint16Param("m3_sweep",        M3_SWEEP);
     printUint16Param("m4_sweep",        M4_SWEEP);
     printUint16Param("ms_sweep",        MS_SWEEP);
+    printUint8Param ("m1_func",         M1_FUNCTION);
+    printUint8Param ("m2_func",         M2_FUNCTION);
+    printUint8Param ("m3_func",         M3_FUNCTION);
+    printUint8Param ("m4_func",         M4_FUNCTION);
+    printIntParam   ("m1_min",          M1_MIN);
+    printIntParam   ("m1_max",          M1_MAX);
+    printIntParam   ("m2_min",          M2_MIN);
+    printIntParam   ("m2_max",          M2_MAX);
+    printIntParam   ("m3_min",          M3_MIN);
+    printIntParam   ("m3_max",          M3_MAX);
+    printIntParam   ("m4_min",          M4_MIN);
+    printIntParam   ("m4_max",          M4_MAX);
     printUint16Param("ms_zero_delay",   MS_ZERO_STEP_DELAY_US);
     printFloatParam ("ms_zero_factor",  MS_ZERO_SWEEP_FACTOR, 4);
     printUint16Param("motor_sweep_ms",  MOTOR_SWEEP_TIME_MS);
@@ -511,6 +595,14 @@ static void applyDefaults(void) {
     M3_SWEEP                    = 58 * 12;
     M4_SWEEP                    = 58 * 12;
     MS_SWEEP                    = 4032;
+    M1_FUNCTION                 = MOTOR_FUNC_FUEL_LEVEL;
+    M2_FUNCTION                 = MOTOR_FUNC_COOLANT_TEMP;
+    M3_FUNCTION                 = MOTOR_FUNC_FUEL_LEVEL;
+    M4_FUNCTION                 = MOTOR_FUNC_COOLANT_TEMP;
+    M1_MIN = 10;  M1_MAX = 100;
+    M2_MIN = 50;  M2_MAX = 115;
+    M3_MIN = 10;  M3_MAX = 100;
+    M4_MIN = 50;  M4_MAX = 115;
     MS_ZERO_STEP_DELAY_US       = 40;
     MS_ZERO_SWEEP_FACTOR        = 0.25f;
     MOTOR_SWEEP_TIME_MS         = 1000;

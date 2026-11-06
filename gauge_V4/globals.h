@@ -136,6 +136,9 @@ extern float spdMph;                // Vehicle speed in miles per hour
 // Values set via serial commands when SPEED_SOURCE=6 or RPM_SOURCE=4
 extern int spdSerial;               // Speed set via serial (km/h * 100), used when SPEED_SOURCE == 6
 extern int rpmSerial;               // RPM set via serial, used when RPM_SOURCE == 4
+extern float oilPrsSerial;          // Oil pressure (kPa gauge) set via serial, used when OIL_PRS_SOURCE == 6
+extern float coolantTempSerial;     // Coolant temperature (Celsius) set via serial, used when COOLANT_TEMP_SOURCE == 4
+extern float fuelLvlSerial;         // Fuel level (% of capacity) set via serial, used when FUEL_LVL_SOURCE == 3
 
 // ===== CAN BUS COMMUNICATION BUFFERS =====
 extern byte canMessageData[8];      // Received CAN message data

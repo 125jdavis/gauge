@@ -122,6 +122,7 @@ class FakeSerial:
         self.is_open = True
         self.dtr = True
         self.rts = True
+        self.timeout = 1.0
         self._out = bytearray()     # bytes waiting to be read by the client
         self._in = bytearray()      # partial frame from the client
         self.reset_count = 0

@@ -21,8 +21,9 @@ void updateMotorSTarget(int sweep);           // Update final target angle for m
 void updateMotorSSmoothing(void);             // Interpolate motorS position for smooth motion (call frequently)
 void updateMotors1to4Target(int t1, int t2, int t3, int t4);  // Update final targets for motors 1-4
 void updateMotors1to4Smoothing(void);         // Interpolate motors 1-4 positions for smooth motion (call frequently)
-int fuelLvlAngle(int sweep);                  // Fuel level to gauge angle
-int coolantTempAngle(int sweep);              // Coolant temp to gauge angle
+int fuelLvlAngle(int sweep, int minPct, int maxPct);        // Fuel level to gauge angle
+int coolantTempAngle(int sweep, int minTemp, int maxTemp);  // Coolant temp to gauge angle
+int motorFunctionAngle(uint8_t func, int sweep, int minVal, int maxVal);  // Angle for a configured MOTOR_FUNC_* assignment
 
 // Stepper motor control functions
 void motorZeroSynchronous(void);              // Return all motors to zero (fast, for startup calibration)
@@ -35,6 +36,7 @@ void ledShiftLight(int ledRPM);               // Update LED tachometer display
 // Odometer motor control
 void moveOdometerMotor(float distanceKm);     // Queue distance for mechanical odometer motor
 void moveOdometerMotorRevs(int revs);         // Queue signed motor revolutions for serial command
+void stopOdometerMotor(void);                 // Cancel pending serial-commanded movement
 void updateOdometerMotor(void);                // Non-blocking motor update (call from main loop)
 
 #endif // OUTPUTS_H

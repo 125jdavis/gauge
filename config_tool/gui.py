@@ -28,7 +28,7 @@ from tkinter import ttk, messagebox, filedialog, scrolledtext
 from typing import Callable, Dict, Optional
 
 try:
-    from serial_protocol import GaugeSerial, SerialError, NotConnectedError
+    from serial_protocol import GaugeSerial, SerialError, NotConnectedError, ConnectCancelled
     HAS_SERIAL = True
 except ImportError:
     HAS_SERIAL = False
@@ -67,14 +67,60 @@ WINDOW_TITLE = f"Gauge V4 Configuration Tool v{TOOL_VERSION}"
 SOURCE_OPTIONS: Dict[str, tuple] = {
     "speed_source": ("Off", "CAN", "Hall sensor", "GPS", "Synthetic", "Odometer test", "Serial"),
     "rpm_source": ("Off", "CAN", "Coil", "Synthetic", "Serial"),
-    "oil_prs_source": ("Off", "CAN", "AV1", "AV2", "AV3", "Synthetic"),
+    "oil_prs_source": ("Off", "CAN", "AV1", "AV2", "AV3", "Synthetic", "Serial"),
     "fuel_prs_source": ("Off", "CAN", "AV1", "AV2", "AV3", "Synthetic"),
-    "coolant_src": ("Off", "CAN", "Thermistor", "Synthetic"),
+    "coolant_src": ("Off", "CAN", "Thermistor", "Synthetic", "Serial"),
     "oil_temp_src": ("Off", "CAN", "Thermistor"),
     "map_source": ("Off", "CAN", "AV1", "AV2", "AV3", "Synthetic"),
     "lambda_source": ("Off", "CAN", "AV1", "AV2", "AV3"),
-    "fuel_lvl_src": ("Off", "Analog sensor", "Synthetic"),
+    "fuel_lvl_src": ("Off", "Analog sensor", "Synthetic", "Serial"),
 }
+
+# Source parameter -> firmware value that selects the Serial source
+SERIAL_SOURCE_VALUES = {
+    "speed_source": 6,
+    "rpm_source": 4,
+    "oil_prs_source": 6,
+    "coolant_src": 4,
+    "fuel_lvl_src": 3,
+}
+
+CAN_PROTOCOL_OPTIONS = ("Haltech v2", "Megasquirt", "AiM", "OBDII")
+# Switec Z27.168: 3 steps per degree, driven with 4 microsteps per step
+MOTOR_STEPS_PER_DEGREE = 3 * 4
+MOTOR_MAX_ANGLE = 315  # Switec Z27.168 mechanical limit, degrees
+MOTOR_SWEEP_STEPS_RANGE = (100, MOTOR_MAX_ANGLE * MOTOR_STEPS_PER_DEGREE)
+UNIT_SYSTEM_OPTIONS = ("Metric", "'Merican")
+# Order must match the MOTOR_FUNC_* values in firmware config_calibration.h
+MOTOR_FUNCTION_OPTIONS = ("Off", "Fuel level", "Coolant temp")
+MOTOR_FUNCTION_PARAMS = ("m1_func", "m2_func", "m3_func", "m4_func")
+# Gauge min/max units per MOTOR_FUNC_* value, and the min/max applied when a function is picked
+MOTOR_FUNCTION_UNITS = ("", "%", "\u00b0C")
+MOTOR_FUNCTION_RANGES = ((0, 0), (10, 100), (50, 115))
+# (function, min, max) parameter names for each gauge motor. CW stores low in min and high in max;
+# CCW stores them swapped, which reverses the needle's direction of travel.
+MOTOR_PARAMS = (
+    ("m1_func", "m1_min", "m1_max"),
+    ("m2_func", "m2_min", "m2_max"),
+    ("m3_func", "m3_min", "m3_max"),
+    ("m4_func", "m4_min", "m4_max"),
+)
+DIRECTION_OPTIONS = ("CW", "CCW")
+
+
+def _gauge_range_to_device(low: str, high: str, ccw: bool) -> tuple:
+    """Map the user's low/high values to the (min, max) stored in the config."""
+    return (high, low) if ccw else (low, high)
+
+
+def _gauge_range_from_device(min_val: str, max_val: str) -> tuple:
+    """Return (low, high, ccw) for stored (min, max) values."""
+    try:
+        if int(min_val) > int(max_val):
+            return max_val, min_val, True
+    except ValueError:
+        pass
+    return min_val, max_val, False
 
 SOURCE_DEPENDENT_PARAMS: Dict[str, tuple] = {
     "revs_per_km": (("speed_source", 2),),
@@ -195,6 +241,20 @@ def _warning_display_value(raw_value: str, param: str, units: str) -> str:
     return _display_number(value)
 
 
+def _angle_to_steps(value: str) -> int:
+    try:
+        angle = float(value)
+    except ValueError as exc:
+        raise ValueError("Sweep angle must be a number.") from exc
+    if not math.isfinite(angle):
+        raise ValueError("Sweep angle must be a finite number.")
+    steps = round(angle * MOTOR_STEPS_PER_DEGREE)
+    if not MOTOR_SWEEP_STEPS_RANGE[0] <= steps <= MOTOR_SWEEP_STEPS_RANGE[1]:
+        lo = MOTOR_SWEEP_STEPS_RANGE[0] / MOTOR_STEPS_PER_DEGREE
+        raise ValueError(f"Sweep angle must be between {lo:.1f} and {MOTOR_MAX_ANGLE} degrees.")
+    return steps
+
+
 def _fuel_capacity_to_raw(value: str, units: str) -> float:
     try:
         capacity = float(value)
@@ -283,6 +343,8 @@ BOOTLOADER_EXIT_MS = 3000
 
 ALL_PARAMS = [
     "m1_sweep", "m2_sweep", "m3_sweep", "m4_sweep", "ms_sweep",
+    "m1_func", "m2_func", "m3_func", "m4_func",
+    "m1_min", "m1_max", "m2_min", "m2_max", "m3_min", "m3_max", "m4_min", "m4_max",
     "ms_zero_delay", "ms_zero_factor", "motor_sweep_ms",
     "filter_vbatt", "vbatt_scaler", "filter_fuel", "filter_therm",
     "filter_av1", "filter_av2", "filter_av3",
@@ -302,7 +364,20 @@ TOOLTIPS: Dict[str, str] = {
     "m2_sweep":          "Motor 2 full sweep in steps (100-4095).",
     "m3_sweep":          "Motor 3 full sweep in steps (100-4095).",
     "m4_sweep":          "Motor 4 full sweep in steps (100-4095).",
-    "ms_sweep":          "Motor S (speedometer NEMA14) sweep steps (100-8000).",
+    "ms_sweep":          "Motor S (speedometer NEMA14) sweep steps (100-16000).",
+    "m1_func":           "Signal shown by Motor 1 (Off parks the needle at zero).",
+    "m2_func":           "Signal shown by Motor 2 (Off parks the needle at zero).",
+    "m3_func":           "Signal shown by Motor 3 (Off parks the needle at zero).",
+    "m4_func":           "Signal shown by Motor 4 (Off parks the needle at zero).",
+    "m1_min":            "Motor 1 gauge value at the zero end of the dial (fuel: %, coolant: C).",
+    "m1_max":            "Motor 1 gauge value at the full end of the dial (fuel: %, coolant: C).",
+    "m2_min":            "Motor 2 gauge value at the zero end of the dial (fuel: %, coolant: C).",
+    "m2_max":            "Motor 2 gauge value at the full end of the dial (fuel: %, coolant: C).",
+    "m3_min":            "Motor 3 gauge value at the zero end of the dial (fuel: %, coolant: C).",
+    "m3_max":            "Motor 3 gauge value at the full end of the dial (fuel: %, coolant: C).",
+    "m4_min":            "Motor 4 gauge value at the zero end of the dial (fuel: %, coolant: C).",
+    "m4_max":            "Motor 4 gauge value at the full end of the dial (fuel: %, coolant: C).",
+    "motor_direction":   "Direction the needle sweeps as the value rises. CCW swaps the min and max stored in the config.",
     "ms_zero_delay":     "Motor S zeroing step delay us (10-5000).",
     "ms_zero_factor":    "Fraction of MS_SWEEP for Motor S zeroing (0.1-1.0).",
     "motor_sweep_ms":    "Startup test sweep duration ms (100-5000).",
@@ -346,8 +421,8 @@ TOOLTIPS: Dict[str, str] = {
     "fuel_warn_pct":     "Low fuel warning threshold % (0-50). Flash below this.",
     "clock_offset":      "UTC offset hours (-12 to +12).",
     "fuel_capacity":     "Fuel tank capacity in gallons or liters (1-200 gallons).",
-    "can_protocol":      "CAN protocol: 0=Haltech v2 1=Megasquirt 2=AiM 3=OBDII",
-    "units":             "Unit system: 0=Metric 1=Imperial",
+    "can_protocol":      "Select the CAN protocol used by your vehicle.",
+    "units":             "Unit system shown on the gauge: Metric or 'Merican (imperial).",
 }
 
 
@@ -390,8 +465,11 @@ class GaugeConfigApp:
         self._config_file = ConfigFile()
         self._vars: Dict[str, tk.StringVar] = {p: tk.StringVar(value="") for p in ALL_PARAMS}
         self._dirty: Dict[str, bool] = {p: False for p in ALL_PARAMS}
+        self._gauge_display_vars: Dict[str, tuple] = {}
         self._hall_speed_min_display_var = tk.StringVar(value="")
         self._speedo_max_display_var = tk.StringVar(value="")
+        self._angle_vars: Dict[str, tk.StringVar] = {}
+        self._syncing_angle = False
         self._speedo_max_units_var = tk.StringVar(value="mph")
         self._syncing_speed_display = False
         self._speed_display_widgets: Dict[str, ttk.Entry] = {}
@@ -453,6 +531,7 @@ class GaugeConfigApp:
 
     def _build_tabs(self) -> None:
         nb = ttk.Notebook(self.root)
+        self._notebook = nb
         nb.pack(fill="both", expand=True, padx=4, pady=4)
         tabs = [
             ("Connection",       self._build_tab_connection),
@@ -464,20 +543,38 @@ class GaugeConfigApp:
             ("Display Settings", self._build_tab_display),
             ("Fault Warnings",   self._build_tab_faults),
             ("Splash Screens",   self._build_tab_splash),
+            ("Test",             self._build_tab_test),
         ]
         for title, builder in tabs:
             frame = ttk.Frame(nb)
             nb.add(frame, text=title)
             builder(frame)
         self._update_source_dependent_controls()
+        nb.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    def _on_tab_changed(self, _event: object = None) -> None:
+        if self._notebook.tab(self._notebook.select(), "text") != "Test":
+            self._test_stop_odo_ui()
+            self._test_restore_sources()
+
+    def _on_close(self) -> None:
+        self._test_restore_sources()
+        self.root.destroy()
 
     def _param_row(self, parent: tk.Widget, row: int, col: int,
                    label: str, param: str, width: int = 12) -> ttk.Entry:
         lbl = ttk.Label(parent, text=label)
         lbl.grid(row=row, column=col, sticky="e", padx=4, pady=2)
         self._param_labels[param] = lbl
-        if param in SOURCE_OPTIONS:
-            options = SOURCE_OPTIONS[param]
+        options = SOURCE_OPTIONS.get(param)
+        if param == "can_protocol":
+            options = CAN_PROTOCOL_OPTIONS
+        elif param == "units":
+            options = UNIT_SYSTEM_OPTIONS
+        elif param in MOTOR_FUNCTION_PARAMS:
+            options = MOTOR_FUNCTION_OPTIONS
+        if options is not None:
             display_var = tk.StringVar()
             widget = ttk.Combobox(
                 parent, textvariable=display_var, values=options,
@@ -611,7 +708,7 @@ class GaugeConfigApp:
             min_display_rpm = int(self._vars["tach_min"].get())
         except ValueError:
             return
-        if min_display_rpm < shift_rpm:
+        if min_display_rpm > shift_rpm:
             self._vars["tach_min"].set(str(shift_rpm))
 
     def _sync_speed_display(self, param: str) -> None:
@@ -838,7 +935,7 @@ class GaugeConfigApp:
         inner.pack(padx=10, pady=10, fill="x")
         ttk.Label(inner, text="Port:").grid(row=0, column=0, sticky="e", padx=4, pady=4)
         self._port_var = tk.StringVar()
-        self._port_combo = ttk.Combobox(inner, textvariable=self._port_var, width=20)
+        self._port_combo = ttk.Combobox(inner, textvariable=self._port_var, width=32)
         self._port_combo.grid(row=0, column=1, sticky="w", padx=4, pady=4)
         ttk.Button(inner, text="Refresh", command=self._refresh_ports).grid(row=0, column=2, padx=4)
         ttk.Label(inner, text="Baud:").grid(row=1, column=0, sticky="e", padx=4, pady=4)
@@ -985,6 +1082,7 @@ class GaugeConfigApp:
         # the board, so the tool's own connection has to go first.
         self._fw_was_connected = bool(self._serial and self._serial.is_connected)
         if self._fw_was_connected and self._serial:
+            self._test_restore_sources()
             self._serial.disconnect()
             self._conn_status_var.set("Disconnected (updating)")
             self._connect_btn.configure(text="Connect")
@@ -1062,22 +1160,30 @@ class GaugeConfigApp:
         selected_port = self._port_var.get()
         port = self._port_devices.get(selected_port, selected_port)
         try:
-            self._serial.connect(port, int(self._baud_var.get()))
-            if not self._serial.ping():
-                self._serial.disconnect()
+            baud = int(self._baud_var.get())
+        except ValueError:
+            self._fw_log("Reconnect failed: invalid baud rate.")
+            return
+
+        def done(error: Optional[Exception], version: str) -> None:
+            if isinstance(error, ConnectCancelled):
+                self._fw_log("Reconnect cancelled.")
+                self._conn_status_var.set("Disconnected")
+            elif error is not None:
+                self._fw_log(f"Reconnect failed: {error}")
+                self._conn_status_var.set("Disconnected")
+            elif not version:
                 self._fw_log("The gauge did not respond after the update. "
                              "Unplug it, plug it back in, then press Connect.")
-                return
-            version = self._serial.version()
-            self._fw_var.set(version)
-            self._conn_status_var.set("Connected")
-            self._connect_btn.configure(text="Disconnect")
-            self._fw_log(f"Reconnected — {version}")
-            self._set_status(f"Connected: {port}  |  {version}")
-            self._read_from_device()
-        except Exception as exc:
-            self._fw_log(f"Reconnect failed: {exc}")
-            self._conn_status_var.set("Disconnected")
+            else:
+                self._fw_var.set(version)
+                self._conn_status_var.set("Connected")
+                self._connect_btn.configure(text="Disconnect")
+                self._fw_log(f"Reconnected — {version}")
+                self._set_status(f"Connected: {port}  |  {version}")
+                self._read_from_device()
+
+        self._connect_with_progress(port, baud, done)
 
     def _refresh_ports(self) -> None:
         details = (
@@ -1097,6 +1203,7 @@ class GaugeConfigApp:
             messagebox.showerror("Error", "pyserial is not installed.\nRun: pip install pyserial")
             return
         if self._serial.is_connected:
+            self._test_restore_sources()
             self._serial.disconnect()
             self._conn_status_var.set("Disconnected")
             self._connect_btn.configure(text="Connect")
@@ -1104,20 +1211,104 @@ class GaugeConfigApp:
         else:
             selected_port = self._port_var.get()
             port = self._port_devices.get(selected_port, selected_port)
-            baud = int(self._baud_var.get())
             try:
-                self._serial.connect(port, baud)
-                if self._serial.ping():
-                    ver = self._serial.version()
+                baud = int(self._baud_var.get())
+            except ValueError:
+                messagebox.showerror("Error", "Invalid baud rate.")
+                return
+
+            def done(error: Optional[Exception], ver: str) -> None:
+                if isinstance(error, ConnectCancelled):
+                    self._set_status("Connection cancelled")
+                elif error is not None:
+                    messagebox.showerror("Connection error", str(error))
+                elif not ver:
+                    messagebox.showwarning("Warning", "Connected but Arduino did not respond to ping.")
+                else:
                     self._fw_var.set(ver)
                     self._conn_status_var.set("Connected")
                     self._connect_btn.configure(text="Disconnect")
                     self._set_status(f"Connected: {port} @ {baud}  |  {ver}")
+
+            self._connect_with_progress(port, baud, done)
+
+    def _connect_with_progress(self, port: str, baud: int,
+                               on_done: Callable[[Optional[Exception], str], None]) -> None:
+        """Connect on a worker thread behind a modal, cancellable progress dialog.
+
+        *on_done(error, version)* runs on the UI thread; *version* is empty when
+        the gauge connected but did not answer the ping.
+        """
+        assert self._serial is not None
+        serial_obj = self._serial
+        results: "queue.Queue[tuple]" = queue.Queue()
+        cancel = threading.Event()
+
+        def worker() -> None:
+            try:
+                serial_obj.connect(port, baud,
+                                   progress=lambda m: results.put(("msg", m)),
+                                   cancel=cancel)
+                if serial_obj.ping():
+                    results.put(("done", None, serial_obj.version()))
                 else:
-                    self._serial.disconnect()
-                    messagebox.showwarning("Warning", "Connected but Arduino did not respond to ping.")
+                    serial_obj.disconnect()
+                    results.put(("done", None, ""))
             except Exception as exc:
-                messagebox.showerror("Connection error", str(exc))
+                serial_obj.disconnect()
+                results.put(("done", exc, ""))
+
+        dlg = tk.Toplevel(self.root)
+        dlg.title("Connecting")
+        dlg.resizable(False, False)
+        dlg.transient(self.root)
+        body = ttk.Frame(dlg, padding=16)
+        body.pack(fill="both", expand=True)
+        ttk.Label(body, text=f"Connecting to {port}", font=("TkDefaultFont", 10, "bold")).pack(anchor="w")
+        msg_var = tk.StringVar(value="Starting...")
+        ttk.Label(body, textvariable=msg_var, width=44).pack(anchor="w", pady=(6, 10))
+        bar = ttk.Progressbar(body, mode="indeterminate", length=320)
+        bar.pack(fill="x")
+        bar.start(12)
+
+        def request_cancel() -> None:
+            cancel.set()
+            msg_var.set("Cancelling...")
+            cancel_btn.state(["disabled"])
+
+        cancel_btn = ttk.Button(body, text="Cancel", command=request_cancel)
+        cancel_btn.pack(anchor="e", pady=(12, 0))
+        dlg.protocol("WM_DELETE_WINDOW", request_cancel)
+        dlg.update_idletasks()
+        x = self.root.winfo_rootx() + (self.root.winfo_width() - dlg.winfo_width()) // 2
+        y = self.root.winfo_rooty() + (self.root.winfo_height() - dlg.winfo_height()) // 2
+        dlg.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+        dlg.grab_set()
+        self._connect_btn.state(["disabled"])
+
+        def poll() -> None:
+            finished = None
+            while True:
+                try:
+                    item = results.get_nowait()
+                except queue.Empty:
+                    break
+                if item[0] == "msg":
+                    if not cancel.is_set():
+                        msg_var.set(item[1])
+                else:
+                    finished = item
+            if finished is None:
+                self.root.after(100, poll)
+                return
+            bar.stop()
+            dlg.grab_release()
+            dlg.destroy()
+            self._connect_btn.state(["!disabled"])
+            on_done(finished[1], finished[2])
+
+        threading.Thread(target=worker, daemon=True).start()
+        self.root.after(100, poll)
 
     # ------ Tab 2: Motors ------
     def _build_tab_motors(self, frame: ttk.Frame) -> None:
@@ -1129,24 +1320,230 @@ class GaugeConfigApp:
         inner = ttk.Frame(canvas)
         canvas.create_window((0, 0), window=inner, anchor="nw")
         inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        motors = [
-            ("Motor 1", "m1_sweep"),
-            ("Motor 2", "m2_sweep"),
-            ("Motor 3", "m3_sweep"),
-            ("Motor 4", "m4_sweep"),
-            ("Motor S (Speedometer)", "ms_sweep"),
-        ]
-        for idx, (title, param) in enumerate(motors):
+        for idx, (title, sweep_param, (func_p, min_p, max_p)) in enumerate(zip(
+            ("Motor 1", "Motor 2", "Motor 3", "Motor 4"),
+            ("m1_sweep", "m2_sweep", "m3_sweep", "m4_sweep"),
+            MOTOR_PARAMS,
+        )):
             grp = ttk.LabelFrame(inner, text=title)
-            grp.grid(row=idx, column=0, padx=10, pady=6, sticky="ew")
-            self._param_row(grp, 0, 0, "Sweep steps:", param)
+            grp.grid(row=idx, column=0, padx=10, pady=6, sticky="new")
+            func_combo = self._param_row(grp, 0, 0, "Function:", func_p)
+            self._motor_angle_row(grp, 1, sweep_param)
+            self._gauge_range_rows(grp, 2, func_p, min_p, max_p)
+            func_combo.bind(
+                "<<ComboboxSelected>>",
+                lambda _e, f=func_p: self._apply_function_defaults(f),
+                add="+",
+            )
+
+        ms_sweep_grp = ttk.LabelFrame(inner, text="Motor S (Speedometer)")
+        ms_sweep_grp.grid(row=0, column=1, padx=10, pady=6, sticky="new")
+        self._param_row(ms_sweep_grp, 0, 0, "Sweep steps:", "ms_sweep")
         ms_grp = ttk.LabelFrame(inner, text="Motor S - Zeroing")
-        ms_grp.grid(row=len(motors), column=0, padx=10, pady=6, sticky="ew")
+        ms_grp.grid(row=1, column=1, padx=10, pady=6, sticky="new")
         self._param_row(ms_grp, 0, 0, "Zero step delay (us):", "ms_zero_delay")
         self._param_row(ms_grp, 1, 0, "Zero sweep fraction:",  "ms_zero_factor")
         sw_grp = ttk.LabelFrame(inner, text="Startup sweep")
-        sw_grp.grid(row=len(motors) + 1, column=0, padx=10, pady=6, sticky="ew")
+        sw_grp.grid(row=2, column=1, padx=10, pady=6, sticky="new")
         self._param_row(sw_grp, 0, 0, "Sweep time (ms):", "motor_sweep_ms")
+
+    def _motor_angle_row(self, parent: tk.Widget, row: int, param: str) -> None:
+        """Sweep entry in degrees; the config value stays in motor steps."""
+        label = ttk.Label(parent, text="Sweep angle (\u00b0):")
+        label.grid(row=row, column=0, sticky="e", padx=4, pady=2)
+        display_var = tk.StringVar()
+        entry = ttk.Entry(
+            parent, textvariable=display_var, width=12, validate="key",
+            validatecommand=(self.root.register(self._angle_key_ok), "%P"),
+        )
+        entry.grid(row=row, column=1, sticky="w", padx=4, pady=2)
+        self._angle_vars[param] = display_var
+        self._param_labels[param] = label
+        self._param_widgets[param] = entry
+        tip = (f"Full needle sweep in degrees (Switec Z27.168: {MOTOR_STEPS_PER_DEGREE} steps per degree). "
+               "Stored in the config as steps.")
+        ToolTip(label, tip)
+        ToolTip(entry, tip)
+        display_var.trace_add("write", lambda *_a: self._on_angle_changed(param))
+        self._vars[param].trace_add("write", lambda *_a: self._sync_angle_display(param))
+        self._sync_angle_display(param)
+
+    @staticmethod
+    def _angle_key_ok(proposed: str) -> bool:
+        """Allow only numeric text up to the motor's mechanical limit while typing."""
+        if proposed in ("", "."):
+            return True
+        try:
+            value = float(proposed)
+        except ValueError:
+            return False
+        return 0 <= value <= MOTOR_MAX_ANGLE
+
+    def _sync_angle_display(self, param: str) -> None:
+        display_var = self._angle_vars[param]
+        raw = self._vars[param].get()
+        try:
+            steps = int(raw)
+        except ValueError:
+            if not raw:
+                display_var.set("")
+            return
+        try:
+            if _angle_to_steps(display_var.get()) == steps:
+                return  # already consistent; don't reformat what the user is typing
+        except ValueError:
+            pass
+        self._syncing_angle = True
+        try:
+            display_var.set(_display_number(steps / MOTOR_STEPS_PER_DEGREE))
+        finally:
+            self._syncing_angle = False
+
+    def _on_angle_changed(self, param: str) -> None:
+        if self._syncing_angle:
+            return
+        self._mark_parameter_dirty(param)
+        text = self._angle_vars[param].get()
+        self._syncing_angle = True
+        try:
+            if not text.strip():
+                self._vars[param].set("")
+                return
+            try:
+                steps = _angle_to_steps(text)
+            except ValueError:
+                return  # reported by _validate_motor_angles when writing
+            if self._vars[param].get() != str(steps):
+                self._vars[param].set(str(steps))
+        finally:
+            self._syncing_angle = False
+
+    def _validate_motor_angles(self) -> bool:
+        for param, display_var in self._angle_vars.items():
+            text = display_var.get().strip()
+            if not text:
+                continue
+            try:
+                _angle_to_steps(text)
+            except ValueError as exc:
+                messagebox.showerror("Invalid sweep angle", f"{param}: {exc}")
+                return False
+        return True
+
+    def _gauge_range_rows(
+        self, parent: tk.Widget, row: int, func_param: str, min_param: str, max_param: str,
+    ) -> None:
+        """Gauge min/max entries plus CW/CCW radios.
+
+        The entries hold the user's low/high values; the config stores them in the
+        min/max parameters, swapped when CCW is selected.
+        """
+        low_var, high_var = tk.StringVar(), tk.StringVar()
+        dir_var = tk.StringVar(value=DIRECTION_OPTIONS[0])
+        busy = [False]
+        entries = []
+        labels = []
+        for offset, (text, var) in enumerate((("Gauge min:", low_var), ("Gauge max:", high_var))):
+            lbl = ttk.Label(parent, text=text)
+            lbl.grid(row=row + offset, column=0, sticky="e", padx=4, pady=2)
+            entry = ttk.Entry(parent, textvariable=var, width=12)
+            entry.grid(row=row + offset, column=1, sticky="w", padx=4, pady=2)
+            labels.append(lbl)
+            entries.append(entry)
+        dir_lbl = ttk.Label(parent, text="Sweep direction:")
+        dir_lbl.grid(row=row + 2, column=0, sticky="e", padx=4, pady=2)
+        radios = ttk.Frame(parent)
+        radios.grid(row=row + 2, column=1, sticky="w", padx=4, pady=2)
+        for text in DIRECTION_OPTIONS:
+            radio = ttk.Radiobutton(radios, text=text, variable=dir_var, value=text)
+            radio.pack(side="left", padx=(0, 8))
+            ToolTip(radio, TOOLTIPS["motor_direction"])
+        ToolTip(dir_lbl, TOOLTIPS["motor_direction"])
+        for param, lbl, entry in zip((min_param, max_param), labels, entries):
+            self._param_labels[param] = lbl
+            self._param_widgets[param] = entry
+            ToolTip(lbl, TOOLTIPS[param])
+            ToolTip(entry, TOOLTIPS[param])
+        self._gauge_display_vars[func_param] = (low_var, high_var)
+
+        def to_device(*_args: object) -> None:
+            if busy[0]:
+                return
+            busy[0] = True
+            try:
+                dev_min, dev_max = _gauge_range_to_device(
+                    low_var.get(), high_var.get(), dir_var.get() == "CCW",
+                )
+                self._vars[min_param].set(dev_min)
+                self._vars[max_param].set(dev_max)
+                self._mark_parameter_dirty(min_param)
+                self._mark_parameter_dirty(max_param)
+            finally:
+                busy[0] = False
+
+        def from_device(*_args: object) -> None:
+            if busy[0]:
+                return
+            busy[0] = True
+            try:
+                low, high, ccw = _gauge_range_from_device(
+                    self._vars[min_param].get(), self._vars[max_param].get(),
+                )
+                low_var.set(low)
+                high_var.set(high)
+                dir_var.set("CCW" if ccw else DIRECTION_OPTIONS[0])
+            finally:
+                busy[0] = False
+
+        for var in (low_var, high_var, dir_var):
+            var.trace_add("write", to_device)
+        self._vars[min_param].trace_add("write", from_device)
+        self._vars[max_param].trace_add("write", from_device)
+        self._vars[func_param].trace_add(
+            "write",
+            lambda *_a: self._update_gauge_range_labels(func_param, min_param, max_param),
+        )
+        self._update_gauge_range_labels(func_param, min_param, max_param)
+
+    def _update_gauge_range_labels(self, func_param: str, min_param: str, max_param: str) -> None:
+        try:
+            unit = MOTOR_FUNCTION_UNITS[int(self._vars[func_param].get())]
+        except (ValueError, IndexError):
+            unit = ""
+        suffix = f" ({unit})" if unit else ""
+        self._param_labels[min_param].configure(text=f"Gauge min{suffix}:")
+        self._param_labels[max_param].configure(text=f"Gauge max{suffix}:")
+
+    def _apply_function_defaults(self, func_param: str) -> None:
+        """Seed the gauge min/max with typical values after the user picks a function."""
+        try:
+            lo, hi = MOTOR_FUNCTION_RANGES[int(self._vars[func_param].get())]
+        except (ValueError, IndexError):
+            return
+        if (lo, hi) != (0, 0):
+            low_var, high_var = self._gauge_display_vars[func_param]
+            low_var.set(str(lo))
+            high_var.set(str(hi))
+
+    def _validate_motor_ranges(self) -> bool:
+        for title, (func_p, min_p, max_p) in zip(
+            ("Motor 1", "Motor 2", "Motor 3", "Motor 4"), MOTOR_PARAMS,
+        ):
+            if self._vars[func_p].get() in ("", "0"):
+                continue
+            try:
+                lo = int(self._vars[min_p].get())
+                hi = int(self._vars[max_p].get())
+            except ValueError:
+                messagebox.showerror("Invalid gauge range", f"{title}: gauge min and max must be whole numbers.")
+                return False
+            if not (-50 <= lo <= 1000 and -50 <= hi <= 1000) or lo == hi:
+                messagebox.showerror(
+                    "Invalid gauge range",
+                    f"{title}: gauge min and max must differ (both between -50 and 1000).",
+                )
+                return False
+        return True
 
     # ------ Signal source tab ------
     def _build_tab_signal_source(self, frame: ttk.Frame) -> None:
@@ -1169,10 +1566,6 @@ class GaugeConfigApp:
         protocol = ttk.LabelFrame(content, text="CAN Bus")
         protocol.pack(padx=10, pady=6, fill="x")
         self._param_row(protocol, 0, 0, "CAN protocol:", "can_protocol")
-        ttk.Label(
-            protocol, text="0=Haltech v2  1=Megasquirt  2=AiM  3=OBDII",
-            foreground="gray",
-        ).grid(row=0, column=2, sticky="w", padx=8)
 
         speed_source = ttk.LabelFrame(content, text="Speed Source")
         speed_source.pack(padx=10, pady=6, fill="x")
@@ -1304,7 +1697,7 @@ class GaugeConfigApp:
     def _build_tab_display(self, frame: ttk.Frame) -> None:
         grp = ttk.LabelFrame(frame, text="Units")
         grp.pack(padx=10, pady=10, fill="x")
-        self._param_row(grp, 0, 0, "Unit system (0=Metric, 1=Imperial):", "units")
+        self._param_row(grp, 0, 0, "Unit system:", "units")
         info = ttk.LabelFrame(frame, text="Display 1 screen IDs (reference)")
         info.pack(padx=10, pady=6, fill="both")
         screens = [
@@ -1362,6 +1755,240 @@ class GaugeConfigApp:
             self._fuel_capacity_units_changed,
         )
         self._sync_fuel_capacity_display()
+
+    # ------ Test tab ------
+    # key -> (label, metric unit, imperial unit, metric range, imperial range,
+    #         default metric value, imperial->metric conversion, send method, source param)
+    _TEST_SIGNALS = (
+        ("speed",   "Speed",        "km/h", "mph", (0, 300),   (0, 186),  0,  lambda v: v * 1.609344,
+         "test_speed", "speed_source"),
+        ("rpm",     "RPM",          "rpm",  "rpm", (0, 10000), (0, 10000), 0, lambda v: v,
+         "test_rpm", "rpm_source"),
+        ("oil",     "Oil pressure", "kPa",  "psi", (0, 1000),  (0, 145),  0,  lambda v: v * 6.894757,
+         "test_oil_pressure", "oil_prs_source"),
+        ("coolant", "Coolant temp", "\u00b0C", "\u00b0F", (-40, 150), (-40, 300), 20,
+         lambda v: (v - 32) / 1.8, "test_coolant_temp", "coolant_src"),
+        ("fuel",    "Fuel level",   "%",    "%",   (0, 100),  (0, 100),  50, lambda v: v,
+         "test_fuel_level", "fuel_lvl_src"),
+    )
+
+    def _build_tab_test(self, frame: ttk.Frame) -> None:
+        self._test_orig_sources: Dict[str, str] = {}
+        self._test_odo_after: Optional[str] = None
+        note = ttk.Label(
+            frame, wraplength=640, justify="left",
+            text="Inject signal values into the gauge. Sending a value temporarily switches "
+                 "that signal's source to Serial in the gauge's RAM. The original source is "
+                 "restored automatically when you leave this tab, disconnect, read, write or "
+                 "close the tool, and is never saved to EEPROM from here.",
+        )
+        note.pack(padx=10, pady=(10, 4), anchor="w")
+
+        units_row = ttk.Frame(frame)
+        units_row.pack(padx=10, pady=2, anchor="w")
+        ttk.Label(units_row, text="Input units:").pack(side="left", padx=(0, 6))
+        self._test_units_var = tk.StringVar(value="metric")
+        self._test_prev_units = "metric"
+        for text, value in (("Metric", "metric"), ("'Merican", "imperial")):
+            ttk.Radiobutton(
+                units_row, text=text, value=value, variable=self._test_units_var,
+                command=self._test_units_changed,
+            ).pack(side="left", padx=4)
+        ttk.Button(
+            units_row, text="Restore sources now", command=self._test_restore_sources,
+        ).pack(side="left", padx=(20, 0))
+
+        sig = ttk.LabelFrame(frame, text="Signal Injection")
+        sig.pack(padx=10, pady=6, fill="x")
+        self._test_vars: Dict[str, tk.StringVar] = {}
+        self._test_scales: Dict[str, ttk.Scale] = {}
+        self._test_labels: Dict[str, ttk.Label] = {}
+        for row, (key, name, _mu, _iu, (lo, hi), _ir, default, _conv, method, _src) in enumerate(
+            self._TEST_SIGNALS
+        ):
+            var = tk.StringVar(value=str(default))
+            self._test_vars[key] = var
+            label = ttk.Label(sig)
+            label.grid(row=row, column=0, sticky="e", padx=4, pady=3)
+            self._test_labels[key] = label
+            scale = ttk.Scale(
+                sig, from_=lo, to=hi, length=260,
+                command=lambda val, v=var: v.set(str(round(float(val)))),
+            )
+            scale.set(default)
+            scale.grid(row=row, column=1, padx=4, pady=3)
+            self._test_scales[key] = scale
+            entry = ttk.Entry(sig, textvariable=var, width=8)
+            entry.grid(row=row, column=2, padx=4, pady=3)
+            send = lambda _e=None, k=key: self._test_send_signal(k)
+            ttk.Button(sig, text="Send", command=send).grid(row=row, column=3, padx=4, pady=3)
+            entry.bind("<Return>", send)
+        self._test_refresh_unit_labels()
+
+        misc = ttk.LabelFrame(frame, text="Other Tests")
+        misc.pack(padx=10, pady=6, fill="x")
+        ttk.Button(misc, text="Ping", command=self._test_ping).grid(row=0, column=0, padx=4, pady=4)
+        ttk.Button(misc, text="Version", command=self._test_version).grid(row=0, column=1, padx=4, pady=4)
+        ttk.Label(misc, text="Odometer motor revs (-100 to 100):").grid(row=0, column=2, padx=(16, 4))
+        self._test_odo_var = tk.StringVar(value="1")
+        ttk.Spinbox(misc, from_=-100, to=100, textvariable=self._test_odo_var, width=6).grid(row=0, column=3)
+        self._test_odo_btn = ttk.Button(misc, text="Move", command=self._test_odo_toggle)
+        self._test_odo_btn.grid(row=0, column=4, padx=4)
+        ttk.Label(misc, text="Splash preview:").grid(row=1, column=0, columnspan=2, padx=4, pady=4, sticky="e")
+        ttk.Button(misc, text="Slot 1", command=lambda: self._test_splash(1)).grid(row=1, column=2, padx=4)
+        ttk.Button(misc, text="Slot 2", command=lambda: self._test_splash(2)).grid(row=1, column=3, padx=4)
+
+        log_frame = ttk.LabelFrame(frame, text="Log")
+        log_frame.pack(padx=10, pady=6, fill="both", expand=True)
+        self._test_log = scrolledtext.ScrolledText(log_frame, height=8, state="disabled")
+        self._test_log.pack(fill="both", expand=True, padx=4, pady=4)
+
+    def _test_log_line(self, msg: str) -> None:
+        self._test_log.configure(state="normal")
+        self._test_log.insert("end", msg + "\n")
+        self._test_log.see("end")
+        self._test_log.configure(state="disabled")
+
+    def _test_run(self, desc: str, action: Callable[[], object]) -> bool:
+        """Run a serial action, log the outcome, and report whether it succeeded."""
+        if not self._serial or not self._serial.is_connected:
+            messagebox.showwarning("Not connected", "Connect to the Arduino first.")
+            return False
+        try:
+            result = action()
+        except Exception as exc:
+            self._test_log_line(f"{desc} -> ERROR: {exc}")
+            self._set_status(f"Test failed: {exc}")
+            return False
+        self._test_log_line(f"{desc} -> {result if result else 'ok'}")
+        return True
+
+    def _test_signal_spec(self, key: str) -> tuple:
+        return next(s for s in self._TEST_SIGNALS if s[0] == key)
+
+    def _test_refresh_unit_labels(self) -> None:
+        imperial = self._test_units_var.get() == "imperial"
+        for key, name, m_unit, i_unit, m_rng, i_rng, *_rest in self._TEST_SIGNALS:
+            lo, hi = i_rng if imperial else m_rng
+            self._test_labels[key].configure(text=f"{name} ({i_unit if imperial else m_unit}):")
+            self._test_scales[key].configure(from_=lo, to=hi)
+
+    def _test_units_changed(self) -> None:
+        new = self._test_units_var.get()
+        old = self._test_prev_units
+        if new == old:
+            return
+        for key, _n, _mu, _iu, m_rng, i_rng, _d, conv, *_rest in self._TEST_SIGNALS:
+            var = self._test_vars[key]
+            try:
+                value = float(var.get())
+            except ValueError:
+                value = None
+            if value is not None:
+                offset = conv(0)
+                slope = conv(1) - offset
+                if old == "imperial":
+                    value = conv(value)          # imperial -> metric
+                if new == "imperial":
+                    value = (value - offset) / slope  # metric -> imperial
+                lo, hi = i_rng if new == "imperial" else m_rng
+                value = min(max(value, lo), hi)
+            self._test_scales[key].configure(
+                from_=(i_rng if new == "imperial" else m_rng)[0],
+                to=(i_rng if new == "imperial" else m_rng)[1],
+            )
+            if value is not None:
+                self._test_scales[key].set(value)
+                var.set(str(round(value)))
+        self._test_prev_units = new
+        self._test_refresh_unit_labels()
+
+    def _test_send_signal(self, key: str) -> None:
+        if not self._serial or not self._serial.is_connected:
+            messagebox.showwarning("Not connected", "Connect to the Arduino first.")
+            return
+        var = self._test_vars[key]
+        _k, name, _mu, _iu, m_rng, i_rng, _d, conv, method, source = self._test_signal_spec(key)
+        imperial = self._test_units_var.get() == "imperial"
+        try:
+            value = float(var.get())
+        except ValueError:
+            messagebox.showerror("Invalid value", f"'{var.get()}' is not a number.")
+            return
+        lo, hi = i_rng if imperial else m_rng
+        if not lo <= value <= hi:
+            messagebox.showerror("Out of range", f"{name} must be between {lo} and {hi}.")
+            return
+        metric = conv(value) if imperial else value
+        if key in ("speed", "rpm"):
+            metric = int(round(metric))
+        if not self._test_use_serial_source(source):
+            return
+        if self._test_run(
+            f"{key} = {metric:g}", lambda: getattr(self._serial, method)(metric)
+        ):
+            self._test_scales[key].set(value)
+
+    def _test_use_serial_source(self, param: str) -> bool:
+        """Temporarily switch *param* to its Serial source, remembering the original."""
+        if param in self._test_orig_sources:
+            return True
+        assert self._serial is not None
+        try:
+            original = self._serial.get(param)
+        except Exception as exc:
+            self._test_log_line(f"get {param} -> ERROR: {exc}")
+            return False
+        value = SERIAL_SOURCE_VALUES[param]
+        if not self._test_run(f"set {param} {value}", lambda: self._serial.set(param, str(value))):  # type: ignore[union-attr]
+            return False
+        self._test_orig_sources[param] = original
+        return True
+
+    def _test_restore_sources(self) -> None:
+        """Put every source changed by the Test tab back to its original value."""
+        pending, self._test_orig_sources = self._test_orig_sources, {}
+        if not pending:
+            return
+        for param, original in pending.items():
+            if self._serial and self._serial.is_connected:
+                self._test_run(f"restore {param} {original}",
+                               lambda p=param, o=original: self._serial.set(p, o))  # type: ignore[union-attr]
+
+    def _test_ping(self) -> None:
+        self._test_run("ping", lambda: "pong" if self._serial.ping() else "no response")  # type: ignore[union-attr]
+
+    def _test_version(self) -> None:
+        self._test_run("version", lambda: self._serial.version())  # type: ignore[union-attr]
+
+    def _test_odo_toggle(self) -> None:
+        if self._test_odo_btn.cget("text") == "Stop":
+            self._test_run("odo stop", lambda: self._serial.test_odo_stop())  # type: ignore[union-attr]
+            self._test_stop_odo_ui()
+            return
+        try:
+            revs = int(self._test_odo_var.get())
+        except ValueError:
+            messagebox.showerror("Invalid value", "Revolutions must be an integer.")
+            return
+        if not -100 <= revs <= 100:
+            messagebox.showerror("Out of range", "Revolutions must be between -100 and 100.")
+            return
+        if revs == 0:
+            return
+        if self._test_run(f"odo motor {revs}", lambda: self._serial.test_odo_motor(revs)):  # type: ignore[union-attr]
+            self._test_odo_btn.configure(text="Stop")
+            # Motor runs at ~4 RPM (15 s per revolution); revert the button when it should be done
+            self._test_odo_after = self.root.after(int(abs(revs) * 15000 + 1000), self._test_stop_odo_ui)
+
+    def _test_stop_odo_ui(self) -> None:
+        if self._test_odo_after is not None:
+            self.root.after_cancel(self._test_odo_after)
+            self._test_odo_after = None
+        self._test_odo_btn.configure(text="Move")
+
+    def _test_splash(self, slot: int) -> None:
+        self._test_run(f"splash test {slot}", lambda: self._serial.splash_test(slot))  # type: ignore[union-attr]
 
     # ------ Tab 9: Splash ------
     def _build_tab_splash(self, frame: ttk.Frame) -> None:
@@ -1473,6 +2100,7 @@ class GaugeConfigApp:
         if not self._serial or not self._serial.is_connected:
             messagebox.showwarning("Not connected", "Connect to the Arduino first.")
             return
+        self._test_restore_sources()
         try:
             params = self._serial.dump()
             for k, v in params.items():
@@ -1491,12 +2119,17 @@ class GaugeConfigApp:
         if not self._serial or not self._serial.is_connected:
             messagebox.showwarning("Not connected", "Connect to the Arduino first.")
             return
+        self._test_restore_sources()
         self._enforce_tach_min()
+        if not self._validate_motor_angles():
+            return
         if not self._validate_speed_inputs():
             return
         if not self._validate_warning_inputs():
             return
         if not self._validate_fuel_capacity():
+            return
+        if not self._validate_motor_ranges():
             return
         selected_sources = self._selected_sources()
         dirty = [
@@ -1522,6 +2155,7 @@ class GaugeConfigApp:
             return
         if not messagebox.askyesno("Confirm", "Reset all parameters to firmware defaults?"):
             return
+        self._test_restore_sources()
         try:
             self._serial.reset()
             self._read_from_device()
@@ -1539,11 +2173,15 @@ class GaugeConfigApp:
         if not path:
             return
         self._enforce_tach_min()
+        if not self._validate_motor_angles():
+            return
         if not self._validate_speed_inputs():
             return
         if not self._validate_warning_inputs():
             return
         if not self._validate_fuel_capacity():
+            return
+        if not self._validate_motor_ranges():
             return
         params = {p: self._vars[p].get() for p in ALL_PARAMS if self._vars[p].get()}
         params["config_format"] = str(CONFIG_FILE_FORMAT)

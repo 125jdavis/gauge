@@ -24,6 +24,30 @@ extern uint16_t M3_SWEEP;        // Motor 3: 58 degrees * 12 = 696 steps (same c
 extern uint16_t M4_SWEEP;        // Motor 4: 58 degrees * 12 = 696 steps (typically coolant temp)
 extern uint16_t MS_SWEEP;        // Motor S: 118 degrees (speedometer - 16 microsteps, 400 steps/rev, 0.9°/step)
 
+// ===== MOTOR 1-4 FUNCTION ASSIGNMENT =====
+// Selects which signal each X25.168 gauge motor displays. Motor S is always the speedometer.
+#define MOTOR_FUNC_OFF          0   // Needle parked at zero
+#define MOTOR_FUNC_FUEL_LEVEL   1
+#define MOTOR_FUNC_COOLANT_TEMP 2
+#define MOTOR_FUNC_COUNT        3   // Number of valid function values (0..MOTOR_FUNC_COUNT-1)
+extern uint8_t M1_FUNCTION;
+extern uint8_t M2_FUNCTION;
+extern uint8_t M3_FUNCTION;
+extern uint8_t M4_FUNCTION;
+
+// Gauge scale endpoints for motors 1-4, in the units of the assigned function:
+//   Fuel level = percent of tank capacity, Coolant temp = degrees C.
+// The needle sits at its zero stop at the min value and at full sweep at the max value.
+// min may be greater than max to reverse the needle's direction of travel.
+extern int16_t M1_MIN;
+extern int16_t M1_MAX;
+extern int16_t M2_MIN;
+extern int16_t M2_MAX;
+extern int16_t M3_MIN;
+extern int16_t M3_MAX;
+extern int16_t M4_MIN;
+extern int16_t M4_MAX;
+
 // ===== MOTOR S (NEMA14 / TMC2209) ZEROING PARAMETERS =====
 // motorS uses a different driver (TMC2209) and motor (NEMA14) than motors 1-4 (AX1201728SG / Switec X25.168).
 // These parameters control zeroing in motorZeroSynchronous() to avoid vibration on the NEMA14.

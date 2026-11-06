@@ -190,7 +190,10 @@ The Arduino Mega 2560 has **256 KB** of flash. All `PROGMEM` bitmaps, lookup tab
 | `m2_sweep` | uint16 | 100–4095 | Motor 2 full sweep steps |
 | `m3_sweep` | uint16 | 100–4095 | Motor 3 full sweep steps |
 | `m4_sweep` | uint16 | 100–4095 | Motor 4 full sweep steps |
-| `ms_sweep` | uint16 | 100–8000 | Motor S (speedometer) full sweep steps |
+| `ms_sweep` | uint16 | 100–16000 | Motor S (speedometer) full sweep steps |
+| `m1_func` … `m4_func` | uint8 | 0–2 | Signal shown by motors 1–4: 0=Off, 1=Fuel level, 2=Coolant temp |
+| `m1_min` … `m4_min` | int16 | -50–1000 | Gauge value at the zero end of the dial (fuel: %, coolant: °C) |
+| `m1_max` … `m4_max` | int16 | -50–1000 | Gauge value at the full end of the dial. Must differ from min; min > max reverses (CCW) the needle's travel. The tool's CW/CCW radios just swap these two values |
 | `ms_zero_delay` | uint16 | 10–5000 | Motor S zeroing step delay (µs) |
 | `ms_zero_factor` | float | 0.1–1.0 | Motor S zeroing sweep fraction |
 | `motor_sweep_ms` | uint16 | 100–5000 | Startup test sweep duration (ms) |
@@ -445,7 +448,7 @@ class SplashID(IntEnum):
 | M2_SWEEP | 696 | 100 | 4095 | |
 | M3_SWEEP | 696 | 100 | 4095 | |
 | M4_SWEEP | 696 | 100 | 4095 | |
-| MS_SWEEP | 4032 | 100 | 8000 | Speedometer NEMA14; (118°/0.9°) × 32 microsteps |
+| MS_SWEEP | 4032 | 100 | 16000 | Speedometer NEMA14; (118°/0.9°) × 32 microsteps |
 | MS_ZERO_STEP_DELAY_US | 40 | 10 | 5000 | µs/step during zeroing |
 | MS_ZERO_SWEEP_FACTOR | 0.25 | 0.1 | 1.0 | Fraction of MS_SWEEP for zeroing |
 | MOTOR_SWEEP_TIME_MS | 1000 | 100 | 5000 | Startup test duration (ms) |
@@ -1194,7 +1197,7 @@ One group box per motor (Motor 1, 2, 3, 4, S). Each contains:
 | Widget | Type | Description |
 |--------|------|-------------|
 | Signal source | Combobox | MotorSource enum values |
-| Sweep steps | Spinbox | 100–8000 |
+| Sweep steps | Spinbox | 100–16000 |
 | Input low | Spinbox | Physical input at needle minimum |
 | Input mid | Spinbox | Physical input at needle midpoint |
 | Input high | Spinbox | Physical input at needle maximum |
@@ -1269,7 +1272,7 @@ analog inputs AV1/AV2/AV3, and battery voltage.
 
 | Parameter | Rule |
 |-----------|------|
-| Sweep values | Must be ≥ 100 and ≤ 8000; warn if < 200 |
+| Sweep values | Must be ≥ 100 and ≤ 16000; warn if < 200 |
 | Filter coefficients | Must be 1–255 |
 | Curve X values | Must be strictly increasing (0 < x[0] < x[1] < … < 5000) |
 | Curve Y values | No restriction, but warn if monotonically non-decreasing expected |

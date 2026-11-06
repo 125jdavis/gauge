@@ -129,6 +129,9 @@ float spdMph = 0;          // Vehicle speed in miles per hour
 // ===== SERIAL SIGNAL SOURCE VARIABLES =====
 int spdSerial = 0;         // Speed set via serial (km/h * 100), used when SPEED_SOURCE == 6
 int rpmSerial = 0;         // RPM set via serial, used when RPM_SOURCE == 4
+float oilPrsSerial = 0;    // Oil pressure (kPa gauge) set via serial, used when OIL_PRS_SOURCE == 6
+float coolantTempSerial = 0; // Coolant temperature (Celsius) set via serial, used when COOLANT_TEMP_SOURCE == 4
+float fuelLvlSerial = 0;   // Fuel level (% of capacity) set via serial, used when FUEL_LVL_SOURCE == 3
 
 
 // ===== CAN BUS COMMUNICATION BUFFERS =====

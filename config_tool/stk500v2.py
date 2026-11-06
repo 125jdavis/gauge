@@ -77,7 +77,8 @@ SIGNATURES = {
 
 # The bootloader answers within milliseconds; a slow reply means it is not there.
 READ_TIMEOUT = 1.0
-SYNC_ATTEMPTS = 6
+SYNC_READ_TIMEOUT = 0.1
+SYNC_ATTEMPTS = 40
 
 
 class STK500Error(RuntimeError):
@@ -140,18 +141,32 @@ class STK500v2:
         self._ser.reset_output_buffer()
 
     def _sync(self) -> None:
-        """Handshake with the bootloader, retrying while it finishes starting."""
+        """Handshake with the bootloader, retrying while it finishes starting.
+
+        The bootloader only listens briefly after a reset and drops frames sent
+        before it is up, so poll with short timeouts instead of one long wait.
+        """
+        assert self._ser is not None
         last_error = "no response"
-        for _ in range(SYNC_ATTEMPTS):
-            try:
-                reply = self._transact(bytes([CMD_SIGN_ON]))
-            except STK500Error as exc:
-                last_error = str(exc)
-                time.sleep(0.05)
-                continue
-            if len(reply) >= 3 and reply[1] == STATUS_CMD_OK:
-                return
-            last_error = "unexpected sign-on reply"
+        normal_timeout = self._ser.timeout
+        self._ser.timeout = SYNC_READ_TIMEOUT
+        try:
+            for _ in range(SYNC_ATTEMPTS):
+                self._seq = 0  # every sign-on uses sequence 1, so late replies still match
+                try:
+                    reply = self._transact(bytes([CMD_SIGN_ON]))
+                except STK500Error as exc:
+                    last_error = str(exc)
+                    self._ser.reset_input_buffer()
+                    continue
+                if len(reply) >= 3 and reply[1] == STATUS_CMD_OK:
+                    # Drop duplicate sign-on replies from the extra attempts.
+                    time.sleep(0.1)
+                    self._ser.reset_input_buffer()
+                    return
+                last_error = "unexpected sign-on reply"
+        finally:
+            self._ser.timeout = normal_timeout
         raise STK500Error(
             f"The bootloader did not respond on {self._port_name} ({last_error}).\n"
             "Check the USB cable, confirm the port, and make sure no other program "

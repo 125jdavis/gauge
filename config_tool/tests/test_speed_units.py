@@ -5,6 +5,16 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from gui import (
+    CAN_PROTOCOL_OPTIONS,
+    MOTOR_FUNCTION_OPTIONS,
+    MOTOR_FUNCTION_PARAMS,
+    MOTOR_FUNCTION_UNITS,
+    MOTOR_FUNCTION_RANGES,
+    MOTOR_PARAMS,
+    DIRECTION_OPTIONS,
+    _gauge_range_to_device,
+    _gauge_range_from_device,
+    ALL_PARAMS,
     FUEL_CAPACITY_UNITS,
     OIL_WARNING_UNITS,
     SPEEDO_MAX_UNITS,
@@ -27,6 +37,30 @@ def test_unit_radio_choices_put_imperial_first() -> None:
     assert OIL_WARNING_UNITS == ("PSI", "kPa")
     assert TEMPERATURE_UNITS == ("F", "C")
     assert FUEL_CAPACITY_UNITS == ("gal", "L")
+
+
+def test_can_protocol_dropdown_order_matches_firmware_protocol_values() -> None:
+    assert CAN_PROTOCOL_OPTIONS == ("Haltech v2", "Megasquirt", "AiM", "OBDII")
+
+
+def test_motor_function_dropdown_matches_firmware_values() -> None:
+    assert MOTOR_FUNCTION_OPTIONS == ("Off", "Fuel level", "Coolant temp")
+    assert all(p in ALL_PARAMS for p in MOTOR_FUNCTION_PARAMS)
+
+
+def test_motor_range_params_are_configurable() -> None:
+    for params in MOTOR_PARAMS:
+        assert all(p in ALL_PARAMS for p in params)
+    assert DIRECTION_OPTIONS == ("CW", "CCW")
+    assert len(MOTOR_FUNCTION_UNITS) == len(MOTOR_FUNCTION_RANGES) == len(MOTOR_FUNCTION_OPTIONS)
+
+
+def test_ccw_swaps_min_and_max_in_config() -> None:
+    assert _gauge_range_to_device("10", "100", ccw=False) == ("10", "100")
+    assert _gauge_range_to_device("10", "100", ccw=True) == ("100", "10")
+    assert _gauge_range_from_device("10", "100") == ("10", "100", False)
+    assert _gauge_range_from_device("100", "10") == ("10", "100", True)
+    assert _gauge_range_from_device("", "") == ("", "", False)
 
 
 @pytest.mark.parametrize(
