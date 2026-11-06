@@ -1,0 +1,9 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.elf
+
+/gauge_V4/build/*
+!/gauge_V4/build/arduino.avr.mega/
+/gauge_V4/build/arduino.avr.mega/*
+!/gauge_V4/build/arduino.avr.mega/*.hex
