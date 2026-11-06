@@ -10,6 +10,8 @@
 #include "display.h"
 #include "outputs.h"
 #include "image_data.h"
+#include "serial_config.h"
+#include "splash.h"
 #include <EEPROM.h>
 
 void shutdown (void){
@@ -764,14 +766,23 @@ float mapFloat(float x, float in_min, float in_max, float out_min, float out_max
 
 /**
  * processSerialCommands - Parse and execute serial input commands
- * 
- * Supported commands:
- *   "spd <kph>"       - Set speed in km/h (stored in spdSerial, km/h * 100 format)
- *   "rpm <value>"     - Set RPM (stored in rpmSerial)
- *   "odo motor <N>"   - Rotate odometer motor N revolutions; speed must be 0
+ *
+ * Supported legacy commands (runtime signal injection):
+ *   "spd <kph>"            - Set speed in km/h (stored in spdSerial, km/h * 100 format)
+ *   "rpm <value>"          - Set RPM (stored in rpmSerial)
+ *   "oilp <kpa>"           - Set oil pressure (OIL_PRS_SOURCE == 6)
+ *   "coolant <degC>"       - Set coolant temperature (COOLANT_TEMP_SOURCE == 4)
+ *   "fuel <percent>"       - Set fuel level, 0-100% of capacity (FUEL_LVL_SOURCE == 3)
+ *   "odo motor <N>"        - Rotate odometer motor N revolutions (-100..100); speed must be 0
+ *   "odo stop"             - Cancel any pending odometer motor movement
+ *   All of the above reply "ok" (or "err: speed" / "err: range" for odo motor).
+ *
+ * Configuration tool commands dispatched to serial_config.cpp / splash.cpp:
+ *   ping / version / get / set / save / load / dump / reset
+ *   splash begin / data / end / test / clear
  */
 void processSerialCommands(void) {
-    static char buf[20];
+    static char buf[64];
     static uint8_t bufLen = 0;
 
     while (Serial.available()) {
@@ -779,20 +790,46 @@ void processSerialCommands(void) {
         if (c == '\n' || c == '\r') {
             if (bufLen > 0) {
                 buf[bufLen] = '\0';
-                // Parse "spd <value>"
+                // ---- Legacy runtime signal injection commands ----
                 if (bufLen > 4 && buf[0]=='s' && buf[1]=='p' && buf[2]=='d' && buf[3]==' ') {
                     spdSerial = atoi(buf + 4) * 100;
-                // Parse "rpm <value>"
+                    Serial.println(F("ok"));
                 } else if (bufLen > 4 && buf[0]=='r' && buf[1]=='p' && buf[2]=='m' && buf[3]==' ') {
                     rpmSerial = atoi(buf + 4);
-                // Parse "odo motor <value>"
+                    Serial.println(F("ok"));
+                } else if (bufLen > 5 && strncmp_P(buf, PSTR("oilp "), 5) == 0) {
+                    oilPrsSerial = (float)atof(buf + 5);
+                    Serial.println(F("ok"));
+                } else if (bufLen > 8 && strncmp_P(buf, PSTR("coolant "), 8) == 0) {
+                    coolantTempSerial = (float)atof(buf + 8);
+                    Serial.println(F("ok"));
+                } else if (bufLen > 5 && strncmp_P(buf, PSTR("fuel "), 5) == 0) {
+                    float pct = (float)atof(buf + 5);
+                    if (pct < 0.0f) pct = 0.0f;
+                    if (pct > 100.0f) pct = 100.0f;
+                    fuelLvlSerial = pct;
+                    Serial.println(F("ok"));
+                } else if (bufLen == 8 && strcmp_P(buf, PSTR("odo stop")) == 0) {
+                    stopOdometerMotor();
+                    Serial.println(F("ok"));
                 } else if (bufLen > 10 && buf[0]=='o' && buf[1]=='d' && buf[2]=='o' && buf[3]==' ' &&
                            buf[4]=='m' && buf[5]=='o' && buf[6]=='t' && buf[7]=='o' && buf[8]=='r' && buf[9]==' ') {
+                    int revs = atoi(buf + 10);
                     if (spd != 0) {
-                        Serial.println(F("odo motor: not allowed while speed > 0"));
+                        Serial.println(F("err: speed"));
+                    } else if (revs < -100 || revs > 100) {
+                        Serial.println(F("err: range"));
                     } else {
-                        moveOdometerMotorRevs(atoi(buf + 10));
+                        moveOdometerMotorRevs(revs);
+                        Serial.println(F("ok"));
                     }
+                // ---- Splash screen upload commands ----
+                } else if (bufLen > 7 && buf[0]=='s' && buf[1]=='p' && buf[2]=='l' && buf[3]=='a' &&
+                           buf[4]=='s' && buf[5]=='h' && buf[6]==' ') {
+                    processSplashCommand(buf + 7);
+                // ---- Configuration tool commands (get/set/save/load/dump/reset/ping/version) ----
+                } else {
+                    dispatchConfigCommand(buf);
                 }
                 bufLen = 0;
             }

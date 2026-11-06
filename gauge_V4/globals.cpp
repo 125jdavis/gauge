@@ -129,6 +129,9 @@ float spdMph = 0;          // Vehicle speed in miles per hour
 // ===== SERIAL SIGNAL SOURCE VARIABLES =====
 int spdSerial = 0;         // Speed set via serial (km/h * 100), used when SPEED_SOURCE == 6
 int rpmSerial = 0;         // RPM set via serial, used when RPM_SOURCE == 4
+float oilPrsSerial = 0;    // Oil pressure (kPa gauge) set via serial, used when OIL_PRS_SOURCE == 6
+float coolantTempSerial = 0; // Coolant temperature (Celsius) set via serial, used when COOLANT_TEMP_SOURCE == 4
+float fuelLvlSerial = 0;   // Fuel level (% of capacity) set via serial, used when FUEL_LVL_SOURCE == 3
 
 
 // ===== CAN BUS COMMUNICATION BUFFERS =====
@@ -166,6 +169,12 @@ byte odoAddress = 6;             // Total odometer value (4 bytes: addresses 6-9
 byte odoTripAddress = 10;        // Trip odometer value (4 bytes: addresses 10-13)
 byte fuelSensorRawAddress = 14;  // Last fuel sensor reading (for fuel level memory, addresses 14-17)
 byte unitsAddress = 18;          // Unit system selection: 0=metric, 1=imperial (1 byte: address 18)
+// Addresses 19-508: reserved for future configuration tool parameters
+uint16_t splashValidFlag1Address = 509;  // Splash slot 1 validity flag (0xA5 = valid)
+uint16_t splashValidFlag2Address = 510;  // Splash slot 2 validity flag (0xA5 = valid)
+// Address 511: reserved padding byte
+uint16_t customSplash1Address = 512;     // Custom splash image slot 1 (512 bytes: 512-1023)
+uint16_t customSplash2Address = 1024;    // Custom splash image slot 2 (512 bytes: 1024-1535)
 
 // ===== MENU NAVIGATION VARIABLES =====
 // Track current position in the multi-level menu system

@@ -132,7 +132,7 @@ void parseCAN( unsigned long id, unsigned long msg)
  */
 void parseCANHaltechV2(unsigned long id)
 {
-  // Static variables to store wheel speeds for averaging
+  // Static variables to store wheel speeds (parsed for future use; not the speed source)
   static int wheelSpeedFL = 0;  // Front Left
   static int wheelSpeedFR = 0;  // Front Right
   static int wheelSpeedRL = 0;  // Rear Left
@@ -181,23 +181,10 @@ void parseCANHaltechV2(unsigned long id)
   }
   else if (id == 0x473){  // Wheel Speed Rear Right
     wheelSpeedRR = (rxBuf[0]<<8) + rxBuf[1];  // km/h * 10
-    
-    // Calculate average of non-zero wheel speeds
-    // This message is typically the last wheel speed, so calculate here
-    int sum = 0;
-    int count = 0;
-    
-    if (wheelSpeedFL > 0) { sum += wheelSpeedFL; count++; }
-    if (wheelSpeedFR > 0) { sum += wheelSpeedFR; count++; }
-    if (wheelSpeedRL > 0) { sum += wheelSpeedRL; count++; }
-    if (wheelSpeedRR > 0) { sum += wheelSpeedRR; count++; }
-    
-    if (count > 0) {
-      // Average is in km/h * 10, convert to km/h * 100 for spdCAN
-      spdCAN = (sum / count) * 10;
-    } else {
-      spdCAN = 0;  // All wheel speeds are zero
-    }
+  }
+  else if (id == 0x370){  // Vehicle Speed
+    // Haltech value is km/h * 10, convert to km/h * 100 for spdCAN
+    spdCAN = ((rxBuf[0]<<8) + rxBuf[1]) * 10;
   }
 }
 
@@ -426,7 +413,7 @@ void configureCANFilters()
   
   switch (CAN_PROTOCOL) {
     case CAN_PROTOCOL_HALTECH_V2:
-      // Haltech IDs: 0x301, 0x360-0x362, 0x368-0x369, 0x3E0-0x3E1, 0x470-0x473
+      // Haltech IDs: 0x301, 0x360-0x362, 0x368-0x369, 0x370, 0x3E0-0x3E1, 0x470-0x473
       // Use masks to accept ranges, reducing unnecessary interrupts
       
       // Mask 0 for RXB0: Accept 0x360-0x36F and 0x3E0-0x3EF (mask 0x7F0)
@@ -438,7 +425,7 @@ void configureCANFilters()
       CAN0.init_Mask(1, 0, 0x7F0);
       CAN0.init_Filt(2, 0, 0x470);  // Accepts 0x470-0x47F (wheel speeds)
       CAN0.init_Filt(3, 0, 0x300);  // Accepts 0x300-0x30F (test messages)
-      CAN0.init_Filt(4, 0, 0x360);  // Duplicate for redundancy
+      CAN0.init_Filt(4, 0, 0x370);  // Accepts 0x370-0x37F (vehicle speed)
       CAN0.init_Filt(5, 0, 0x3E0);  // Duplicate for redundancy
       break;
       

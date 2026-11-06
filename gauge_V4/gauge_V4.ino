@@ -72,6 +72,8 @@
 #include "menu.h"
 #include "utilities.h"
 #include "image_data.h"
+#include "serial_config.h"
+#include "splash.h"
 
 
 
@@ -317,7 +319,9 @@ void loop() {
   }
 
   // ===== CAN BUS RECEPTION =====
-  if(!digitalRead(CAN0_INT)) {
+  // Drain all pending frames: the MCP2515 only has 2 RX buffers, so reading one frame
+  // per loop pass drops frames (e.g. 0x370 speed) when the loop is slow
+  for (byte canReads = 0; canReads < 16 && !digitalRead(CAN0_INT); canReads++) {
     receiveCAN();
     parseCAN(rxId, 0);
   }
@@ -356,8 +360,10 @@ void loop() {
   if (millis() - timerAngleUpdate > ANGLE_UPDATE_RATE) {
     //Serial.println(millis() - timerAngleUpdate);
     // Motors 1-4 use smoothing: update targets at ANGLE_UPDATE_RATE, interpolation happens below
-    updateMotors1to4Target(fuelLvlAngle(M1_SWEEP), coolantTempAngle(M2_SWEEP),
-                           fuelLvlAngle(M3_SWEEP), coolantTempAngle(M4_SWEEP));
+    updateMotors1to4Target(motorFunctionAngle(M1_FUNCTION, M1_SWEEP, M1_MIN, M1_MAX),
+                           motorFunctionAngle(M2_FUNCTION, M2_SWEEP, M2_MIN, M2_MAX),
+                           motorFunctionAngle(M3_FUNCTION, M3_SWEEP, M3_MIN, M3_MAX),
+                           motorFunctionAngle(M4_FUNCTION, M4_SWEEP, M4_MIN, M4_MAX));
     // Motor S uses smoothing: update target at ANGLE_UPDATE_RATE, interpolation happens below
     updateMotorSTarget(MS_SWEEP);
     timerAngleUpdate = millis();
