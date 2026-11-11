@@ -196,7 +196,7 @@ The Arduino Mega 2560 has **256 KB** of flash. All `PROGMEM` bitmaps, lookup tab
 | `m1_max` … `m4_max` | int16 | -50–1000 | Gauge value at the full end of the dial. Must differ from min; min > max reverses (CCW) the needle's travel. The tool's CW/CCW radios just swap these two values |
 | `ms_zero_delay` | uint16 | 10–5000 | Motor S zeroing step delay (µs) |
 | `ms_zero_factor` | float | 0.1–1.0 | Motor S zeroing sweep fraction |
-| `motor_sweep_ms` | uint16 | 100–5000 | Startup test sweep duration (ms) |
+| `motor_sweep_ms` | uint16 | 100–5000 | Nominal startup sweep duration per direction for motors 1–4 (ms); Motor S uses half its calculated update interval and acceleration delays. Actual times depend on motor timing and loop overhead. |
 | `filter_vbatt` | uint8 | 1–64 | Battery voltage filter coefficient |
 | `vbatt_scaler` | float | 0.001–0.1 | Voltage divider scale factor |
 | `filter_fuel` | uint8 | 1–64 | Fuel sensor filter coefficient |
@@ -541,8 +541,8 @@ class SplashID(IntEnum):
 | 10 | Boost / MAP (text + icon) |
 | 11 | Oil Temperature |
 | 12 | Fuel Composition (ethanol %) |
-| 13 | Injector Duty Cycle |
-| 14 | Ignition Timing |
+| 13 | *(retired – Injector Duty, no longer selectable)* |
+| 14 | *(retired – Ignition Timing, no longer selectable)* |
 | 15 | Trip Odometer (with reset submenu) |
 | 16 | Clock (GPS time + offset) |
 | 17 | Falcon Script logo (splash) |
@@ -1653,8 +1653,8 @@ def test_interpolation():
 | 0x362 | Injector duty, Ignition angle | %×10; deg×10 |
 | 0x368 | Lambda (AFR1) | AFR×1000 |
 | 0x369 | Knock level | Raw |
-| 0x3E0 | Coolant, Air, Fuel, Oil temp | K×10 (coolant/air/fuel); C×10 (oil) |
-| 0x3E1 | Trans temp, Fuel composition | C×10; %×10 |
+| 0x3E0 | Coolant, Air, Fuel, Oil temp | K×10 (all temperatures) |
+| 0x3E1 | Trans temp, Fuel composition | K×10; %×10 |
 | 0x470–0x473 | Wheel speeds FL/FR/RL/RR | km/h×10 |
 
 ### Megasquirt Message IDs (Base 0x5F0)

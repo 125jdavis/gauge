@@ -246,6 +246,16 @@ D52 (SCK)   → SCK
 - Refer to the "What Data Can I Monitor?" table above
 - Some parameters genuinely not available in certain protocols
 
+**Haltech oil temperature:** Confirm the gauge's oil temperature source is CAN
+and its protocol is Haltech v2. An ECU log alone does not establish that the
+value is being broadcast on the CAN bus. Capture a standard, eight-byte frame
+with ID `0x3E0`; bytes 6–7 contain engine oil temperature as an unsigned,
+big-endian value in tenths of a kelvin. For example, `0E 93` is 373.1 K,
+approximately 100 °C (212 °F). If the frame is absent, truncated, or the bytes
+do not match the ECU's engine oil temperature, check the ECU's broadcast
+configuration and CAN wiring. A display of 32 °F can also be the gauge's
+initial zero value before it receives a temperature.
+
 ### Values Look Wrong
 
 **Check 1: Correct Protocol Selected?**

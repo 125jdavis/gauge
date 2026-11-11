@@ -244,6 +244,7 @@ void setup() {
     dispArray1[i] = EEPROM.read(dispArray1Address + i);
   }
   dispArray2[0] = EEPROM.read(dispArray2Address);
+  loadScreenLists();  // Also forces the restored screens to be members of their lists
   clockOffset = EEPROM.read(clockOffsetAddress); 
   EEPROM.get(odoAddress, odo);
   EEPROM.get(odoTripAddress, odoTrip);
@@ -468,10 +469,10 @@ void loop() {
                       (coolantFaultActive && (dispArray1[0] == 2)) ||
                       (fuelFaultActive    && (dispArray1[0] == 3)) ||
                       (battFaultActive    && (dispArray1[0] == 4));
-    bool disp2Fault = (oilFaultActive     && (dispArray2[0] == 0)) ||
-                      (coolantFaultActive && (dispArray2[0] == 1)) ||
-                      (fuelFaultActive    && (dispArray2[0] == 2)) ||
-                      (battFaultActive    && (dispArray2[0] == 3));
+    bool disp2Fault = (oilFaultActive     && (dispArray2[0] == 1)) ||
+                      (coolantFaultActive && (dispArray2[0] == 2)) ||
+                      (fuelFaultActive    && (dispArray2[0] == 3)) ||
+                      (battFaultActive    && (dispArray2[0] == 4));
 
     // Toggle flash state every FAULT_FLASH_INTERVAL_MS
     if (millis() - timerFaultFlash >= FAULT_FLASH_INTERVAL_MS) {

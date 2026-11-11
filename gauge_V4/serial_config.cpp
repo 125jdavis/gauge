@@ -10,6 +10,7 @@
 #include "serial_config.h"
 #include "globals.h"
 #include "config_calibration.h"
+#include "menu.h"
 #include <EEPROM.h>
 #include <string.h>
 #include <stdlib.h>
@@ -53,10 +54,22 @@ static void printFloatParam(const char *name, float val, uint8_t decimals = 6) {
     Serial.println(val, decimals);
 }
 
+static void printScreenListParam(const char *name, const byte *list, byte count) {
+    Serial.print(name);
+    Serial.print(' ');
+    for (byte i = 0; i < count; i++) {
+        if (i) Serial.print(',');
+        Serial.print(list[i]);
+    }
+    Serial.println();
+}
+
 // ---------------------------------------------------------------------------
 // handleGet
 // ---------------------------------------------------------------------------
 void handleGet(const char *param) {
+    if (strcmp_P(param, PSTR("disp1_order")) == 0) { printScreenListParam("disp1_order", disp1List, disp1Count); return; }
+    if (strcmp_P(param, PSTR("disp2_order")) == 0) { printScreenListParam("disp2_order", disp2List, disp2Count); return; }
     // Motor sweep steps
     if (strcmp_P(param, PSTR("m1_sweep"))        == 0) { printUint16Param("m1_sweep",        M1_SWEEP);                   return; }
     if (strcmp_P(param, PSTR("m2_sweep"))        == 0) { printUint16Param("m2_sweep",        M2_SWEEP);                   return; }
@@ -140,6 +153,16 @@ void handleSet(const char *param, const char *value) {
     if (!value || value[0] == '\0') {
         SERIAL_PRINTLN_F("err: type");
         return;
+    }
+
+    // ---- Screen lists ----
+    if (strcmp_P(param, PSTR("disp1_order")) == 0) {
+        if (!parseScreenList(value, disp1List, disp1Count)) { SERIAL_PRINTLN_F("err: range"); return; }
+        sanitizeScreenSelections(); SERIAL_PRINTLN_F("ok"); return;
+    }
+    if (strcmp_P(param, PSTR("disp2_order")) == 0) {
+        if (!parseScreenList(value, disp2List, disp2Count)) { SERIAL_PRINTLN_F("err: range"); return; }
+        sanitizeScreenSelections(); SERIAL_PRINTLN_F("ok"); return;
     }
 
     // ---- Motor sweeps ----
@@ -476,6 +499,7 @@ void handleSave(void) {
     EEPROM.update(dispArray2Address, dispArray2[0]);
     EEPROM.update(unitsAddress, units);
     EEPROM.update(clockOffsetAddress, clockOffset);
+    saveScreenLists();
     EEPROM.put(odoAddress, odo);
     EEPROM.put(odoTripAddress, odoTrip);
     EEPROM.put(fuelSensorRawAddress, fuelSensorRaw);
@@ -496,6 +520,7 @@ void handleLoad(void) {
     dispArray2[0] = EEPROM.read(dispArray2Address);
     units         = EEPROM.read(unitsAddress);
     clockOffset   = EEPROM.read(clockOffsetAddress);
+    loadScreenLists();
     EEPROM.get(odoAddress, odo);
     EEPROM.get(odoTripAddress, odoTrip);
     EEPROM.get(fuelSensorRawAddress, fuelSensorRaw);
@@ -578,6 +603,8 @@ void handleDump(void) {
     printFloatParam ("fuel_capacity",   fuelCapacity, 2);
     printUint8Param ("can_protocol",    CAN_PROTOCOL);
     printUint8Param ("units",           units);
+    printScreenListParam("disp1_order", disp1List, disp1Count);
+    printScreenListParam("disp2_order", disp2List, disp2Count);
     SERIAL_PRINTLN_F("end");
 }
 
@@ -648,6 +675,8 @@ static void applyDefaults(void) {
     fuelCapacity                = 16.0f;
     CAN_PROTOCOL                = 0;
     units                       = 0;
+    setDefaultScreenLists();
+    sanitizeScreenSelections();
 }
 
 // ---------------------------------------------------------------------------

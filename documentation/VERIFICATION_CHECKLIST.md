@@ -85,6 +85,8 @@
 - [ ] Upload to Arduino Mega
 - [ ] Verify startup splash screens appear
 - [ ] Test gauge sweep on startup
+- [ ] Compare Motor S startup sweep time before and after the timing change in both directions
+- [ ] Check Motor S for vibration or missed steps and verify it returns accurately to zero
 - [ ] Test CAN bus communication
 - [ ] Test GPS acquisition
 - [ ] Test menu navigation
@@ -118,4 +120,3 @@ If compilation fails:
 - [ ] All functionality works on hardware
 - [ ] EEPROM data loads correctly
 - [ ] Settings persist across power cycles
-

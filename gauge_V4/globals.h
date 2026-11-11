@@ -104,7 +104,7 @@ extern int coolantTempCAN;          // Coolant temperature in Kelvin * 10
 extern int airTempCAN;              // Intake Air Temperature in Kelvin * 10
 extern int fuelTempCAN;             // Fuel temperature in Kelvin * 10
 extern int oilTempCAN;              // Oil temperature in Celsius * 10
-extern int transTempCAN;            // Transmission temperature in Celsius * 10
+extern int transTempCAN;            // Haltech transmission temperature in Kelvin * 10
 extern int fuelCompCAN;             // Fuel composition (ethanol %) * 10
 extern int fuelLvlCAN;              // Fuel level percentage (0-100)
 extern int baroCAN;                 // Barometric pressure in kPa * 10
@@ -172,7 +172,16 @@ extern byte menuLevel;              // Current menu depth
 extern byte units;                  // Unit system: 0=metric, 1=imperial
 extern unsigned int nMenuLevel;     // Number of items in current menu level
 extern byte dispArray1[4];          // Menu position array for display 1
-extern byte dispArray2[1];          // Menu selection for display 2
+extern byte dispArray2[1];          // Screen ID shown on display 2 (1-17, same IDs as display 1)
+
+// ===== USER-SELECTED SCREEN LISTS =====
+#define MAX_SCREEN_LIST 17          // Screen IDs 1-17 (Settings, ID 0, and retired IDs 13/14 are not listable)
+extern byte disp1List[MAX_SCREEN_LIST]; // Ordered screen IDs scrolled through on display 1
+extern byte disp1Count;                 // Number of valid entries in disp1List
+extern byte disp2List[MAX_SCREEN_LIST]; // Ordered screen IDs selectable for display 2
+extern byte disp2Count;                 // Number of valid entries in disp2List
+extern uint16_t disp1ListAddress;       // EEPROM: count byte followed by MAX_SCREEN_LIST IDs
+extern uint16_t disp2ListAddress;
 
 // ===== DISPLAY OPTIMIZATION VARIABLES =====
 // Previous values for dirty tracking
@@ -187,8 +196,6 @@ extern float fuelComp_prev;         // Previous fuel composition for dirty track
 extern float boostPrs_prev;         // Previous boost pressure for dirty tracking
 extern int RPM_prev;                // Previous RPM for dirty tracking
 extern int spd_prev;                // Previous speed for dirty tracking
-extern int ignAngCAN_prev;          // Previous ignition angle for dirty tracking
-extern int injDutyCAN_prev;         // Previous injector duty for dirty tracking
 extern byte hour_prev;              // Previous hour for clock dirty tracking
 extern byte minute_prev;            // Previous minute for clock dirty tracking
 extern byte dispArray1_prev[4];     // Previous display 1 menu state

@@ -12,6 +12,7 @@
 #include "image_data.h"
 #include "serial_config.h"
 #include "splash.h"
+#include "menu.h"
 #include <EEPROM.h>
 
 void shutdown (void){
@@ -22,6 +23,7 @@ void shutdown (void){
   
   // Save display 2 selection and units
   EEPROM.update(dispArray2Address, dispArray2[0]);
+  saveScreenLists();
   EEPROM.update(unitsAddress, units);
   
   // Save odometer values (floats, 4 bytes each)
