@@ -6,6 +6,8 @@
 
 #include "menu.h"
 #include "globals.h"
+#include <EEPROM.h>
+#include <string.h>
 
 void swRead() {
   // Declare debounce variables as static locals to persist between function calls
@@ -57,6 +59,24 @@ void swRead() {
  */
 void rotate() {
   unsigned char result = rotary.process();  // Process encoder quadrature signals
+  if (result != DIR_CW && result != DIR_CCW) return;
+
+  if (menuLevel == 0) {
+    // Top level: step through the user's screen list; Settings (ID 0) is always the last stop
+    byte pos = disp1Count;  // Settings slot (also used when current screen is not in the list)
+    for (byte i = 0; i < disp1Count; i++) {
+      if (disp1List[i] == dispArray1[0]) { pos = i; break; }
+    }
+    if (result == DIR_CW) {
+      pos = (pos >= disp1Count) ? 0 : pos + 1;
+    } else {
+      pos = (pos == 0) ? disp1Count : pos - 1;
+    }
+    dispArray1[0] = (pos >= disp1Count) ? 0 : disp1List[pos];
+    encoderMoved = true;
+    return;
+  }
+
   if (result == DIR_CW) {
     // Clockwise rotation - increment menu position
     if (dispArray1[menuLevel] == nMenuLevel) 
@@ -117,4 +137,105 @@ void goToLevel0() {
   dispArray1[2] = 0;    // Clear level 2 selection
   menuLevel = 0;        // Return to top menu level
   nMenuLevel = 17;      // Maximum index is 17 (18 total items: indices 0-17)
+}
+
+// Screen IDs 13 (Injector Duty) and 14 (Ignition Timing) are retired. The
+// numbering of the other screens is kept so saved lists and config files still
+// load; retired IDs are silently dropped from any list.
+bool isScreenSelectable(byte id) {
+  return id >= 1 && id <= MAX_SCREEN_LIST && id != 13 && id != 14;
+}
+
+byte screenListIndexOf(const byte *list, byte count, byte id) {
+  for (byte i = 0; i < count; i++) {
+    if (list[i] == id) return i;
+  }
+  return 255;
+}
+
+// Accepts "id,id,..." with IDs 1-17, no duplicates, at least one selectable entry.
+// Retired IDs (13, 14) are accepted but dropped.
+bool parseScreenList(const char *text, byte *list, byte &count) {
+  byte tmp[MAX_SCREEN_LIST];
+  byte n = 0;
+  const char *p = text;
+  while (*p) {
+    if (*p < '0' || *p > '9') return false;
+    int v = 0;
+    while (*p >= '0' && *p <= '9') {
+      v = v * 10 + (*p - '0');
+      if (v > 99) return false;
+      p++;
+    }
+    if (v < 1 || v > MAX_SCREEN_LIST) return false;
+    if (n >= MAX_SCREEN_LIST || screenListIndexOf(tmp, n, (byte)v) != 255) return false;
+    if (isScreenSelectable((byte)v)) tmp[n++] = (byte)v;
+    if (*p == ',') {
+      p++;
+      if (*p == '\0') return false;
+    } else if (*p != '\0') {
+      return false;
+    }
+  }
+  if (n == 0) return false;
+  noInterrupts();  // rotate() ISR reads these lists
+  memcpy(list, tmp, n);
+  count = n;
+  interrupts();
+  return true;
+}
+
+void setDefaultScreenLists() {
+  noInterrupts();
+  byte n = 0;
+  for (byte id = 1; id <= MAX_SCREEN_LIST; id++) {
+    if (!isScreenSelectable(id)) continue;
+    disp1List[n] = id;
+    disp2List[n] = id;
+    n++;
+  }
+  disp1Count = n;
+  disp2Count = n;
+  interrupts();
+}
+
+static bool loadOneScreenList(uint16_t address, byte *list, byte &count) {
+  byte n = EEPROM.read(address);
+  if (n < 1 || n > MAX_SCREEN_LIST) return false;
+  byte tmp[MAX_SCREEN_LIST];
+  byte kept = 0;
+  for (byte i = 0; i < n; i++) {
+    byte id = EEPROM.read(address + 1 + i);
+    if (id < 1 || id > MAX_SCREEN_LIST || screenListIndexOf(tmp, kept, id) != 255) return false;
+    if (isScreenSelectable(id)) tmp[kept++] = id;  // Drop retired screens from older saved lists
+  }
+  if (kept == 0) return false;
+  noInterrupts();
+  memcpy(list, tmp, kept);
+  count = kept;
+  interrupts();
+  return true;
+}
+
+void loadScreenLists() {
+  setDefaultScreenLists();
+  loadOneScreenList(disp1ListAddress, disp1List, disp1Count);
+  loadOneScreenList(disp2ListAddress, disp2List, disp2Count);
+  sanitizeScreenSelections();
+}
+
+void saveScreenLists() {
+  EEPROM.update(disp1ListAddress, disp1Count);
+  for (byte i = 0; i < disp1Count; i++) EEPROM.update(disp1ListAddress + 1 + i, disp1List[i]);
+  EEPROM.update(disp2ListAddress, disp2Count);
+  for (byte i = 0; i < disp2Count; i++) EEPROM.update(disp2ListAddress + 1 + i, disp2List[i]);
+}
+
+void sanitizeScreenSelections() {
+  if (dispArray1[0] != 0 && screenListIndexOf(disp1List, disp1Count, dispArray1[0]) == 255) {
+    dispArray1[0] = disp1List[0];
+  }
+  if (screenListIndexOf(disp2List, disp2Count, dispArray2[0]) == 255) {
+    dispArray2[0] = disp2List[0];
+  }
 }

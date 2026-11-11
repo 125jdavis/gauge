@@ -30,8 +30,6 @@ void dispOilTemp(Adafruit_SSD1306 *display);        // Oil temperature
 void dispFuelPrs(Adafruit_SSD1306 *display);        // Fuel pressure
 void dispFuelComp(Adafruit_SSD1306 *display);       // Fuel composition (ethanol %)
 void dispAFR(Adafruit_SSD1306 *display);            // Air/Fuel Ratio
-void dispIgnAng(Adafruit_SSD1306 *display);         // Ignition angle
-void dispInjDuty(Adafruit_SSD1306 *display);        // Injector duty cycle
 void dispBoostPSI(Adafruit_SSD1306 *display);        // Boost pressure bar gauge (PSI, imperial)
 void dispBoostKPA(Adafruit_SSD1306 *display);        // Boost pressure bar gauge (kPa, metric)
 void dispBoostGfx(Adafruit_SSD1306 *display);        // Boost pressure with turbo icon and bar gauge

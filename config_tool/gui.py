@@ -357,6 +357,7 @@ ALL_PARAMS = [
     "coolant_src", "oil_temp_src", "map_source", "lambda_source", "fuel_lvl_src",
     "oil_warn_kpa", "coolant_warn_c", "batt_warn_v", "engine_run_rpm", "fuel_warn_pct",
     "clock_offset", "fuel_capacity", "can_protocol", "units",
+    "disp1_order", "disp2_order",
 ]
 
 TOOLTIPS: Dict[str, str] = {
@@ -423,7 +424,116 @@ TOOLTIPS: Dict[str, str] = {
     "fuel_capacity":     "Fuel tank capacity in gallons or liters (1-200 gallons).",
     "can_protocol":      "Select the CAN protocol used by your vehicle.",
     "units":             "Unit system shown on the gauge: Metric or 'Merican (imperial).",
+    "disp1_order":       "Screens reachable by scrolling display 1, in order (Settings is always last).",
+    "disp2_order":       "Screens selectable for display 2 from the Settings menu, in order.",
 }
+
+SCREEN_NAMES = [
+    (1, "Oil Pressure"), (2, "Coolant Temp"), (3, "Fuel Level"),
+    (4, "Battery Voltage"), (5, "Engine RPM"), (6, "Vehicle Speed"),
+    (7, "Air/Fuel Ratio"), (8, "Fuel Pressure"), (9, "Boost (bar)"),
+    (10, "Boost (text)"), (11, "Oil Temp"), (12, "Fuel Composition"),
+    (15, "Trip Odometer"),
+    (16, "Clock"), (17, "Falcon Script logo"),
+]
+
+
+def parse_screen_order(text: str) -> list:
+    """Parse '1,5,3' into a list of unique valid screen IDs (invalid text -> [])."""
+    valid = {sid for sid, _ in SCREEN_NAMES}
+    result: list = []
+    for part in text.split(","):
+        part = part.strip()
+        if part.isdigit() and int(part) in valid and int(part) not in result:
+            result.append(int(part))
+    return result
+
+
+class ScreenListEditor(ttk.Frame):
+    """Checkbox list of screens that can be reordered by dragging rows.
+
+    The bound StringVar holds the checked screen IDs in display order,
+    e.g. "1,5,3".  An empty var shows every screen checked in default order.
+    """
+
+    def __init__(self, parent: tk.Widget, variable: tk.StringVar) -> None:
+        super().__init__(parent)
+        self._var = variable
+        self._names = dict(SCREEN_NAMES)
+        self._order = [sid for sid, _ in SCREEN_NAMES]
+        self._checked = {sid: tk.BooleanVar(value=True) for sid in self._order}
+        self._rows: Dict[int, tk.Frame] = {}
+        self._drag_id: Optional[int] = None
+        self._syncing = False
+        for sid in self._order:
+            row = tk.Frame(self, borderwidth=1, relief="flat")
+            ttk.Checkbutton(
+                row, variable=self._checked[sid],
+                command=lambda s=sid: self._on_toggle(s),
+            ).pack(side="left")
+            for text in ("\u2630", self._names[sid]):
+                lbl = ttk.Label(row, text=text, cursor="fleur")
+                lbl.pack(side="left", padx=(0, 6))
+                lbl.bind("<ButtonPress-1>", lambda _e, s=sid: self._drag_start(s))
+                lbl.bind("<B1-Motion>", self._drag_motion)
+                lbl.bind("<ButtonRelease-1>", self._drag_end)
+            self._rows[sid] = row
+        self._var.trace_add("write", lambda *_a: self._load_from_var())
+        self._load_from_var()
+
+    def _layout(self) -> None:
+        for i, sid in enumerate(self._order):
+            self._rows[sid].grid(row=i, column=0, sticky="we", pady=1)
+
+    def _load_from_var(self) -> None:
+        if self._syncing:
+            return
+        enabled = parse_screen_order(self._var.get())
+        if enabled:
+            rest = [sid for sid in self._order if sid not in enabled]
+            self._order = enabled + rest
+        else:
+            self._order = [sid for sid, _ in SCREEN_NAMES]
+        for sid, var in self._checked.items():
+            var.set(sid in enabled if enabled else True)
+        self._layout()
+
+    def _commit(self) -> None:
+        value = ",".join(str(s) for s in self._order if self._checked[s].get())
+        self._syncing = True
+        try:
+            self._var.set(value)
+        finally:
+            self._syncing = False
+
+    def _on_toggle(self, sid: int) -> None:
+        if not any(v.get() for v in self._checked.values()):
+            self._checked[sid].set(True)  # at least one screen must stay enabled
+            self.bell()
+            return
+        self._commit()
+
+    def _drag_start(self, sid: int) -> None:
+        self._drag_id = sid
+        self._rows[sid].configure(relief="sunken")
+
+    def _drag_motion(self, event: tk.Event) -> None:
+        if self._drag_id is None:
+            return
+        y = event.y_root - self.winfo_rooty()
+        row_h = max(self._rows[self._drag_id].winfo_height() + 2, 1)
+        target = max(0, min(len(self._order) - 1, y // row_h))
+        current = self._order.index(self._drag_id)
+        if target != current:
+            self._order.insert(target, self._order.pop(current))
+            self._layout()
+
+    def _drag_end(self, _event: object) -> None:
+        if self._drag_id is None:
+            return
+        self._rows[self._drag_id].configure(relief="flat")
+        self._drag_id = None
+        self._commit()
 
 
 class ToolTip:
@@ -1698,18 +1808,27 @@ class GaugeConfigApp:
         grp = ttk.LabelFrame(frame, text="Units")
         grp.pack(padx=10, pady=10, fill="x")
         self._param_row(grp, 0, 0, "Unit system:", "units")
-        info = ttk.LabelFrame(frame, text="Display 1 screen IDs (reference)")
-        info.pack(padx=10, pady=6, fill="both")
-        screens = [
-            "0: Settings menu", "1: Oil Pressure", "2: Coolant Temp",
-            "3: Fuel Level", "4: Battery Voltage", "5: Engine RPM",
-            "6: Vehicle Speed", "7: Air/Fuel Ratio", "8: Fuel Pressure",
-            "9: Boost (bar)", "10: Boost (text)", "11: Oil Temp",
-            "12: Fuel Composition", "13: Injector Duty", "14: Ignition Timing",
-            "15: Trip Odometer", "16: Clock", "17: Falcon Script logo",
-        ]
-        for i, name in enumerate(screens):
-            ttk.Label(info, text=name, width=24).grid(row=i, column=0, sticky="w", padx=4, pady=1)
+        screens_frame = ttk.Frame(frame)
+        screens_frame.pack(padx=10, pady=6, fill="x")
+        for col, (title, param) in enumerate((
+            ("Display 1 screens", "disp1_order"),
+            ("Display 2 screens", "disp2_order"),
+        )):
+            box = ttk.LabelFrame(screens_frame, text=title)
+            box.grid(row=0, column=col, padx=(0, 8), sticky="n")
+            editor = ScreenListEditor(box, self._vars[param])
+            editor.pack(padx=6, pady=4)
+            ToolTip(box, TOOLTIPS[param])
+            self._vars[param].trace_add(
+                "write", lambda *_a, p=param: self._mark_parameter_dirty(p),
+            )
+        ttk.Label(
+            screens_frame, justify="left",
+            text=("Checked screens are reachable with the rotary encoder.\n"
+                  "Drag a screen up or down to reorder.\n"
+                  "Display 1 always ends with Settings; display 2 is chosen\n"
+                  "from the Settings menu."),
+        ).grid(row=0, column=2, sticky="nw")
         self._build_tab_clock(frame)
 
     # ------ Tab 9: Faults ------

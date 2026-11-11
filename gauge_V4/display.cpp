@@ -109,20 +109,6 @@ void dispMenu() {
       dispFuelComp(&display1);  // Show ethanol percentage (E85 flex fuel)
       break;
 
-    case 13:  // Injector Duty Cycle Display          dispArray1 = {13, x, x, x}
-      if (menuLevel == 0 && button == 1) {
-        button = 0; // Clear button flag
-      }
-      dispInjDuty(&display1);  // Show injector duty cycle percentage
-      break;
-
-    case 14:  // Ignition Timing Display              dispArray1 = {14, x, x, x}
-      if (menuLevel == 0 && button == 1) {
-        button = 0; // Clear button flag
-      }
-      dispIgnAng(&display1);  // Show ignition advance in degrees BTDC
-      break;
-
     case 15:  // Trip Odometer with Reset Option      dispArray1 = {15, x, x, x}
 	  if (menuLevel == 0 && button == 1) {
         // Button pressed - enter submenu to confirm reset
@@ -177,7 +163,7 @@ void dispMenu() {
 
     case 0:  // SETTINGS MENU - Always last screen for easy wrapping access
              // Structure: Settings -> [Display 2 Select | Units | Clock Offset]
-             //   -> Display 2: 10 screen options (0-9)
+             //   -> Display 2: one option per screen enabled in the display 2 list
              //   -> Units: Metric or Imperial
              //   -> Clock Offset: adjust hours from UTC
              
@@ -202,11 +188,10 @@ void dispMenu() {
               // Enter Display 2 selection submenu
               button = 0;
               menuLevel = 2;   // Go to level 2
-              nMenuLevel = 9;  // 10 display options (0-indexed): 0-9
-              // Validate dispArray1[2] is in valid range (prevent EEPROM corruption issues)
-              if (dispArray1[2] > 9) {
-                dispArray1[2] = 0;  // Reset to first option if out of range
-              }
+              nMenuLevel = disp2Count - 1;  // One option per enabled screen
+              // Start on the screen currently shown on display 2
+              byte cur = screenListIndexOf(disp2List, disp2Count, dispArray2[0]);
+              dispArray1[2] = (cur == 255) ? 0 : cur;
               // Force mode change detection so display updates immediately
               dispArray1_prev[0] = 255;  // Set to invalid value to force update
             } 
@@ -216,80 +201,14 @@ void dispMenu() {
               dispDisp2Select(&display1);
             } 
             else {
-              // Level 2 - Select what to show on Display 2
-              switch (dispArray1[2]) {
-                
-                case 0:  // Oil Pressure on Display 2    dispArray1 = {0, 0, 0, x}
-                  dispArray2[0] = 0;  // Set display 2 to oil pressure
-                  if (button == 1) {
-                    goToLevel0();  // Save and return to main menu
-                  }
-                  break;
-                  
-                case 1:  // Coolant Temp on Display 2    dispArray1 = {0, 0, 1, x}
-                  dispArray2[0] = 1;  // Set display 2 to coolant temp
-                  if (button == 1) {
-                    goToLevel0();  // Save and return to main menu
-                  }
-                  break;
-                  
-                case 2:  // Fuel Level on Display 2      dispArray1 = {0, 0, 2, x}
-                  dispArray2[0] = 2;  // Set display 2 to fuel level
-                  if (button == 1) {
-                    goToLevel0();  // Save and return to main menu
-                  }
-                  break;
-                  
-                case 3:  // Battery Voltage on Display 2 dispArray1 = {0, 0, 3, x}
-                  dispArray2[0] = 3;  // Set display 2 to battery voltage
-                  if (button == 1) {
-                    goToLevel0();  // Save and return to main menu
-                  }
-                  break;
-                  
-                case 4:  // RPM on Display 2             dispArray1 = {0, 0, 4, x}
-                  dispArray2[0] = 4;  // Set display 2 to RPM
-                  if (button == 1) {
-                    goToLevel0();  // Save and return to main menu
-                  }
-                  break;
-                  
-                case 5:  // Speed on Display 2           dispArray1 = {0, 0, 5, x}
-                  dispArray2[0] = 5;  // Set display 2 to speed
-                  if (button == 1) {
-                    goToLevel0();  // Save and return to main menu
-                  }
-                  break;
-
-                case 6:  // Boost Gauge on Display 2 (with bar)  dispArray1 = {0, 0, 6, x}
-                  dispArray2[0] = 6;  // Set display 2 to boost gauge with bar
-                  if (button == 1) {
-                    goToLevel0();  // Save and return to main menu
-                  }
-                  break;
-
-                case 7:  // Boost Display on Display 2 (text)    dispArray1 = {0, 0, 7, x}
-                  dispArray2[0] = 7;  // Set display 2 to boost text display
-                  if (button == 1) {
-                    goToLevel0();  // Save and return to main menu
-                  }
-                  break;
-
-                case 8:  // Clock on Display 2           dispArray1 = {0, 0, 8, x}
-                  dispArray2[0] = 8;  // Set display 2 to clock
-                  if (button == 1) {
-                    goToLevel0();  // Save and return to main menu
-                  }
-                  break;
-                  
-                case 9:  // Falcon Script on Display 2   dispArray1 = {0, 0, 9, x}
-                  dispArray2[0] = 9;  // Set display 2 to Falcon logo
-                  if (button == 1) {
-                    goToLevel0();  // Save and return to main menu
-                  }
-                  break;
-                
-              } // End switch dispArray1[2] - Display 2 options
+              // Level 2 - dispArray1[2] is a position in the user's display 2 list
+              if (dispArray1[2] >= disp2Count) {
+                dispArray1[2] = 0;
+              }
+              dispArray2[0] = disp2List[dispArray1[2]];
+              if (button == 1) {
+                goToLevel0();  // Save and return to main menu
+              }
             } // End level 2 - Display 2 selection
             break;  // End case 0 - Display 2 submenu
  
@@ -423,60 +342,30 @@ void dispMenu() {
  * Routes display 2 output based on dispArray2[0], which is set in Settings menu
  * and saved to EEPROM. Allows user to customize what appears on the second display.
  * 
- * Display options:
- * 0 - Oil Pressure
- * 1 - Coolant Temperature
- * 2 - Fuel Level
- * 3 - Battery Voltage
- * 4 - RPM
- * 5 - Speed
- * 6 - Boost Gauge (with bar)
- * 7 - Boost Display (text only)
- * 8 - Clock
- * 9 - Falcon Script logo
+ * Display options use the same screen IDs as display 1 (Settings excluded):
+ * 1 Oil Pressure, 2 Coolant Temp, 3 Fuel Level, 4 Battery Voltage, 5 RPM, 6 Speed,
+ * 7 AFR, 8 Fuel Pressure, 9 Boost (bar), 10 Boost (text), 11 Oil Temp,
+ * 12 Fuel Composition, 15 Trip Odometer, 16 Clock, 17 Falcon Script logo
+ * (IDs 13 and 14 are retired)
  */
 void disp2(void){
   switch (dispArray2[0]){
 
-    case 0: // Oil Pressure
-      dispOilPrsGfx(&display2);
-      break;
-    
-    case 1: // Coolant Temp
-      dispCoolantTempGfx(&display2);
-      break;
-
-    case 2: // Fuel Level
-      dispFuelLvlGfx(&display2);
-      break;
-
-    case 3: // Battery Voltage
-      dispBattVoltGfx(&display2);
-      break;
-
-    case 4: // RPM
-      dispRPM(&display2);
-      break;
-
-    case 5: // Speed
-      dispSpd(&display2);
-      break;
-
-    case 6: // Boost Gauge (with bar)
-      dispBoostGfx(&display2);  // Show boost with turbo icon and bar gauge
-      break;
-
-    case 7: // Boost Display (text only)
-      dispBoost(&display2);  // Show boost with turbo icon, text only
-      break;
-
-    case 8: // Clock
-      dispClock(&display2);
-      break;
-
-    case 9: // Falcon Script Logo
-      dispFalconScript(&display2);
-      break;
+    case 1: dispOilPrsGfx(&display2);      break;
+    case 2: dispCoolantTempGfx(&display2); break;
+    case 3: dispFuelLvlGfx(&display2);     break;
+    case 4: dispBattVoltGfx(&display2);    break;
+    case 5: dispRPM(&display2);            break;
+    case 6: dispSpd(&display2);            break;
+    case 7: dispAFR(&display2);            break;
+    case 8: dispFuelPrs(&display2);        break;
+    case 9: dispBoostGfx(&display2);       break;
+    case 10: dispBoost(&display2);         break;
+    case 11: dispOilTempGfx(&display2);    break;
+    case 12: dispFuelComp(&display2);      break;
+    case 15: dispTripOdo(&display2);       break;
+    case 16: dispClock(&display2);         break;
+    case 17: dispFalconScript(&display2);  break;
   }
   
   // Update previous display mode for dirty tracking
@@ -1269,64 +1158,6 @@ void dispOdoResetNo(Adafruit_SSD1306 *display) {
     display->display();
 }
 
-void dispIgnAng (Adafruit_SSD1306 *display) {
-    // Check if mode changed or ignition angle changed enough to warrant update
-    bool modeChanged = false;
-    if (display == &display1) {
-      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
-    } else {
-      modeChanged = (dispArray2[0] != dispArray2_prev);
-    }
-    
-    // Redraw when the displayed integer value (ignAngCAN/10) has changed
-    if (modeChanged || ignAngCAN/10 != ignAngCAN_prev/10) {
-      display->setTextColor(WHITE); 
-      display->clearDisplay();             //clear buffer
-      display->setTextSize(2);             // text size
-      display->setCursor(6,0);
-      display->println("IGN");
-      display->setCursor(2,15);
-      display->println("BTDC");            
-      display->setTextSize(3); 
-      display->setCursor(66,6);
-      display->print(ignAngCAN/10); 
-      display->write(0xF7);  
-      display->println();      
-      display->display();
-      
-      // Update previous value
-      ignAngCAN_prev = ignAngCAN;
-    }
-}
-
-void dispInjDuty (Adafruit_SSD1306 *display) {
-    // Check if mode changed or injector duty changed enough to warrant update
-    bool modeChanged = false;
-    if (display == &display1) {
-      modeChanged = needsUpdate_ModeChange(dispArray1, dispArray1_prev, 4);
-    } else {
-      modeChanged = (dispArray2[0] != dispArray2_prev);
-    }
-    
-    // Redraw when the displayed integer value (injDutyCAN/10) has changed
-    if (modeChanged || injDutyCAN/10 != injDutyCAN_prev/10) {
-      display->setTextColor(WHITE); 
-      display->clearDisplay();             //clear buffer
-      display->setTextSize(2);             // text size
-      display->setCursor(6,0);
-      display->println("INJ");
-      display->setCursor(2,15);
-      display->println("DUTY");            
-      display->setTextSize(3); 
-      display->setCursor(66,6);
-      display->print(injDutyCAN/10);  
-      display->println("%");      
-      display->display();
-      
-      // Update previous value
-      injDutyCAN_prev = injDutyCAN;
-    }
-}
 
 
 /**
@@ -1784,7 +1615,7 @@ bool needsUpdate_ModeChange(byte* current, byte* previous, int size) {
  * 
  * Variable refresh rates based on content type:
  * - 83ms (12Hz): RPM - needs fast updates for responsiveness
- * - 143ms (7Hz): Pressures, speed, AFR, ignition, injector - moderate updates
+ * - 143ms (7Hz): Pressures, speed, AFR - moderate updates
  * - 500ms (2Hz): Temps, battery, fuel level, clock, odometer - slow changing values
  * - 1000ms (1Hz): Static logos - minimal updates (check for mode change only)
  * 
@@ -1793,62 +1624,34 @@ bool needsUpdate_ModeChange(byte* current, byte* previous, int size) {
  * @return Update interval in milliseconds
  */
 unsigned int getDisplayUpdateInterval(byte displayMode, byte displayNum) {
-  // Display 1 refresh rates
-  if (displayNum == 1) {
-    switch (displayMode) {
-      case 5:   // RPM
-      case 9:   // Boost gauge with bar (12Hz, same as RPM)
-      case 10:  // Boost text display (12Hz, same as RPM)
-        return 83;
-      
-      case 6:   // Speed
-      case 7:   // AFR
-      case 8:   // Fuel Pressure
-      case 13:  // Injector Duty
-      case 14:  // Ignition Timing
-        return 143;
-      
-      case 0:   // Settings menu
-      case 1:   // Oil Pressure
-      case 2:   // Coolant Temp
-      case 3:   // Fuel Level
-      case 4:   // Battery Voltage
-      case 11:  // Oil Temp
-      case 12:  // Fuel Composition
-      case 15:  // Trip Odometer
-      case 16:  // Clock
-        return 500;
-      
-      case 17:  // Falcon Script logo
-        return 1000;
-      
-      default:
-        return 143;
-    }
-  }
-  // Display 2 refresh rates
-  else {
-    switch (displayMode) {
-      case 4:   // RPM
-      case 6:   // Boost gauge with bar (12Hz, same as RPM)
-      case 7:   // Boost text display (12Hz, same as RPM)
-        return 83;
-      
-      case 5:   // Speed
-        return 143;
-      
-      case 0:   // Oil Pressure
-      case 1:   // Coolant Temp
-      case 2:   // Fuel Level
-      case 3:   // Battery Voltage
-      case 8:   // Clock
-        return 500;
-      
-      case 9:   // Falcon Script logo
-        return 1000;
-      
-      default:
-        return 143;
-    }
+  // Display 2 uses the same screen IDs as display 1, so it shares the same rates
+  (void)displayNum;
+  switch (displayMode) {
+    case 5:   // RPM
+    case 9:   // Boost gauge with bar (12Hz, same as RPM)
+    case 10:  // Boost text display (12Hz, same as RPM)
+      return 83;
+
+    case 6:   // Speed
+    case 7:   // AFR
+    case 8:   // Fuel Pressure
+      return 143;
+
+    case 0:   // Settings menu
+    case 1:   // Oil Pressure
+    case 2:   // Coolant Temp
+    case 3:   // Fuel Level
+    case 4:   // Battery Voltage
+    case 11:  // Oil Temp
+    case 12:  // Fuel Composition
+    case 15:  // Trip Odometer
+    case 16:  // Clock
+      return 500;
+
+    case 17:  // Falcon Script logo
+      return 1000;
+
+    default:
+      return 143;
   }
 }

@@ -102,7 +102,7 @@ int knockCAN;              // Knock sensor level (higher = more knock detected)
 int coolantTempCAN;        // Coolant temperature in Kelvin * 10 (convert to C: (value/10) - 273.15)
 int airTempCAN;            // Intake Air Temperature in Kelvin * 10
 int fuelTempCAN;           // Fuel temperature in Kelvin * 10
-int oilTempCAN;            // Oil temperature in Celsius * 10 (or Kelvin - check ECU config)
+int oilTempCAN;            // Oil temperature in Celsius * 10
 int transTempCAN;          // Transmission temperature in Celsius * 10
 int fuelCompCAN;           // Fuel composition (ethanol %) * 10 (e.g., 850 = 85.0% E85)
 int fuelLvlCAN;            // Fuel level percentage (0-100)
@@ -169,7 +169,9 @@ byte odoAddress = 6;             // Total odometer value (4 bytes: addresses 6-9
 byte odoTripAddress = 10;        // Trip odometer value (4 bytes: addresses 10-13)
 byte fuelSensorRawAddress = 14;  // Last fuel sensor reading (for fuel level memory, addresses 14-17)
 byte unitsAddress = 18;          // Unit system selection: 0=metric, 1=imperial (1 byte: address 18)
-// Addresses 19-508: reserved for future configuration tool parameters
+uint16_t disp1ListAddress = 20;  // Display 1 screen list (1 count byte + 17 IDs: addresses 20-37)
+uint16_t disp2ListAddress = 38;  // Display 2 screen list (1 count byte + 17 IDs: addresses 38-55)
+// Addresses 56-508: reserved for future configuration tool parameters
 uint16_t splashValidFlag1Address = 509;  // Splash slot 1 validity flag (0xA5 = valid)
 uint16_t splashValidFlag2Address = 510;  // Splash slot 2 validity flag (0xA5 = valid)
 // Address 511: reserved padding byte
@@ -182,7 +184,14 @@ byte menuLevel = 0;              // Current menu depth (0=top level, 1=submenu, 
 byte units = 0;                  // Unit system: 0=metric (km/h, C, bar), 1=imperial (mph, F, PSI)
 unsigned int nMenuLevel = 17;    // Maximum menu index (0-17 = 18 total items)
 byte dispArray1[4] = { 1, 0, 0, 0 };  // Menu position array for display 1 [level0, level1, level2, level3]
-byte dispArray2[1] = {1};        // Menu selection for display 2 (single level)
+byte dispArray2[1] = {1};        // Screen ID shown on display 2 (same IDs as display 1, 1-17)
+
+// Ordered, user-selected screen lists (screen IDs 1-17; Settings is always appended on display 1)
+// IDs 13 and 14 (Injector Duty, Ignition Timing) are retired and never listed
+byte disp1List[MAX_SCREEN_LIST] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 16, 17};
+byte disp1Count = 15;
+byte disp2List[MAX_SCREEN_LIST] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 16, 17};
+byte disp2Count = 15;
 
 // ===== DISPLAY OPTIMIZATION VARIABLES =====
 // Previous values for dirty tracking - detect when values change enough to warrant display update
@@ -197,8 +206,6 @@ float fuelComp_prev = 0;         // Previous fuel composition for dirty tracking
 float boostPrs_prev = 0;         // Previous boost pressure for dirty tracking
 int RPM_prev = 0;                // Previous RPM for dirty tracking
 int spd_prev = 0;                // Previous speed for dirty tracking
-int ignAngCAN_prev = 0;          // Previous ignition angle for dirty tracking
-int injDutyCAN_prev = 0;         // Previous injector duty for dirty tracking
 byte hour_prev = 0;              // Previous hour for clock dirty tracking
 byte minute_prev = 0;            // Previous minute for clock dirty tracking
 byte dispArray1_prev[4] = {0, 0, 0, 0}; // Previous display 1 menu state
@@ -226,4 +233,3 @@ bool oilFaultActive     = false;  // Debounced oil pressure fault
 bool coolantFaultActive = false;  // Debounced coolant temperature fault
 bool battFaultActive    = false;  // Debounced battery voltage fault
 bool fuelFaultActive    = false;  // Debounced low fuel fault
-

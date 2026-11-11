@@ -541,8 +541,8 @@ class SplashID(IntEnum):
 | 10 | Boost / MAP (text + icon) |
 | 11 | Oil Temperature |
 | 12 | Fuel Composition (ethanol %) |
-| 13 | Injector Duty Cycle |
-| 14 | Ignition Timing |
+| 13 | *(retired – Injector Duty, no longer selectable)* |
+| 14 | *(retired – Ignition Timing, no longer selectable)* |
 | 15 | Trip Odometer (with reset submenu) |
 | 16 | Clock (GPS time + offset) |
 | 17 | Falcon Script logo (splash) |
@@ -1653,8 +1653,8 @@ def test_interpolation():
 | 0x362 | Injector duty, Ignition angle | %×10; deg×10 |
 | 0x368 | Lambda (AFR1) | AFR×1000 |
 | 0x369 | Knock level | Raw |
-| 0x3E0 | Coolant, Air, Fuel, Oil temp | K×10 (coolant/air/fuel); C×10 (oil) |
-| 0x3E1 | Trans temp, Fuel composition | C×10; %×10 |
+| 0x3E0 | Coolant, Air, Fuel, Oil temp | K×10 (all temperatures) |
+| 0x3E1 | Trans temp, Fuel composition | K×10; %×10 |
 | 0x470–0x473 | Wheel speeds FL/FR/RL/RR | km/h×10 |
 
 ### Megasquirt Message IDs (Base 0x5F0)

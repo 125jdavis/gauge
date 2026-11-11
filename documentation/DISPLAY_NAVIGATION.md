@@ -1,15 +1,11 @@
 # Display Navigation Guide
 
-## Display 1 — Screen Order (Scrolling)
+## Screen IDs
 
-Rotating the encoder **clockwise** advances through screens in the order below.  
-The internal index runs **0 → 17**, wrapping back to 0 after position 17.  
-Settings (0) is placed at the end of the table because `dispArray1[0]` initialises  
-to `1` (Oil Pressure), so in normal use the sequence experienced is:  
-Oil Pressure → … → Falcon Script Logo → Settings → Oil Pressure → …
+Both displays use the same screen IDs (Settings is display 1 only):
 
-| Position | Screen |
-|----------|--------|
+| ID | Screen |
+|----|--------|
 | 1 | Oil Pressure |
 | 2 | Coolant Temperature |
 | 3 | Fuel Level |
@@ -22,35 +18,35 @@ Oil Pressure → … → Falcon Script Logo → Settings → Oil Pressure → �
 | 10 | Boost (icon + text readout) |
 | 11 | Oil Temperature |
 | 12 | Fuel Composition (ethanol %) |
-| 13 | Injector Duty Cycle |
-| 14 | Ignition Timing |
-| 15 | Trip Odometer (press button to reset) |
+| 13 | *(retired – Injector Duty, no longer selectable)* |
+| 14 | *(retired – Ignition Timing, no longer selectable)* |
+| 15 | Trip Odometer (display 1: press button to reset) |
 | 16 | Clock |
 | 17 | Falcon Script Logo |
-| 0 | **Settings** (press button to enter) |
+| 0 | **Settings** (display 1 only; press button to enter) |
 
-> **Note:** `dispArray1[0]` initialises to `1` (Oil Pressure) on first power-up.  
-> `goToLevel0()` returns to position `0` (Settings) after exiting any submenu.
+## Choosing and ordering screens (config tool)
 
----
+In the config tool's **Display Settings** tab, the *Display 1 screens* and
+*Display 2 screens* boxes list every screen with a checkbox. Only checked
+screens are used; drag a row up or down to change the order. At least one
+screen must stay checked in each box.
 
-## Display 2 — Selection Options (Settings → Display 2)
+The lists are stored in the firmware as `disp1_order` and `disp2_order`
+(comma-separated screen IDs, e.g. `1,5,3`) and persisted to EEPROM
+(addresses 20-37 and 38-55). If the stored lists are missing or invalid,
+all screens are enabled in numeric order.
 
-Inside the Settings menu, scrolling through the **Display 2** submenu selects  
-what is permanently shown on the second OLED. The options appear in this order:
+## Display 1 — Scrolling
 
-| Index | Screen shown on Display 2 |
-|-------|--------------------------|
-| 0 | Oil Pressure |
-| 1 | Coolant Temperature |
-| 2 | Fuel Level |
-| 3 | Battery Voltage |
-| 4 | RPM |
-| 5 | Speed |
-| 6 | Boost Gauge (icon + bar graph) |
-| 7 | Boost (icon + text readout) |
-| 8 | Clock |
-| 9 | Falcon Script Logo |
+Rotating the encoder steps through the checked display 1 screens in the
+configured order, followed by **Settings**, then wraps around. Settings
+cannot be removed or reordered.
 
-> Press the button on any option to save it and return to the main menu.  
-> The selection is stored in `dispArray2[0]` and persisted to EEPROM.
+## Display 2 — Selection (Settings → Display 2)
+
+Display 2 does not scroll in normal use. Enter **Settings → Display 2** and
+rotate the encoder through the checked display 2 screens, in the configured
+order. Press the button to select one; the selection is stored in
+`dispArray2[0]` (a screen ID) and persisted to EEPROM. If the saved screen is
+no longer in the list, the first listed screen is used.

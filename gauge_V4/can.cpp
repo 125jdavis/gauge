@@ -164,10 +164,10 @@ void parseCANHaltechV2(unsigned long id)
     coolantTempCAN = (rxBuf[0]<<8) + rxBuf[1];  // Coolant temp in K * 10
     airTempCAN = (rxBuf[2]<<8) + rxBuf[3];      // Air temp in K * 10
     fuelTempCAN = (rxBuf[4]<<8) + rxBuf[5];     // Fuel temp in K * 10
-    oilTempCAN = (rxBuf[6]<<8) + rxBuf[7];      // Oil temp in C * 10
+    oilTempCAN = ((rxBuf[6]<<8) + rxBuf[7]) - 2731;  // K * 10 to C * 10
   }
   else if (id == 0x3E1){  // Trans Temp, Fuel Composition
-    transTempCAN = (rxBuf[0]<<8) + rxBuf[1];    // Trans temp in C * 10
+    transTempCAN = (rxBuf[0]<<8) + rxBuf[1];    // Trans temp in K * 10
     fuelCompCAN = (rxBuf[4]<<8) + rxBuf[5];     // Ethanol % * 10
   }
   else if (id == 0x470){  // Wheel Speed Front Left
@@ -487,4 +487,3 @@ void configureCANFilters()
       break;
   }
 }
-
