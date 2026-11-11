@@ -19,6 +19,7 @@ Run with: python gui.py
 
 from __future__ import annotations
 
+import colorsys
 import math
 import os
 import queue
@@ -61,7 +62,7 @@ except ImportError:
 
 from config_file import ConfigFile
 
-TOOL_VERSION = "1.0"
+TOOL_VERSION = "0.1"
 WINDOW_TITLE = f"Gauge V4 Configuration Tool v{TOOL_VERSION}"
 
 SOURCE_OPTIONS: Dict[str, tuple] = {
@@ -86,17 +87,149 @@ SERIAL_SOURCE_VALUES = {
 }
 
 CAN_PROTOCOL_OPTIONS = ("Haltech v2", "Megasquirt", "AiM", "OBDII")
+TACH_SWEEP_OPTIONS = ("Left to right", "Right to left", "Edge to center", "Center to edge")
+TACH_COLORS = {
+    "tach_color_normal": "1E0F00",
+    "tach_color_warning": "500A00",
+    "tach_color_shift": "500000",
+}
+
+
+def tach_color(value: str) -> str:
+    if len(value) != 6 or any(c not in "0123456789abcdefABCDEF" for c in value):
+        raise ValueError("Tach colors must be six hexadecimal RGB digits.")
+    return value.upper()
+
+
+def tach_color_hsv(value: str) -> tuple[float, float, float]:
+    color = tach_color(value)
+    channels = [int(color[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+    return colorsys.rgb_to_hsv(*channels)
+
+
+def tach_hsv_color(hue: float, brightness: float) -> str:
+    channels = colorsys.hsv_to_rgb(hue % 360 / 360, 1.0, brightness / 100)
+    return "".join(f"{round(channel * 255):02X}" for channel in channels)
+
+
+def tach_display_color(value: str, black_hue: float = 0) -> str:
+    """Map LED brightness 0–100% to screen brightness 60–100%."""
+    hue, saturation, brightness = tach_color_hsv(value)
+    if brightness == 0:
+        hue, saturation = black_hue % 360 / 360, 1.0
+    channels = colorsys.hsv_to_rgb(hue, saturation, 0.6 + 0.4 * brightness)
+    return "#" + "".join(f"{round(channel * 255):02X}" for channel in channels)
+
+
+def tach_steps(count: int, sweep: int) -> int:
+    return count if sweep < 2 else (count + 1) // 2
+
+
+def tach_led_step(index: int, count: int, sweep: int) -> int:
+    if sweep == 0:
+        return index
+    if sweep == 1:
+        return count - 1 - index
+    edge = min(index, count - 1 - index)
+    return edge if sweep == 2 else tach_steps(count, sweep) - 1 - edge
+
+
+def tach_step_rpm(step: int, steps: int, minimum: int, maximum: int) -> int:
+    if steps <= 1:
+        return minimum
+    return minimum + (step * (maximum - minimum) + steps - 2) // (steps - 1)
+
+
+# Order must match the AV_TYPE_* values in firmware config_calibration.h
+AV_TYPE_OPTIONS = (
+    "2 Bar Absolute Pressure (30 PSIA)",
+    "3 Bar Absolute Pressure (43.5 PSIA)",
+    "100 PSI Gauge Pressure",
+    "None (raw voltage)",
+    "Custom",
+    "Lambda",
+)
+AV_TYPE_PARAMS = ("av1_type", "av2_type", "av3_type")
+AV_TYPE_NONE = 3
+AV_TYPE_CUSTOM = 4
+AV_TYPE_LAMBDA = 5
+ATMOSPHERE_KPA = 101.3
+ADC_COUNTS = 1023
+ADC_REF_VOLTS = 5.0
+# Preset calibration points: (ADC low, ADC high, physical low, physical high) in firmware units
+# (absolute kPa*10). All presets are 0.5-4.5V sensors.
+AV_PRESETS = {
+    0: (102, 921, 0, 2068),
+    1: (102, 921, 0, 3000),
+    2: (102, 921, round(ATMOSPHERE_KPA * 10), round((ATMOSPHERE_KPA + 689.5) * 10)),
+    # Generic 0-5V wideband: 0 V = 0.5 Lambda, 5 V = 1.52 Lambda (Lambda*1000)
+    5: (0, 1023, 500, 1520),
+}
+# (adc_lo, adc_hi, phys_lo, phys_hi) firmware parameter names for AV1-AV3
+AV_CAL_PARAMS = tuple(
+    tuple(f"av{n}_{field}" for field in ("adc_lo", "adc_hi", "phys_lo", "phys_hi"))
+    for n in (1, 2, 3)
+)
+PHYS_UNIT_SCALE = {"kPa": 10, "Lambda": 1000}
+
+
+def av_physical_unit(av_type: Optional[int]) -> str:
+    """Unit the user enters physical values in for an AV input of the given type."""
+    return "Lambda" if av_type == AV_TYPE_LAMBDA else "kPa"
+
+def volts_to_adc(value: str) -> int:
+    try:
+        volts = float(value)
+    except ValueError as exc:
+        raise ValueError("Voltage must be a number from 0 to 5 V.") from exc
+    if not math.isfinite(volts) or not 0 <= volts <= ADC_REF_VOLTS:
+        raise ValueError("Voltage must be from 0 to 5 V.")
+    return round(volts * ADC_COUNTS / ADC_REF_VOLTS)
+
+
+def adc_to_volts(adc: int) -> float:
+    return adc * ADC_REF_VOLTS / ADC_COUNTS
+
+
+def physical_to_raw(value: str, unit: str) -> int:
+    try:
+        phys = float(value)
+    except ValueError as exc:
+        raise ValueError(f"Physical value must be a number in {unit}.") from exc
+    raw = round(phys * PHYS_UNIT_SCALE[unit]) if math.isfinite(phys) else 32768
+    if not -32768 <= raw <= 32767:
+        raise ValueError(f"Physical value is out of range for {unit}.")
+    return raw
+
+
+def raw_to_physical(raw: int, unit: str) -> float:
+    return raw / PHYS_UNIT_SCALE[unit]
+
+
+def _trim_number(value: float, decimals: int = 3) -> str:
+    return f"{value:.{decimals}f}".rstrip("0").rstrip(".")
+
+
 # Switec Z27.168: 3 steps per degree, driven with 4 microsteps per step
 MOTOR_STEPS_PER_DEGREE = 3 * 4
 MOTOR_MAX_ANGLE = 315  # Switec Z27.168 mechanical limit, degrees
 MOTOR_SWEEP_STEPS_RANGE = (100, MOTOR_MAX_ANGLE * MOTOR_STEPS_PER_DEGREE)
 UNIT_SYSTEM_OPTIONS = ("Metric", "'Merican")
 # Order must match the MOTOR_FUNC_* values in firmware config_calibration.h
-MOTOR_FUNCTION_OPTIONS = ("Off", "Fuel level", "Coolant temp")
+MOTOR_FUNCTION_OPTIONS = (
+    "Off", "Fuel level", "Coolant temp", "RPM", "Vehicle speed",
+    "Oil pressure", "Fuel pressure", "Oil temp", "MAP", "Lambda (x1000)",
+)
 MOTOR_FUNCTION_PARAMS = ("m1_func", "m2_func", "m3_func", "m4_func")
 # Gauge min/max units per MOTOR_FUNC_* value, and the min/max applied when a function is picked
-MOTOR_FUNCTION_UNITS = ("", "%", "\u00b0C")
-MOTOR_FUNCTION_RANGES = ((0, 0), (10, 100), (50, 115))
+MOTOR_FUNCTION_UNITS = (
+    "", "%", "\u00b0C", "RPM", "km/h", "kPa", "kPa", "\u00b0C", "kPa",
+    "\u03bb\u00d71000",
+)
+MOTOR_FUNCTION_RANGES = (
+    (0, 0), (10, 100), (50, 115), (0, 8000), (0, 240),
+    (0, 700), (0, 700), (0, 150), (0, 300), (700, 1300),
+)
 # (function, min, max) parameter names for each gauge motor. CW stores low in min and high in max;
 # CCW stores them swapped, which reverses the needle's direction of travel.
 MOTOR_PARAMS = (
@@ -126,6 +259,7 @@ SOURCE_DEPENDENT_PARAMS: Dict[str, tuple] = {
     "revs_per_km": (("speed_source", 2),),
     "teeth_per_rev": (("speed_source", 2),),
     "filter_hall": (("speed_source", 2),),
+    "filter_gps": (("speed_source", 3),),
     "hall_speed_min": (("speed_source", 2),),
     "cyl_count": (("rpm_source", 2),),
     "filter_rpm": (("rpm_source", 2),),
@@ -152,9 +286,60 @@ OIL_WARNING_UNITS = ("PSI", "kPa")
 TEMPERATURE_UNITS = ("F", "C")
 FUEL_CAPACITY_UNITS = ("gal", "L")
 CONFIG_FILE_FORMAT = 5
+FILTER_PARAMS = (
+    "filter_vbatt", "filter_fuel", "filter_therm", "filter_av1",
+    "filter_av2", "filter_av3", "filter_hall", "filter_gps", "filter_rpm",
+)
 KMH_PER_MPH = 1.609344
 PSI_PER_KPA = 0.1450377377
 LITERS_PER_GALLON = 3.785411784
+
+
+def _filter_percent_to_raw(percent: int) -> int:
+    if not 0 <= percent <= 99:
+        raise ValueError("Filter percentage must be between 0 and 99.")
+    return min(127, (percent * 128 + 50) // 100)
+
+
+def _filter_raw_to_percent(raw: int) -> int:
+    if not 0 <= raw <= 127:
+        raise ValueError("Filter coefficient must be between 0 and 127.")
+    return min(99, (raw * 100 + 64) // 128)
+
+
+def _decode_config_filters(params: Dict[str, str]) -> Dict[str, str]:
+    marker = params.get("filter_format")
+    if marker not in (None, "7"):
+        raise ValueError(f"Unsupported filter format: {marker}")
+    result: Dict[str, str] = {}
+    for param in FILTER_PARAMS:
+        if param not in params:
+            continue
+        raw = int(params[param])
+        if marker == "7":
+            _filter_raw_to_percent(raw)
+            result[param] = str(raw)
+            continue
+        if param == "filter_gps":
+            raise ValueError("Legacy config cannot specify a GPS filter.")
+        if param.startswith("filter_av"):
+            index = param[-1]
+            raw_voltage = params.get(f"av{index}_type", "2") == str(AV_TYPE_NONE)
+            denominator = 64 if raw_voltage else 16
+            if not 1 <= raw <= 255:
+                raise ValueError(f"Invalid legacy {param} coefficient: {params[param]}")
+            if not raw_voltage and raw > 16:
+                raw = 16  # The old mapped-sensor path capped its coefficient.
+        else:
+            denominator = {
+                "filter_vbatt": 64, "filter_fuel": 64, "filter_therm": 100,
+                "filter_hall": 256, "filter_rpm": 256,
+            }[param]
+        if not 1 <= raw <= denominator:
+            raise ValueError(f"Invalid legacy {param} coefficient: {params[param]}")
+        retained = ((denominator - raw) * 128 + denominator // 2) // denominator
+        result[param] = str(min(127, retained))
+    return result
 
 
 def _source_uses_parameter(param: str, selected_sources: Dict[str, str]) -> bool:
@@ -348,10 +533,13 @@ ALL_PARAMS = [
     "ms_zero_delay", "ms_zero_factor", "motor_sweep_ms",
     "filter_vbatt", "vbatt_scaler", "filter_fuel", "filter_therm",
     "filter_av1", "filter_av2", "filter_av3",
-    "revs_per_km", "teeth_per_rev", "filter_hall", "hall_speed_min",
+    "av1_type", "av2_type", "av3_type",
+    *[param for cal in AV_CAL_PARAMS for param in cal],
+    "revs_per_km", "teeth_per_rev", "filter_hall", "filter_gps", "hall_speed_min",
     "cyl_count", "filter_rpm", "rpm_debounce_us", "engine_rpm_min",
     "speedo_max",
-    "num_leds", "warn_leds", "shift_leds", "tach_max", "tach_min",
+    "num_leds", "warn_leds", "shift_leds", "tach_sweep", "tach_max", "tach_min", "tach_flash",
+    *TACH_COLORS,
     "odo_steps", "odo_motor_teeth", "odo_gear_teeth",
     "speed_source", "rpm_source", "oil_prs_source", "fuel_prs_source",
     "coolant_src", "oil_temp_src", "map_source", "lambda_source", "fuel_lvl_src",
@@ -370,38 +558,56 @@ TOOLTIPS: Dict[str, str] = {
     "m2_func":           "Signal shown by Motor 2 (Off parks the needle at zero).",
     "m3_func":           "Signal shown by Motor 3 (Off parks the needle at zero).",
     "m4_func":           "Signal shown by Motor 4 (Off parks the needle at zero).",
-    "m1_min":            "Motor 1 gauge value at the zero end of the dial (fuel: %, coolant: C).",
-    "m1_max":            "Motor 1 gauge value at the full end of the dial (fuel: %, coolant: C).",
-    "m2_min":            "Motor 2 gauge value at the zero end of the dial (fuel: %, coolant: C).",
-    "m2_max":            "Motor 2 gauge value at the full end of the dial (fuel: %, coolant: C).",
-    "m3_min":            "Motor 3 gauge value at the zero end of the dial (fuel: %, coolant: C).",
-    "m3_max":            "Motor 3 gauge value at the full end of the dial (fuel: %, coolant: C).",
-    "m4_min":            "Motor 4 gauge value at the zero end of the dial (fuel: %, coolant: C).",
-    "m4_max":            "Motor 4 gauge value at the full end of the dial (fuel: %, coolant: C).",
+    "m1_min":            "Motor 1 signal value at the zero end of the dial; units depend on the selected function.",
+    "m1_max":            "Motor 1 signal value at the full end of the dial; units depend on the selected function.",
+    "m2_min":            "Motor 2 signal value at the zero end of the dial; units depend on the selected function.",
+    "m2_max":            "Motor 2 signal value at the full end of the dial; units depend on the selected function.",
+    "m3_min":            "Motor 3 signal value at the zero end of the dial; units depend on the selected function.",
+    "m3_max":            "Motor 3 signal value at the full end of the dial; units depend on the selected function.",
+    "m4_min":            "Motor 4 signal value at the zero end of the dial; units depend on the selected function.",
+    "m4_max":            "Motor 4 signal value at the full end of the dial; units depend on the selected function.",
     "motor_direction":   "Direction the needle sweeps as the value rises. CCW swaps the min and max stored in the config.",
     "ms_zero_delay":     "Motor S zeroing step delay us (10-5000).",
     "ms_zero_factor":    "Fraction of MS_SWEEP for Motor S zeroing (0.1-1.0).",
     "motor_sweep_ms":    "Startup test sweep duration ms (100-5000).",
-    "filter_vbatt":      "Battery voltage EMA filter coefficient (1-255). 255=no filter.",
+    "filter_vbatt":      "Battery voltage filtering: 0% off, 99% heavy.",
     "vbatt_scaler":      "Voltage divider scale factor for battery ADC (0.001-0.1).",
-    "filter_fuel":       "Fuel sensor EMA filter coefficient (1-255).",
-    "filter_therm":      "Thermistor EMA filter coefficient (1-255).",
-    "filter_av1":        "AV1 sensor EMA filter coefficient (1-255).",
-    "filter_av2":        "AV2 sensor EMA filter coefficient (1-255).",
-    "filter_av3":        "AV3 sensor EMA filter coefficient (1-255).",
+    "filter_fuel":       "Fuel sensor filtering: 0% off, 99% heavy.",
+    "filter_therm":      "Thermistor filtering: 0% off, 99% heavy.",
+    "filter_av1":        "AV1 filtering: 0% off, 99% heavy.",
+    "filter_av2":        "AV2 filtering: 0% off, 99% heavy.",
+    "filter_av3":        "AV3 filtering: 0% off, 99% heavy.",
+    "av1_type":          "Sensor type on AV1. Presets fill the calibration points; editing them switches to Custom.",
+    "av2_type":          "Sensor type on AV2. Presets fill the calibration points; editing them switches to Custom.",
+    "av3_type":          "Sensor type on AV3. Presets fill the calibration points; editing them switches to Custom.",
+    "av1_adc_lo":     "AV1 voltage low calibration point, in volts (0-5). Stored as ADC counts.",
+    "av1_adc_hi":     "AV1 voltage high calibration point, in volts (0-5). Stored as ADC counts.",
+    "av1_phys_lo":    "AV1 physical value low calibration point, in kPa (absolute) or Lambda. Stored as kPa*10 or Lambda*1000.",
+    "av1_phys_hi":    "AV1 physical value high calibration point, in kPa (absolute) or Lambda. Stored as kPa*10 or Lambda*1000.",
+    "av2_adc_lo":     "AV2 voltage low calibration point, in volts (0-5). Stored as ADC counts.",
+    "av2_adc_hi":     "AV2 voltage high calibration point, in volts (0-5). Stored as ADC counts.",
+    "av2_phys_lo":    "AV2 physical value low calibration point, in kPa (absolute) or Lambda. Stored as kPa*10 or Lambda*1000.",
+    "av2_phys_hi":    "AV2 physical value high calibration point, in kPa (absolute) or Lambda. Stored as kPa*10 or Lambda*1000.",
+    "av3_adc_lo":     "AV3 voltage low calibration point, in volts (0-5). Stored as ADC counts.",
+    "av3_adc_hi":     "AV3 voltage high calibration point, in volts (0-5). Stored as ADC counts.",
+    "av3_phys_lo":    "AV3 physical value low calibration point, in kPa (absolute) or Lambda. Stored as kPa*10 or Lambda*1000.",
+    "av3_phys_hi":    "AV3 physical value high calibration point, in kPa (absolute) or Lambda. Stored as kPa*10 or Lambda*1000.",
     "revs_per_km":       "VSS shaft revolutions per km (100-10000).",
     "teeth_per_rev":     "VSS teeth per shaft revolution (1-64).",
-    "filter_hall":       "Hall speed EMA filter coefficient (1-255).",
+    "filter_hall":       "Hall speed filtering: 0% off, 99% heavy.",
+    "filter_gps":        "GPS speed filtering: 0% off, 99% heavy.",
     "hall_speed_min":    "Minimum speed cutoff in km/h (0-1).",
     "cyl_count":         "Engine cylinder count (2-16).",
-    "filter_rpm":        "RPM EMA filter coefficient (1-255).",
+    "filter_rpm":        "RPM filtering: 0% off, 99% heavy.",
     "rpm_debounce_us":   "RPM pulse debounce window us (100-20000).",
     "engine_rpm_min":    "Minimum displayed RPM (0-255).",
     "speedo_max":        "Maximum speedometer reading in the selected unit.",
     "num_leds":          "Total LED strip count (1-64).",
-    "warn_leds":         "Warning zone LEDs per side (0-32).",
-    "shift_leds":        "Shift-light LEDs per side (0-16).",
-    "tach_max":          "Shift RPM (1000-15000).",
+    "warn_leds":         "Warning start, in LED steps before the final step.",
+    "shift_leds":        "Shift start, in LED steps before the final step.",
+    "tach_sweep":        "Sweep direction; LED 0 is on the driver's left.",
+    "tach_max":          "RPM at which the last LED step illuminates (1000-15000).",
+    "tach_flash":        "RPM at which illuminated shift-zone LEDs flash (0-15000).",
     "tach_min":          "RPM at which first LED is active",
     "odo_steps":         "Odometer motor steps per revolution (512-8192).",
     "odo_motor_teeth":   "Odometer motor gear tooth count (1-64).",
@@ -574,7 +780,11 @@ class GaugeConfigApp:
         self._serial: Optional[GaugeSerial] = GaugeSerial() if HAS_SERIAL else None  # type: ignore[misc]
         self._config_file = ConfigFile()
         self._vars: Dict[str, tk.StringVar] = {p: tk.StringVar(value="") for p in ALL_PARAMS}
+        for param, value in TACH_COLORS.items():
+            self._vars[param].set(value)
         self._dirty: Dict[str, bool] = {p: False for p in ALL_PARAMS}
+        self._tach_test_on = False
+        self._tach_test_after: Optional[str] = None
         self._gauge_display_vars: Dict[str, tuple] = {}
         self._hall_speed_min_display_var = tk.StringVar(value="")
         self._speedo_max_display_var = tk.StringVar(value="")
@@ -583,6 +793,9 @@ class GaugeConfigApp:
         self._speedo_max_units_var = tk.StringVar(value="mph")
         self._syncing_speed_display = False
         self._speed_display_widgets: Dict[str, ttk.Entry] = {}
+        self._av_display_vars: Dict[str, tk.StringVar] = {}
+        self._av_entries: Dict[str, ttk.Entry] = {}
+        self._av_unit_labels: Dict[int, ttk.Label] = {}
         self._oil_warn_display_var = tk.StringVar(value="")
         self._oil_warn_units_var = tk.StringVar(value="kPa")
         self._coolant_warn_display_var = tk.StringVar(value="")
@@ -664,16 +877,21 @@ class GaugeConfigApp:
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
     def _on_tab_changed(self, _event: object = None) -> None:
+        if self._notebook.tab(self._notebook.select(), "text") != "LED Tach":
+            self._stop_tach_test()
         if self._notebook.tab(self._notebook.select(), "text") != "Test":
             self._test_stop_odo_ui()
             self._test_restore_sources()
 
     def _on_close(self) -> None:
+        self._stop_tach_test()
         self._test_restore_sources()
         self.root.destroy()
 
     def _param_row(self, parent: tk.Widget, row: int, col: int,
-                   label: str, param: str, width: int = 12) -> ttk.Entry:
+                   label: str, param: str, width: int = 12) -> ttk.Widget:
+        if param in FILTER_PARAMS:
+            return self._filter_row(parent, row, col, label, param)
         lbl = ttk.Label(parent, text=label)
         lbl.grid(row=row, column=col, sticky="e", padx=4, pady=2)
         self._param_labels[param] = lbl
@@ -684,6 +902,10 @@ class GaugeConfigApp:
             options = UNIT_SYSTEM_OPTIONS
         elif param in MOTOR_FUNCTION_PARAMS:
             options = MOTOR_FUNCTION_OPTIONS
+        elif param in AV_TYPE_PARAMS:
+            options = AV_TYPE_OPTIONS
+        elif param == "tach_sweep":
+            options = TACH_SWEEP_OPTIONS
         if options is not None:
             display_var = tk.StringVar()
             widget = ttk.Combobox(
@@ -708,8 +930,6 @@ class GaugeConfigApp:
             widget = ttk.Entry(parent, textvariable=self._vars[param], width=width)
         widget.grid(row=row, column=col + 1, sticky="w", padx=4, pady=2)
         self._param_widgets[param] = widget
-        if param in ("tach_max", "tach_min"):
-            widget.bind("<FocusOut>", lambda _event: self._enforce_tach_min())
         if param in TOOLTIPS:
             ToolTip(lbl,   TOOLTIPS[param])
             ToolTip(widget, TOOLTIPS[param])
@@ -724,6 +944,61 @@ class GaugeConfigApp:
                 "write", lambda *_args: self._update_source_dependent_controls(),
             )
         return widget
+
+    def _filter_row(self, parent: tk.Widget, row: int, col: int,
+                    label: str, param: str) -> ttk.Scale:
+        lbl = ttk.Label(parent, text=label)
+        lbl.grid(row=row, column=col, sticky="e", padx=4, pady=2)
+        display = ttk.Label(parent, text="--")
+        syncing = False
+
+        def slider_changed(value: str) -> None:
+            if syncing:
+                return
+            percent = max(0, min(99, int(float(value) + 0.5)))
+            try:
+                if _filter_raw_to_percent(int(self._vars[param].get())) == percent:
+                    return
+            except ValueError:
+                pass
+            self._vars[param].set(str(_filter_percent_to_raw(percent)))
+            display.configure(text=f"{percent}%")
+
+        slider = ttk.Scale(parent, from_=0, to=99, orient="horizontal",
+                           length=180, command=slider_changed)
+        slider.grid(row=row, column=col + 1, sticky="w", padx=4, pady=2)
+        display.grid(row=row, column=col + 2, sticky="w", padx=4, pady=2)
+        self._param_labels[param] = lbl
+        self._param_widgets[param] = slider
+        self._source_dependent_widgets[param] = [display]
+        ToolTip(lbl, TOOLTIPS[param])
+        ToolTip(slider, TOOLTIPS[param])
+
+        def raw_changed(*_args: object) -> None:
+            nonlocal syncing
+            self._dirty[param] = True
+            lbl.configure(foreground="blue")
+            raw = self._vars[param].get()
+            if not raw:
+                display.configure(text="--")
+                return
+            try:
+                percent = _filter_raw_to_percent(int(raw))
+            except ValueError:
+                display.configure(text="Invalid")
+                return
+            syncing = True
+            try:
+                slider.set(percent)
+                display.configure(text=f"{percent}%")
+            finally:
+                syncing = False
+
+        self._vars[param].trace_add("write", raw_changed)
+        if self._vars[param].get():
+            raw_changed()
+        self._dirty[param] = False
+        return slider
 
     def _warning_threshold_row(
         self,
@@ -811,15 +1086,7 @@ class GaugeConfigApp:
             self._set_source_dependent_state(
                 param, _source_uses_parameter(param, selected_sources),
             )
-
-    def _enforce_tach_min(self) -> None:
-        try:
-            shift_rpm = int(self._vars["tach_max"].get())
-            min_display_rpm = int(self._vars["tach_min"].get())
-        except ValueError:
-            return
-        if min_display_rpm > shift_rpm:
-            self._vars["tach_min"].set(str(shift_rpm))
+        self._refresh_av_calibration()
 
     def _sync_speed_display(self, param: str) -> None:
         if self._syncing_speed_display:
@@ -1192,6 +1459,7 @@ class GaugeConfigApp:
         # the board, so the tool's own connection has to go first.
         self._fw_was_connected = bool(self._serial and self._serial.is_connected)
         if self._fw_was_connected and self._serial:
+            self._stop_tach_test()
             self._test_restore_sources()
             self._serial.disconnect()
             self._conn_status_var.set("Disconnected (updating)")
@@ -1313,6 +1581,7 @@ class GaugeConfigApp:
             messagebox.showerror("Error", "pyserial is not installed.\nRun: pip install pyserial")
             return
         if self._serial.is_connected:
+            self._stop_tach_test()
             self._test_restore_sources()
             self._serial.disconnect()
             self._conn_status_var.set("Disconnected")
@@ -1647,10 +1916,10 @@ class GaugeConfigApp:
             except ValueError:
                 messagebox.showerror("Invalid gauge range", f"{title}: gauge min and max must be whole numbers.")
                 return False
-            if not (-50 <= lo <= 1000 and -50 <= hi <= 1000) or lo == hi:
+            if not (-32768 <= lo <= 32767 and -32768 <= hi <= 32767) or lo == hi:
                 messagebox.showerror(
                     "Invalid gauge range",
-                    f"{title}: gauge min and max must differ (both between -50 and 1000).",
+                    f"{title}: gauge min and max must differ (both between -32768 and 32767).",
                 )
                 return False
         return True
@@ -1733,6 +2002,7 @@ class GaugeConfigApp:
             "write", lambda *_args: self._sync_speed_display("hall_speed_min"),
         )
         self._param_row(grp, 3, 0, "Hall filter:",    "filter_hall")
+        self._param_row(grp, 5, 0, "GPS filter:",     "filter_gps")
         speedo_label = ttk.Label(grp, text="Speedometer Max:")
         speedo_label.grid(row=4, column=0, sticky="e", padx=4, pady=2)
         self._param_labels["speedo_max"] = speedo_label
@@ -1770,6 +2040,119 @@ class GaugeConfigApp:
         self._param_row(grp, 3, 0, "RPM filter:",      "filter_rpm")
 
     # ------ Tab 5: Sensors ------
+    def _build_av_calibration(self, parent: ttk.LabelFrame) -> None:
+        headers = ("Voltage low (V)", "Voltage high (V)", "Physical low", "Physical high")
+        for col, text in enumerate(headers):
+            ttk.Label(parent, text=text).grid(row=0, column=2 + col, padx=4, pady=2)
+        for n, cal in enumerate(AV_CAL_PARAMS):
+            row = n + 1
+            combo = self._param_row(parent, row, 0, f"AV{n + 1} type:", f"av{n + 1}_type")
+            combo.bind(
+                "<<ComboboxSelected>>",
+                lambda _e, i=n: self._apply_av_preset(i),
+                add="+",
+            )
+            for col, param in enumerate(cal):
+                var = tk.StringVar()
+                entry = ttk.Entry(parent, textvariable=var, width=10)
+                entry.grid(row=row, column=2 + col, padx=4, pady=2)
+                entry.bind("<FocusOut>", lambda _e, i=n, p=param: self._commit_av_entry(i, p))
+                entry.bind("<Return>", lambda _e, i=n, p=param: self._commit_av_entry(i, p))
+                ToolTip(entry, TOOLTIPS[param])
+                self._av_display_vars[param] = var
+                self._av_entries[param] = entry
+                self._vars[param].trace_add(
+                    "write", lambda *_a, i=n, p=param: self._sync_av_entry(i, p),
+                )
+            unit_label = ttk.Label(parent, text="kPa")
+            unit_label.grid(row=row, column=6, sticky="w", padx=4, pady=2)
+            self._av_unit_labels[n] = unit_label
+            self._vars[f"av{n + 1}_type"].trace_add(
+                "write", lambda *_a: self._refresh_av_calibration(),
+            )
+        self._refresh_av_calibration()
+
+    def _av_unit(self, av_index: int) -> str:
+        return av_physical_unit(self._av_type(av_index))
+
+    def _av_type(self, av_index: int) -> Optional[int]:
+        try:
+            return int(self._vars[f"av{av_index + 1}_type"].get())
+        except ValueError:
+            return None
+
+    def _sync_av_entry(self, av_index: int, param: str) -> None:
+        """Show the stored firmware value in volts / kPa / Lambda."""
+        var = self._av_display_vars[param]
+        try:
+            raw = int(self._vars[param].get())
+        except ValueError:
+            var.set("")
+            return
+        if param.endswith("adc_lo") or param.endswith("adc_hi"):
+            var.set(_trim_number(adc_to_volts(raw), 2))
+        else:
+            unit = self._av_unit(av_index)
+            var.set(_trim_number(raw_to_physical(raw, unit)))
+
+    def _refresh_av_calibration(self) -> None:
+        if not self._av_entries:
+            return
+        for n, cal in enumerate(AV_CAL_PARAMS):
+            self._av_unit_labels[n].configure(text=self._av_unit(n))
+            for param in cal:
+                self._sync_av_entry(n, param)
+        self._update_av_entry_state()
+
+    def _update_av_entry_state(self) -> None:
+        if not self._av_entries:
+            return
+        for n, cal in enumerate(AV_CAL_PARAMS):
+            active = self._av_type(n) != AV_TYPE_NONE
+            for param in cal:
+                self._av_entries[param].state(["!disabled" if active else "disabled"])
+            self._av_unit_labels[n].state(["!disabled" if active else "disabled"])
+    def _apply_av_preset(self, av_index: int) -> None:
+        preset = AV_PRESETS.get(self._av_type(av_index) or -1)
+        if preset is None:
+            return
+        for param, value in zip(AV_CAL_PARAMS[av_index], preset):
+            self._vars[param].set(str(value))
+            self._mark_parameter_dirty(param)
+
+    def _commit_av_entry(self, av_index: int, param: str) -> None:
+        text = self._av_display_vars[param].get().strip()
+        try:
+            current = int(self._vars[param].get())
+        except ValueError:
+            current = None
+        try:
+            if param.endswith("adc_lo") or param.endswith("adc_hi"):
+                raw = volts_to_adc(text)
+            else:
+                raw = physical_to_raw(text, self._av_unit(av_index))
+            other_param = AV_CAL_PARAMS[av_index][1 if param.endswith("adc_lo") else 0]
+            if "adc" in param and raw == self._safe_int(other_param):
+                raise ValueError("Voltage low and high must be different.")
+        except ValueError as exc:
+            messagebox.showerror("Invalid analog calibration", str(exc))
+            self._sync_av_entry(av_index, param)
+            return
+        if raw == current:
+            self._sync_av_entry(av_index, param)
+            return
+        self._vars[param].set(str(raw))
+        self._mark_parameter_dirty(param)
+        if self._av_type(av_index) != AV_TYPE_LAMBDA:
+            self._vars[f"av{av_index + 1}_type"].set(str(AV_TYPE_CUSTOM))
+
+    def _safe_int(self, param: str) -> Optional[int]:
+        try:
+            return int(self._vars[param].get())
+        except ValueError:
+            return None
+
+    # ------ Tab 5: Sensors ------
     def _build_tab_sensors(self, frame: ttk.Frame) -> None:
         for col in range(2):
             frame.columnconfigure(col, weight=1)
@@ -1788,6 +2171,10 @@ class GaugeConfigApp:
         self._param_row(av, 1, 0, "AV2 filter:", "filter_av2")
         self._param_row(av, 2, 0, "AV3 filter:", "filter_av3")
 
+        av_types = ttk.LabelFrame(frame, text="Analog Sensor Types and Calibration")
+        av_types.grid(row=2, column=0, columnspan=2, padx=10, pady=10, sticky="nw")
+        self._build_av_calibration(av_types)
+
         batt = ttk.LabelFrame(frame, text="Battery Voltage Sensor")
         batt.grid(row=1, column=1, padx=10, pady=10, sticky="nw")
         self._param_row(batt, 0, 0, "Vbatt filter:", "filter_vbatt")
@@ -1798,10 +2185,301 @@ class GaugeConfigApp:
         grp = ttk.LabelFrame(frame, text="LED Tachometer")
         grp.pack(padx=10, pady=10, fill="both")
         self._param_row(grp, 0, 0, "LED count:",       "num_leds")
-        self._param_row(grp, 1, 0, "Shift RPM:",       "tach_max")
+        self._param_row(grp, 1, 0, "Max RPM:",         "tach_max")
         self._param_row(grp, 2, 0, "Min display RPM:", "tach_min")
-        self._param_row(grp, 3, 0, "Warning LEDs:",    "warn_leds")
-        self._param_row(grp, 4, 0, "Shift LEDs:",      "shift_leds")
+        self._param_row(grp, 1, 2, "Flash RPM:",       "tach_flash")
+        sweep = self._param_row(grp, 3, 0, "Sweep style:", "tach_sweep", width=20)
+        sweep.bind("<<ComboboxSelected>>", lambda _event: self._normalize_tach_zones(), add="+")
+        self._param_widgets["num_leds"].bind(
+            "<FocusOut>", lambda _event: self._normalize_tach_zones(), add="+",
+        )
+        ttk.Label(grp, text="Drag the warning and shift markers to LED boundaries.").grid(
+            row=4, column=0, columnspan=3, sticky="w", padx=8, pady=(8, 0),
+        )
+        ttk.Button(grp, text="Fit zones to strip", command=self._normalize_tach_zones).grid(
+            row=3, column=2, sticky="w", padx=8,
+        )
+        colors = ttk.Frame(grp)
+        colors.grid(row=6, column=0, columnspan=3, sticky="w", padx=8, pady=4)
+        self._tach_color_swatches: Dict[str, tk.Label] = {}
+        self._tach_color_hues: Dict[str, float] = {
+            param: tach_color_hsv(value)[0] * 360 for param, value in TACH_COLORS.items()
+        }
+        for column, (param, label) in enumerate((
+            ("tach_color_normal", "Normal"),
+            ("tach_color_warning", "Warning"),
+            ("tach_color_shift", "Shift"),
+        )):
+            ttk.Button(colors, text=f"{label} color", command=lambda p=param: self._choose_tach_color(p)).grid(
+                row=0, column=column * 2, padx=(0, 3),
+            )
+            swatch = tk.Label(colors, width=3, relief="sunken")
+            swatch.grid(row=0, column=column * 2 + 1, padx=(0, 12))
+            self._tach_color_swatches[param] = swatch
+            self._vars[param].trace_add("write", lambda *_args, p=param: self._tach_color_changed(p))
+            swatch.configure(background=tach_display_color(TACH_COLORS[param]))
+        self._tach_test_button = ttk.Button(grp, text="Test strip: Off", command=self._toggle_tach_test)
+        self._tach_test_button.grid(row=7, column=0, columnspan=3, sticky="w", padx=8, pady=4)
+        ttk.Label(grp, text=("Test uses unsaved settings; leaving this tab restores normal output.")).grid(
+            row=8, column=0, columnspan=3, sticky="w", padx=8,
+        )
+        self._tach_canvas = tk.Canvas(grp, height=180, width=650, highlightthickness=0)
+        self._tach_canvas.grid(row=5, column=0, columnspan=3, sticky="ew", padx=8, pady=4)
+        grp.columnconfigure(2, weight=1)
+        self._tach_canvas.bind("<Configure>", lambda _event: self._draw_tach())
+        self._tach_canvas.bind("<Button-1>", self._tach_drag)
+        self._tach_canvas.bind("<B1-Motion>", self._tach_drag)
+        self._tach_drag_param: Optional[str] = None
+        self._tach_canvas.bind("<ButtonRelease-1>", lambda _event: setattr(self, "_tach_drag_param", None))
+        for param in ("num_leds", "tach_min", "tach_max", "tach_sweep", "warn_leds", "shift_leds"):
+            self._vars[param].trace_add("write", lambda *_args: self._draw_tach())
+        for param in ("warn_leds", "shift_leds"):
+            self._vars[param].trace_add("write", lambda *_args, p=param: self._mark_parameter_dirty(p))
+
+    def _choose_tach_color(self, param: str) -> None:
+        try:
+            original = tach_color(self._vars[param].get())
+        except ValueError:
+            original = TACH_COLORS[param]
+        hue, _saturation, brightness = tach_color_hsv(original)
+        if brightness == 0:
+            hue = self._tach_color_hues[param] / 360
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Choose tach color")
+        dialog.transient(self.root)
+        dialog.resizable(False, False)
+        hue_var = tk.DoubleVar(master=dialog, value=hue * 360)
+        brightness_var = tk.DoubleVar(master=dialog, value=brightness * 100)
+        preview = tk.Label(dialog, width=28, height=2, relief="sunken")
+        preview.grid(row=0, column=0, columnspan=2, padx=12, pady=8)
+        value_label = ttk.Label(dialog)
+        value_label.grid(row=1, column=0, columnspan=2)
+        changed = False
+
+        def update_preview(_value: str = "") -> None:
+            nonlocal changed
+            changed = True
+            selected = tach_hsv_color(hue_var.get(), brightness_var.get())
+            preview.configure(background=tach_display_color(selected, hue_var.get()))
+            value_label.configure(text=f"LED RGB #{selected}  |  Brightness {brightness_var.get():.0f}%")
+
+        ttk.Label(dialog, text="Hue").grid(row=2, column=0, sticky="w", padx=12)
+        hue_slider = tk.Scale(dialog, from_=0, to=359, orient="horizontal",
+                              variable=hue_var, length=280, resolution=1, command=update_preview)
+        hue_slider.grid(row=3, column=0, columnspan=2, padx=12)
+        ttk.Label(dialog, text="Brightness (%)").grid(row=4, column=0, sticky="w", padx=12)
+        brightness_slider = tk.Scale(dialog, from_=0, to=100, orient="horizontal",
+                                     variable=brightness_var, length=280, resolution=1, command=update_preview)
+        brightness_slider.grid(row=5, column=0, columnspan=2, padx=12)
+        ttk.Label(dialog, text="Saturation: 100% | Preview brightness: 60–100%").grid(
+            row=6, column=0, columnspan=2, padx=12, pady=4,
+        )
+
+        def apply() -> None:
+            if changed:
+                self._tach_color_hues[param] = hue_var.get()
+                self._vars[param].set(tach_hsv_color(hue_var.get(), brightness_var.get()))
+                self._mark_parameter_dirty(param)
+            dialog.destroy()
+
+        ttk.Button(dialog, text="Apply", command=apply).grid(row=7, column=0, pady=8)
+        ttk.Button(dialog, text="Cancel", command=dialog.destroy).grid(row=7, column=1, pady=8)
+        preview.configure(background=tach_display_color(original, hue_var.get()))
+        value_label.configure(text=f"LED RGB #{original}  |  Brightness {brightness_var.get():.0f}%")
+        dialog.grab_set()
+        self.root.wait_window(dialog)
+
+    def _tach_color_changed(self, param: str) -> None:
+        try:
+            hue, saturation, brightness = tach_color_hsv(self._vars[param].get())
+            if brightness > 0 and saturation > 0:
+                self._tach_color_hues[param] = hue * 360
+            color = tach_display_color(self._vars[param].get(), self._tach_color_hues[param])
+        except ValueError:
+            color = "#888888"
+        self._tach_color_swatches[param].configure(background=color)
+        self._draw_tach()
+
+    def _tach_preview_payload(self) -> str:
+        count, _minimum, _maximum, sweep, warning, shift = self._tach_values()
+        colors = "".join(tach_color(self._vars[param].get()) for param in TACH_COLORS)
+        return f"{count:02X}{sweep:X}{warning:02X}{shift:02X}{colors}"
+
+    def _toggle_tach_test(self) -> None:
+        if self._tach_test_on:
+            self._stop_tach_test()
+            return
+        if not self._serial or not self._serial.is_connected:
+            messagebox.showwarning("Not connected", "Connect to the Arduino first.")
+            return
+        try:
+            payload = self._tach_preview_payload()
+            self._serial.tach_preview(payload)
+        except (ValueError, SerialError, NotConnectedError, OSError) as exc:
+            messagebox.showerror("Tach test error", str(exc))
+            return
+        self._tach_test_on = True
+        self._tach_test_button.configure(text="Test strip: On")
+        self._tach_test_after = self.root.after(1000, self._refresh_tach_test)
+
+    def _refresh_tach_test(self) -> None:
+        self._tach_test_after = None
+        if not self._tach_test_on:
+            return
+        try:
+            payload = self._tach_preview_payload()
+        except ValueError:
+            self._stop_tach_test()
+            self._set_status("Tach test stopped: check the tach settings.")
+            return
+        try:
+            if not self._serial or not self._serial.is_connected:
+                raise RuntimeError("The gauge is disconnected.")
+            self._serial.tach_preview(payload)
+        except (SerialError, NotConnectedError, OSError, RuntimeError) as exc:
+            self._stop_tach_test(send=False)
+            messagebox.showerror("Tach test error", f"{exc}\nThe preview expires automatically.")
+            return
+        self._tach_test_after = self.root.after(1000, self._refresh_tach_test)
+
+    def _stop_tach_test(self, send: bool = True) -> None:
+        if self._tach_test_after is not None:
+            self.root.after_cancel(self._tach_test_after)
+            self._tach_test_after = None
+        if not self._tach_test_on:
+            return
+        self._tach_test_on = False
+        self._tach_test_button.configure(text="Test strip: Off")
+        if send and self._serial and self._serial.is_connected:
+            try:
+                self._serial.tach_preview_stop()
+            except (SerialError, NotConnectedError, OSError) as exc:
+                messagebox.showerror("Tach test error", f"{exc}\nThe preview expires automatically.")
+
+    def _tach_values(self) -> tuple[int, int, int, int, int, int]:
+        try:
+            count, minimum, maximum, sweep, warning, shift = (
+                int(self._vars[p].get()) for p in
+                ("num_leds", "tach_min", "tach_max", "tach_sweep", "warn_leds", "shift_leds")
+            )
+        except ValueError as exc:
+            raise ValueError("Read or enter all tach settings before adjusting the sliders.") from exc
+        if not (1 <= count <= 64 and 0 <= minimum <= 5000 and
+                1000 <= maximum <= 15000 and minimum <= maximum and 0 <= sweep <= 3):
+            raise ValueError("Check LED count, RPM limits, and sweep style.")
+        steps = tach_steps(count, sweep)
+        if not 0 <= shift <= warning < steps:
+            raise ValueError("Zone settings exceed the strip or warning starts after shift.")
+        return count, minimum, maximum, sweep, warning, shift
+
+    def _normalize_tach_zones(self) -> None:
+        try:
+            count = int(self._vars["num_leds"].get())
+            sweep = int(self._vars["tach_sweep"].get())
+            warning = int(self._vars["warn_leds"].get())
+            shift = int(self._vars["shift_leds"].get())
+        except ValueError:
+            return
+        if not 1 <= count <= 64 or not 0 <= sweep <= 3:
+            return
+        warning = max(0, min(warning, tach_steps(count, sweep) - 1))
+        shift = max(0, min(shift, warning))
+        self._vars["warn_leds"].set(str(warning))
+        self._vars["shift_leds"].set(str(shift))
+
+    def _tach_positions(self, step: int, count: int, sweep: int, width: int) -> list[float]:
+        left, right = 30, max(width - 30, 31)
+        cell = (right - left) / count
+        indices = [i for i in range(count) if tach_led_step(i, count, sweep) == step]
+        if sweep == 0:
+            return [left + indices[0] * cell]
+        if sweep == 1:
+            return [left + (indices[0] + 1) * cell]
+        if sweep == 2:
+            return [left + indices[0] * cell, left + (indices[-1] + 1) * cell]
+        return [left + (indices[0] + 1) * cell, left + indices[-1] * cell]
+
+    def _draw_tach(self) -> None:
+        canvas = self._tach_canvas
+        canvas.delete("all")
+        try:
+            count, minimum, maximum, sweep, warning, shift = self._tach_values()
+        except ValueError as exc:
+            canvas.create_text(15, 20, anchor="nw", text=str(exc), fill="gray")
+            return
+        width = max(canvas.winfo_width(), 100)
+        left, right = 30, width - 30
+        cell = (right - left) / count
+        steps = tach_steps(count, sweep)
+        for i in range(count):
+            remaining = steps - 1 - tach_led_step(i, count, sweep)
+            param = "tach_color_shift" if remaining <= shift else "tach_color_warning" if remaining <= warning else "tach_color_normal"
+            try:
+                color = tach_display_color(self._vars[param].get(), self._tach_color_hues[param])
+            except ValueError:
+                color = "#888888"
+            canvas.create_rectangle(left + i * cell, 25, left + (i + 1) * cell, 49,
+                                    fill=color, outline="#444444")
+        canvas.create_text(left, 10, text="LEFT", anchor="w")
+        canvas.create_text(right, 10, text="RIGHT", anchor="e")
+        minimum_text, maximum_text = f"Min {minimum}", f"Max {maximum}"
+        if sweep == 0:
+            labels = ((left, minimum_text, "w"), (right, maximum_text, "e"))
+        elif sweep == 1:
+            labels = ((left, maximum_text, "w"), (right, minimum_text, "e"))
+        else:
+            edge_text, center_text = ((minimum_text, maximum_text) if sweep == 2
+                                      else (maximum_text, minimum_text))
+            labels = ((left, edge_text, "w"), ((left + right) / 2, center_text, "center"),
+                      (right, edge_text, "e"))
+        for x, text, anchor in labels:
+            canvas.create_text(x, 58, text=text, anchor=anchor)
+        for param, offset, y, color in (("warn_leds", warning, 86, "#c47900"),
+                                        ("shift_leds", shift, 143, "#c02020")):
+            step = steps - 1 - offset
+            rpm = tach_step_rpm(step, steps, minimum, maximum)
+            canvas.create_line(left, y, right, y, fill="#aaaaaa", width=2)
+            for x in self._tach_positions(step, count, sweep, width):
+                canvas.create_polygon(x, y - 10, x - 7, y + 5, x + 7, y + 5, fill=color)
+            label = "Warning" if param == "warn_leds" else "Shift"
+            canvas.create_text(left, y + 12, text=f"{label} starts: {rpm} RPM", anchor="nw", fill=color)
+
+    def _tach_drag(self, event: tk.Event) -> None:
+        try:
+            count, _minimum, _maximum, sweep, warning, shift = self._tach_values()
+        except ValueError:
+            return
+        if self._tach_drag_param is None:
+            self._tach_drag_param = "warn_leds" if event.y < 115 else "shift_leds"
+        steps = tach_steps(count, sweep)
+        width = max(self._tach_canvas.winfo_width(), 100)
+        step = min(range(steps), key=lambda s: min(
+            abs(event.x - x) for x in self._tach_positions(s, count, sweep, width)
+        ))
+        offset = steps - 1 - step
+        if self._tach_drag_param == "warn_leds":
+            offset = max(offset, shift)
+        else:
+            offset = min(offset, warning)
+        self._vars[self._tach_drag_param].set(str(offset))
+
+    def _validate_tach(self) -> bool:
+        if not any(self._vars[p].get() for p in ("num_leds", "tach_min", "tach_max", "tach_sweep")):
+            return True
+        try:
+            self._tach_values()
+            try:
+                flash = int(self._vars["tach_flash"].get())
+            except ValueError as exc:
+                raise ValueError("Flash RPM must be an integer from 0 to 15000.") from exc
+            if not 0 <= flash <= 15000:
+                raise ValueError("Flash RPM must be an integer from 0 to 15000.")
+            for param in TACH_COLORS:
+                tach_color(self._vars[param].get())
+        except ValueError as exc:
+            messagebox.showerror("Invalid LED tach settings", str(exc))
+            return False
+        return True
 
     # ------ Tab 8: Display ------
     def _build_tab_display(self, frame: ttk.Frame) -> None:
@@ -2219,14 +2897,23 @@ class GaugeConfigApp:
         if not self._serial or not self._serial.is_connected:
             messagebox.showwarning("Not connected", "Connect to the Arduino first.")
             return
+        self._stop_tach_test()
         self._test_restore_sources()
         try:
             params = self._serial.dump()
+            if params.get("filter_format") != "7":
+                raise ValueError("Firmware update required: the connected device uses an older filter format.")
+            _decode_config_filters(params)
+            if "tach_flash" not in params:
+                self._vars["tach_flash"].set("")
+                messagebox.showwarning(
+                    "Firmware update required",
+                    "The connected firmware does not provide Flash RPM. Update it before writing tach settings.",
+                )
             for k, v in params.items():
                 if k in self._vars:
                     self._vars[k].set(v)
                     self._dirty[k] = False
-            self._enforce_tach_min()
             self._sync_warning_display("oil_warn_kpa")
             self._sync_warning_display("coolant_warn_c")
             self._sync_fuel_capacity_display()
@@ -2238,8 +2925,10 @@ class GaugeConfigApp:
         if not self._serial or not self._serial.is_connected:
             messagebox.showwarning("Not connected", "Connect to the Arduino first.")
             return
+        self._stop_tach_test()
         self._test_restore_sources()
-        self._enforce_tach_min()
+        if not self._validate_tach():
+            return
         if not self._validate_motor_angles():
             return
         if not self._validate_speed_inputs():
@@ -2260,10 +2949,17 @@ class GaugeConfigApp:
             messagebox.showinfo("Nothing to write", "No parameters have been edited.")
             return
         try:
+            if any(p in FILTER_PARAMS for p in dirty):
+                if self._serial.get("filter_format") != "7":
+                    raise ValueError("Firmware update required: the connected device uses an older filter format.")
+                for p in dirty:
+                    if p in FILTER_PARAMS:
+                        _filter_raw_to_percent(int(self._vars[p].get()))
             for p in dirty:
                 self._serial.set(p, self._vars[p].get())
-                self._dirty[p] = False
             self._serial.save()
+            for p in dirty:
+                self._dirty[p] = False
             self._set_status(f"Wrote {len(dirty)} parameter(s) to device and saved.")
         except Exception as exc:
             messagebox.showerror("Write error", str(exc))
@@ -2291,7 +2987,8 @@ class GaugeConfigApp:
         )
         if not path:
             return
-        self._enforce_tach_min()
+        if not self._validate_tach():
+            return
         if not self._validate_motor_angles():
             return
         if not self._validate_speed_inputs():
@@ -2304,11 +3001,13 @@ class GaugeConfigApp:
             return
         params = {p: self._vars[p].get() for p in ALL_PARAMS if self._vars[p].get()}
         params["config_format"] = str(CONFIG_FILE_FORMAT)
+        params["filter_format"] = "7"
         params["speedo_max_units"] = self._speedo_max_units_var.get()
         params["oil_warn_units"] = self._oil_warn_units_var.get()
         params["coolant_warn_units"] = self._coolant_warn_units_var.get()
         params["fuel_capacity_units"] = self._fuel_capacity_units_var.get()
         try:
+            _decode_config_filters(params)
             self._config_file.save_to_file(path, params)
             self._set_status(f"Configuration saved to {path}")
         except Exception as exc:
@@ -2323,7 +3022,17 @@ class GaugeConfigApp:
             return
         try:
             params = self._config_file.load_from_file(path)
+            if "tach_max" in params and "tach_flash" not in params:
+                params["tach_flash"] = params["tach_max"]
+            if any(p in params for p in ("num_leds", "warn_leds", "shift_leds", "tach_min", "tach_max")):
+                for param, default in TACH_COLORS.items():
+                    params.setdefault(param, default)
+            if "tach_sweep" not in params and any(
+                p in params for p in ("num_leds", "warn_leds", "shift_leds", "tach_min", "tach_max")
+            ):
+                params["tach_sweep"] = "2"
             converted_params, units = _decode_config_units(params)
+            converted_params.update(_decode_config_filters(params))
             self._speedo_max_units_var.set(units["speedo_max_units"])
             self._oil_warn_units_var.set(units["oil_warn_units"])
             self._coolant_warn_units_var.set(units["coolant_warn_units"])
@@ -2331,7 +3040,7 @@ class GaugeConfigApp:
             loaded_count = 0
             for k, v in params.items():
                 if k in (
-                    "config_format", "speedo_max_units",
+                    "config_format", "filter_format", "speedo_max_units",
                     "oil_warn_units", "coolant_warn_units", "fuel_capacity_units",
                 ):
                     continue
@@ -2339,7 +3048,6 @@ class GaugeConfigApp:
                     self._vars[k].set(converted_params.get(k, v))
                     self._dirty[k] = True
                     loaded_count += 1
-            self._enforce_tach_min()
             self._sync_warning_display("oil_warn_kpa")
             self._sync_warning_display("coolant_warn_c")
             self._sync_fuel_capacity_display()

@@ -171,7 +171,7 @@ byte fuelSensorRawAddress = 14;  // Last fuel sensor reading (for fuel level mem
 byte unitsAddress = 18;          // Unit system selection: 0=metric, 1=imperial (1 byte: address 18)
 uint16_t disp1ListAddress = 20;  // Display 1 screen list (1 count byte + 17 IDs: addresses 20-37)
 uint16_t disp2ListAddress = 38;  // Display 2 screen list (1 count byte + 17 IDs: addresses 38-55)
-// Addresses 56-508: reserved for future configuration tool parameters
+// Addresses 56-65: tach configuration; 66-76: colors; 77-80: flash RPM; 81-508 reserved.
 uint16_t splashValidFlag1Address = 509;  // Splash slot 1 validity flag (0xA5 = valid)
 uint16_t splashValidFlag2Address = 510;  // Splash slot 2 validity flag (0xA5 = valid)
 // Address 511: reserved padding byte

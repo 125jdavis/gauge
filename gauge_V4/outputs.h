@@ -10,6 +10,7 @@
 #define OUTPUTS_H
 
 #include <Arduino.h>
+#include "tach_preview.h"
 
 // Stepper motor angle calculation functions
 int speedometerAngle(int sweep);              // GPS speed to speedometer angle
@@ -32,6 +33,8 @@ void motorSweepSynchronous(void);             // Full sweep test for all motors
 
 // LED tachometer control
 void ledShiftLight(int ledRPM);               // Update LED tachometer display
+void setTachPreview(const TachPreview &preview);
+void stopTachPreview(void);
 
 // Odometer motor control
 void moveOdometerMotor(float distanceKm);     // Queue distance for mechanical odometer motor

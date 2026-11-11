@@ -14,14 +14,15 @@ uint16_t M4_SWEEP = 58 * 12;        // Motor 4: 58 degrees * 3 steps/degree * 4 
 uint16_t MS_SWEEP = 8064;           // Motor S: (118° / 0.9°) * 32 microsteps = 4195.555 ≈ 4196 steps (speedometer)
 
 // ===== MOTOR 1-4 FUNCTION ASSIGNMENT =====
-// 0=Off, 1=Fuel level, 2=Coolant temperature
+// 0=Off, 1=Fuel level, 2=Coolant temp, 3=RPM, 4=vehicle speed,
+// 5=oil pressure, 6=fuel pressure, 7=oil temp, 8=MAP, 9=Lambda
 uint8_t M1_FUNCTION = MOTOR_FUNC_FUEL_LEVEL;
 uint8_t M2_FUNCTION = MOTOR_FUNC_COOLANT_TEMP;
 uint8_t M3_FUNCTION = MOTOR_FUNC_FUEL_LEVEL;
 uint8_t M4_FUNCTION = MOTOR_FUNC_COOLANT_TEMP;
 
 // ===== MOTOR 1-4 GAUGE SCALE (units follow the assigned function) =====
-// Fuel level: percent of tank capacity. Coolant temp: degrees C.
+// Scale endpoints use the assigned function's units; Lambda is stored as Lambda * 1000.
 int16_t M1_MIN = 10;
 int16_t M1_MAX = 100;
 int16_t M2_MIN = 50;
@@ -45,23 +46,32 @@ float    MS_ZERO_SWEEP_FACTOR  = 0.25f;
 uint16_t MOTOR_SWEEP_TIME_MS = 1000;  // Time in milliseconds for motors to sweep full range during startup test
 
 // ===== ANALOG SENSOR FILTER COEFFICIENTS =====
-uint8_t FILTER_VBATT = 8;           // 8/64 = light filtering
+uint8_t FILTER_VBATT = 112;
 float VBATT_SCALER = 0.040923;      // Voltage divider scaling factor
-uint8_t FILTER_FUEL = 1;            // Light filter
-uint8_t FILTER_THERM = 50;          // Medium filter
-uint8_t FILTER_AV1 = 4;             // Sensor AV1 filter
-uint8_t FILTER_AV2 = 12;            // Sensor AV2 filter
-uint8_t FILTER_AV3 = 12;            // Sensor AV3 filter
+uint8_t FILTER_FUEL = 126;
+uint8_t FILTER_THERM = 64;
+uint8_t FILTER_AV1 = 96;
+uint8_t FILTER_AV2 = 32;
+uint8_t FILTER_AV3 = 32;
+uint8_t AV1_TYPE = AV_TYPE_100PSI_G;  // AV1 sensor type (AV_TYPE_*)
+uint8_t AV2_TYPE = AV_TYPE_100PSI_G;
+uint8_t AV3_TYPE = AV_TYPE_100PSI_G;
+// Default: 100 PSIG sensor, 0.5-4.5V -> 101.3-790.8 kPa absolute (kPa*10)
+uint16_t AV_ADC_LO[3]  = {102, 102, 102};
+uint16_t AV_ADC_HI[3]  = {921, 921, 921};
+int16_t  AV_PHYS_LO[3] = {1013, 1013, 1013};
+int16_t  AV_PHYS_HI[3] = {7908, 7908, 7908};
 
 // ===== HALL EFFECT SPEED SENSOR PARAMETERS =====
 uint16_t REVS_PER_KM = 1625;        // Revolutions of VSS per kilometer (8000 pulses per mile is standard)
 uint8_t TEETH_PER_REV = 8;         // Teeth per revolution of the VSS
-uint8_t FILTER_HALL_SPEED = 64;    // EMA filter coefficient (205/256 ≈ 0.8)
+uint8_t FILTER_HALL_SPEED = 96;
+uint8_t FILTER_GPS = 0;
 uint8_t HALL_SPEED_MIN = 50;        // Minimum reportable speed in km/h*100 (50 = 0.5 km/h)
 
 // ===== ENGINE RPM SENSOR PARAMETERS =====
 uint8_t CYL_COUNT = 8;              // Cylinder count (8 = 2x old PULSES_PER_REVOLUTION of 4.0)
-uint8_t FILTER_ENGINE_RPM = 179;    // EMA filter coefficient (179/256 ≈ 0.7)
+uint8_t FILTER_ENGINE_RPM = 39;
 uint16_t RPM_DEBOUNCE_MICROS = 5000; // Debounce window: reject pulses within 5 ms of last accepted pulse
 uint8_t ENGINE_RPM_MIN = 100;       // Minimum reportable RPM
 
@@ -72,7 +82,12 @@ uint16_t SPEEDO_MAX = 100 * 100;    // Maximum speedometer reading
 uint8_t NUM_LEDS = 26;              // Total number of LEDs
 uint8_t WARN_LEDS = 6;              // Warning zone LEDs
 uint8_t SHIFT_LEDS = 2;             // Shift light LEDs
-unsigned int TACH_MAX = 6000;       // RPM at shift point
+uint8_t TACH_SWEEP = 2;             // Edge to center
+uint32_t TACH_NORMAL_COLOR = 0x1E0F00;
+uint32_t TACH_WARNING_COLOR = 0x500A00;
+uint32_t TACH_SHIFT_COLOR = 0x500000;
+unsigned int TACH_MAX = 6000; // RPM at the final LED step
+unsigned int TACH_FLASH = 6000; // RPM at which the shift zone flashes
 unsigned int TACH_MIN = 3000;       // Minimum RPM to show
 
 // ===== SPEEDOMETER BACKLIGHT =====

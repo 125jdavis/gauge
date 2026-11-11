@@ -44,6 +44,9 @@ void handleGet(const char *param);
  */
 void handleSet(const char *param, const char *value);
 
+// Restore the independently versioned tach record; false means it is invalid.
+bool loadTachSettings(void);
+
 /**
  * handleSave - Flush all calibration values to EEPROM.
  */

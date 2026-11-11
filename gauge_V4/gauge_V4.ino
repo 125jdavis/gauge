@@ -225,12 +225,12 @@ void setup() {
   pinMode(ODO_PIN4, OUTPUT);
 
   // ===== LED TACHOMETER INITIALIZATION =====
+  if (!loadTachSettings()) {
+    Serial.println(F("Warning: invalid tach settings in EEPROM; using defaults"));
+  }
   if (NUM_LEDS > MAX_LEDS) {
     NUM_LEDS = MAX_LEDS;
     Serial.println("Warning: NUM_LEDS exceeds MAX_LEDS, clamped to maximum");
-  }
-  if (WARN_LEDS + SHIFT_LEDS >= NUM_LEDS / 2) {
-    Serial.println("Warning: WARN_LEDS + SHIFT_LEDS too large for NUM_LEDS, LED zones may overlap");
   }
   FastLED.addLeds<WS2812, TACH_DATA_PIN, GRB>(leds, NUM_LEDS);
 
@@ -289,45 +289,22 @@ void loop() {
 
   // ===== ANALOG SENSOR READING =====
   if (millis() - timerSensorRead > SENSOR_READ_RATE) {
-    vBattRaw = readSensor(VBATT_PIN, vBattRaw, FILTER_VBATT);
+    static int32_t battFilterState = 0;
+    static int32_t fuelFilterState = 0;
+    vBattRaw = readSensor(VBATT_PIN, vBattRaw, FILTER_VBATT, battFilterState);
     vBatt = (float)vBattRaw * VBATT_SCALER;
     
-    fuelSensorRaw = readSensor(FUEL_PIN, fuelSensorRaw, FILTER_FUEL);
+    fuelSensorRaw = readSensor(FUEL_PIN, fuelSensorRaw, FILTER_FUEL, fuelFilterState);
     
     thermSensor = readThermSensor(THERM_PIN, thermSensor, FILTER_THERM);
     therm = curveLookup((uint16_t)(thermSensor * 1000.0f), thermTable_x, thermTable_l, thermTable_length);
     thermCAN = (int)(therm*10);
     
-    bool av1UsesPressure = (OIL_PRS_SOURCE == 2) || (FUEL_PRS_SOURCE == 2);
-    bool av2UsesPressure = (OIL_PRS_SOURCE == 3) || (FUEL_PRS_SOURCE == 3);
-    bool av3UsesPressure = (OIL_PRS_SOURCE == 4) || (FUEL_PRS_SOURCE == 4);
-    bool av1UsesMap = (MAP_SOURCE == 2) && !av1UsesPressure;
-    bool av2UsesMap = (MAP_SOURCE == 3) && !av2UsesPressure;
-    bool av3UsesMap = (MAP_SOURCE == 4) && !av3UsesPressure;
+    sensor_av1 = readMappedSensor(PIN_AV1, sensor_av1, FILTER_AV1, 0, AV1_TYPE);
+    sensor_av2 = readMappedSensor(PIN_AV2, sensor_av2, FILTER_AV2, 1, AV2_TYPE);
+    sensor_av3 = readMappedSensor(PIN_AV3, sensor_av3, FILTER_AV3, 2, AV3_TYPE);
 
-    if (av1UsesPressure) {
-      sensor_av1 = read100PSIGsensor(PIN_AV1, sensor_av1, FILTER_AV1);
-    } else if (av1UsesMap) {
-      sensor_av1 = read3barMapSensor(PIN_AV1, sensor_av1, FILTER_AV1);
-    } else {
-      sensor_av1 = readSensor(PIN_AV1, sensor_av1, FILTER_AV1);
-    }
-    if (av2UsesPressure) {
-      sensor_av2 = read100PSIGsensor(PIN_AV2, sensor_av2, FILTER_AV2);
-    } else if (av2UsesMap) {
-      sensor_av2 = read3barMapSensor(PIN_AV2, sensor_av2, FILTER_AV2);
-    } else {
-      sensor_av2 = readSensor(PIN_AV2, sensor_av2, FILTER_AV2);
-    }
-    if (av3UsesPressure) {
-      sensor_av3 = read100PSIGsensor(PIN_AV3, sensor_av3, FILTER_AV3);
-    } else if (av3UsesMap) {
-      sensor_av3 = read3barMapSensor(PIN_AV3, sensor_av3, FILTER_AV3);
-    } else {
-      sensor_av3 = readSensor(PIN_AV3, sensor_av3, FILTER_AV3);
-    }
-
-    swRead();
+        swRead();
     
     timerSensorRead = millis();
   }

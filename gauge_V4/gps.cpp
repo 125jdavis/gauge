@@ -8,6 +8,7 @@
 #include "globals.h"
 #include "sensors.h"
 #include "outputs.h"
+#include "ema_filter.h"
 
 /**
  * fetchGPSdata - Process new GPS data when available
@@ -20,8 +21,6 @@ void fetchGPSdata(){
     //if (millis() - timerGPSupdate > GPS_UPDATE_RATE) {  // Optional rate limiting (currently disabled)
       //timerGPSupdate = millis();
       
-            constexpr unsigned int ALPHA_GPS = 256;  // Filter coefficient (256 = no filtering, instant response)
-            
             // Save previous values for interpolation
             t_old = t_new;        // Previous timestamp
             t_new = millis();     // Current timestamp
@@ -33,8 +32,10 @@ void fetchGPSdata(){
             float vFloat = GPS.speed * 185.2;  // Speed * 100 for precision (km/h * 100)
             v_100 = (unsigned long)vFloat;   // Convert to integer
             
-            // Apply exponential filter for smooth speedometer
-            spdGPS = (v_100 * ALPHA_GPS + v_old * (256 - ALPHA_GPS)) >> 8;  // Weighted average (>>8 = /256)
+            // Keep fractional state so heavy filtering can converge at low speeds.
+            static uint64_t gpsFilterState = 128;
+            gpsFilterState = ema7StepWide((uint64_t)v_100 * 128, gpsFilterState, FILTER_GPS);
+            spdGPS = gpsFilterState >> 7;
             
             // Calculate distance traveled for odometer (only if GPS is selected as speed source)
             if (SPEED_SOURCE == 3) {

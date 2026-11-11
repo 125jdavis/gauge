@@ -13,7 +13,8 @@ File format::
     m1_sweep=696
     m2_sweep=696
     ms_sweep=4032
-    filter_vbatt=32
+    filter_format=7
+    filter_vbatt=112
     # … one key=value per line; lines starting with # are comments
 
 Usage::

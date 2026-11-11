@@ -19,16 +19,12 @@
  * 
  * @param inputPin - Arduino analog pin to read (A0-A15)
  * @param oldVal - Previous filtered value (0-500 representing 0.00-5.00V)
- * @param filt - Filter coefficient (0-64): 
- *               - 64 = no filtering (instant response)
- *               - 32 = moderate filtering
- *               - 8 = heavy filtering (slow response, very smooth)
- *               Formula: newFiltered = (newRaw * filt + oldVal * (64-filt)) / 64
+ * @param filt - Retained previous-value weight, 0-127 out of 128
+ * @param state - Filter state with seven fractional bits
  * @return Filtered sensor value (0-500 representing 0-5V in 0.01V increments)
  * 
- * Example: Battery voltage with filt=8 means 8/64 = 12.5% new value, 87.5% old value
  */
-unsigned long readSensor(int inputPin, int oldVal, int filt);
+unsigned long readSensor(int inputPin, int oldVal, int filt, int32_t &state);
 
 /**
  * read30PSIAsensor - Read 30 PSI absolute pressure sensor
@@ -38,7 +34,8 @@ unsigned long readSensor(int inputPin, int oldVal, int filt);
  * 
  * @param inputPin - Arduino analog pin for pressure sensor
  * @param oldVal - Previous filtered value (kPa * 10)
- * @param filt - Filter coefficient (0-16): similar to readSensor but /16 instead of /64
+ * @param filt - Retained previous-value weight, 0-127 out of 128
+ * @param state - Filter state with seven fractional bits
  * @return Filtered pressure in kPa * 10 (e.g., 1013 = 101.3 kPa = 1 atmosphere)
  * 
  * Sensor characteristics:
@@ -47,21 +44,26 @@ unsigned long readSensor(int inputPin, int oldVal, int filt);
  * - ADC 102 (0.5V) = 0 kPa
  * - ADC 921 (4.5V) = 2068 (206.8 kPa * 10)
  */
-unsigned long read30PSIAsensor(int inputPin, int oldVal, int filt);
+unsigned long read30PSIAsensor(int inputPin, int oldVal, int filt, int32_t &state);
 
 /**
  * read3barMapSensor - Read a 3 bar absolute MAP sensor
  *
  * Maps the 0.5-4.5V sensor range to 0-300 kPa absolute, represented as kPa * 10.
  */
-unsigned long read3barMapSensor(int inputPin, int oldVal, int filt);
+unsigned long read3barMapSensor(int inputPin, int oldVal, int filt, int32_t &state);
 
 /**
  * read100PSIGsensor - Read a 0-100 PSIG pressure sensor
  *
  * Maps the 0.5-4.5V sensor range to 0-689.5 kPa gauge, represented as kPa * 10.
  */
-unsigned long read100PSIGsensor(int inputPin, int oldVal, int filt);
+unsigned long read100PSIGsensor(int inputPin, int oldVal, int filt, int32_t &state);
+
+/**
+ * readMappedSensor - Read an AV input using its ADC/physical calibration points (raw volts if AV_TYPE_NONE)
+ */
+float readMappedSensor(int inputPin, float oldVal, int filt, uint8_t avIndex, uint8_t type);
 
 /**
  * readThermSensor - Read GM-style thermistor temperature sensor
@@ -72,13 +74,9 @@ unsigned long read100PSIGsensor(int inputPin, int oldVal, int filt);
  * 
  * @param inputPin - Arduino analog pin for thermistor
  * @param oldVal - Previous filtered voltage value (0.00-5.00V)
- * @param filt - Filter coefficient (0-100): percentage of new value to use
- *               - 100 = no filtering
- *               - 50 = half new, half old (good for temperature - slow changing)
+ * @param filt - Retained previous-value weight, 0-127 out of 128
  * @return Filtered voltage reading (0.00-5.00V as float)
  * 
- * Note: Higher filter values (e.g., 50/100) provide more stability for slowly-changing
- * temperature readings, preventing gauge needle jitter.
  */
 float readThermSensor(int inputPin, float oldVal, int filt);
 

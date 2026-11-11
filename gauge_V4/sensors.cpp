@@ -8,6 +8,10 @@
 #include "globals.h"
 #include "outputs.h"
 #include "utilities.h"
+#include "ema_filter.h"
+#include <util/atomic.h>
+
+static volatile int32_t rpmFilterState = 0;
 
 // ===== VR-SAFE COMBINED FILTER STATE =====
 // State machine for startup filtering (VR-safe, Hall-compatible)
@@ -45,59 +49,94 @@ static unsigned long lastSerialOdometerUpdateTime = 0;
 #define LOW_SPEED_THRESHOLD_FOR_VR_REJECTION 1000  // 10 km/h in units of km/h*100
 #define MAX_ACCELERATION_UNITS 3530UL  // 1g acceleration ≈ 35.3 km/h/s ≈ 3530 (km/h*100)/s
 
+static unsigned long filterIntegerSensor(unsigned long newVal, int oldVal, int filt, int32_t &state)
+{
+    if (state / 128 != oldVal) state = (int32_t)oldVal * 128;
+    state = ema7Step((int32_t)newVal * 128, state, filt);
+    return state / 128;
+}
+
 /**
  * readSensor - Generic analog sensor reader with filtering
  */
-unsigned long readSensor(int inputPin, int oldVal, int filt)  
+unsigned long readSensor(int inputPin, int oldVal, int filt, int32_t &state)
 {
     int raw = analogRead (inputPin);  // Read ADC: 0-1023 for 0-5V input
     unsigned long newVal = map( raw, 0, 1023, 0, 500);  // Map to 0-500 (0.00-5.00V in 0.01V steps)
-    unsigned long filtVal = ((newVal*filt) + (oldVal*(64-filt)))>>6;  // Exponential filter (>>6 is divide by 64)
-    return filtVal; 
+    return filterIntegerSensor(newVal, oldVal, filt, state);
 }
 
 /**
  * read30PSIAsensor - Read 30 PSI absolute pressure sensor
  */
-unsigned long read30PSIAsensor(int inputPin, int oldVal, int filt)
+unsigned long read30PSIAsensor(int inputPin, int oldVal, int filt, int32_t &state)
 {
-    int raw = analogRead (inputPin);  // Read ADC: 0-1023
+    int raw = constrain(analogRead(inputPin), 102, 921);  // Read ADC: 0-1023
     unsigned long newVal = map( raw, 102, 921, 0, 2068);  // Map 0.5-4.5V to 0-30 PSIA (0-206.8 kPa)
-    unsigned long filtVal = ((newVal*filt) + (oldVal*(16-filt)))>>4;  // Filter (>>4 is divide by 16)
-    return filtVal; 
+    return filterIntegerSensor(newVal, oldVal, filt, state);
 }
 
 /**
  * read3barMapSensor - Read a 3 bar absolute MAP sensor
  */
-unsigned long read3barMapSensor(int inputPin, int oldVal, int filt)
+unsigned long read3barMapSensor(int inputPin, int oldVal, int filt, int32_t &state)
 {
     int raw = constrain(analogRead(inputPin), 102, 921);
     unsigned long newVal = map(raw, 102, 921, 0, 3000);
-    unsigned long filtVal = ((newVal*filt) + (oldVal*(16-filt)))>>4;
-    return filtVal;
+    return filterIntegerSensor(newVal, oldVal, filt, state);
 }
 
 /**
  * read100PSIGsensor - Read a 0-100 PSIG pressure sensor
  */
-unsigned long read100PSIGsensor(int inputPin, int oldVal, int filt)
+unsigned long read100PSIGsensor(int inputPin, int oldVal, int filt, int32_t &state)
 {
     int raw = constrain(analogRead(inputPin), 102, 921);
     unsigned long newVal = map(raw, 102, 921, 0, 6895);
-    unsigned long filtVal = ((newVal*filt) + (oldVal*(16-filt)))>>4;
-    return filtVal;
+    return filterIntegerSensor(newVal, oldVal, filt, state);
 }
 
+/**
+ * readMappedSensor - Linearly map an AV input using its ADC/physical calibration points
+ *
+ * Result is in the calibration's physical units (absolute kPa*10 or Lambda*1000).
+ * AV_TYPE_NONE inputs return raw voltage (0.01V units).
+ */
+float readMappedSensor(int inputPin, float oldVal, int filt, uint8_t avIndex, uint8_t type)
+{
+    if (type == AV_TYPE_NONE) {
+        long newVal = map(analogRead(inputPin), 0, 1023, 0, 500);
+        return ema7Step(newVal * 128, (int32_t)(oldVal * 128), filt) / 128.0f;
+    }
+    long adcLo = AV_ADC_LO[avIndex];
+    long adcHi = AV_ADC_HI[avIndex];
+    if (adcLo == adcHi) return AV_PHYS_LO[avIndex];
+    long raw = constrain((long)analogRead(inputPin), min(adcLo, adcHi), max(adcLo, adcHi));
+    long newVal = map(raw, adcLo, adcHi, AV_PHYS_LO[avIndex], AV_PHYS_HI[avIndex]);
+    return ema7Step(newVal * 128, (int32_t)(oldVal * 128), filt) / 128.0f;
+}
+
+/**
+ * avGaugeKpa / avAbsoluteKpa - Convert an AV reading (absolute kPa*10) to kPa gauge / absolute
+ */
+static float avGaugeKpa(float raw)
+{
+    return raw / 10.0 - 101.3;
+}
+
+static float avAbsoluteKpa(float raw)
+{
+    return raw / 10.0;
+}
 /**
  * readThermSensor - Read GM-style thermistor temperature sensor
  */
 float readThermSensor(int inputPin, float oldVal, int filt)
 {
     int raw = analogRead (inputPin);  // Read ADC: 0-1023
-    float newVal = map( raw, 0, 1023, 0, 500)*0.01;  // Map to 0-5V as float
-    float filtVal = ((newVal*filt) + (oldVal*(100-filt)))*0.01;  // Filter (*0.01 for percentage)
-    return filtVal; 
+    int32_t newMillivolts = map(raw, 0, 1023, 0, 500) * 10L;
+    int32_t state = (int32_t)(oldVal * 128000.0f + 0.5f);
+    return ema7Step(newMillivolts * 128, state, filt) / 128000.0f;
 }
 
 /**
@@ -244,6 +283,7 @@ void hallSpeedISR() {
  */
 void hallSpeedUpdate() {
     static unsigned long lastUpdateTime = 0;
+    static int32_t speedFilterState = 0;
     unsigned long currentTime = micros();
     unsigned long timeSinceLastPulse = currentTime - hallLastTime;
     
@@ -253,6 +293,7 @@ void hallSpeedUpdate() {
         sensorState = STANDSTILL;
         hallSpeedRaw = 0;
         spdHall = 0;
+        speedFilterState = 0;
         spdHallPrev = 0;
         intervalBufferCount = 0;
         intervalBufferIndex = 0;
@@ -322,10 +363,8 @@ void hallSpeedUpdate() {
             unsigned int speedRaw = (unsigned int)(360000000UL / (medianInterval * divisor / 1000UL));
             hallSpeedRaw = speedRaw / 100.0;  // Keep for compatibility (MPH)
             
-            // EMA filter with integer math
-            // FILTER_HALL_SPEED is 0-256: higher value = less filtering
-            // Cast to unsigned long to prevent overflow in intermediate calculation
-            unsigned int speedFiltered = (unsigned int)(((unsigned long)speedRaw * FILTER_HALL_SPEED + (unsigned long)spdHall * (256 - FILTER_HALL_SPEED)) >> 8);
+            speedFilterState = ema7Step((int32_t)speedRaw * 128, speedFilterState, FILTER_HALL_SPEED);
+            unsigned int speedFiltered = (unsigned int)(speedFilterState / 128);
             
             // ===== ACCELERATION LIMITING =====
             // VR-Safe: Clamp acceleration to 1g max (≈ 35.3 km/h/s = 3530 in units of km/h*100/s)
@@ -344,6 +383,7 @@ void hallSpeedUpdate() {
                         unsigned int speedDelta = speedFiltered - spdHallPrev;
                         if (speedDelta > maxSpeedChange) {
                             speedFiltered = spdHallPrev + (unsigned int)maxSpeedChange;
+                            speedFilterState = (int32_t)speedFiltered * 128;
                         }
                     } else {
                         // Decelerating - no clamp (allow rapid decel)
@@ -366,6 +406,7 @@ void hallSpeedUpdate() {
         // Decay speed by ~10% every update cycle when no recent pulses
         // This makes the speed drop more naturally when slowing to a stop
         spdHall = (spdHall * SPEED_DECAY_FACTOR) >> 8;
+        speedFilterState = (int32_t)spdHall * 128;
         spdHallPrev = spdHall;
     }
     
@@ -476,23 +517,22 @@ void ignitionPulseISR() {
     int rpmRaw = (int)(120000000UL / (pulseInterval * CYL_COUNT));
 
     // Plausibility check: reject RPM spikes.
-    // If the engine is above 500 RPM and the new reading changes more than 50%
-    // (up or down) from the current filtered value, discard this pulse.
+    // Compare against the last accepted raw reading, not the lagging EMA, so
+    // heavy filtering does not cause normal startup pulses to be rejected.
     // Note: engine shutdown is handled by engineRPMUpdate() which resets RPM to
     // zero after IGNITION_PULSE_TIMEOUT (500 ms) of no pulses, independently of
     // this check, so a stopped engine will never be held at a high RPM value.
-    if (engineRPMEMA > 500) {
-        int halfEMA = engineRPMEMA >> 1;  // 50% of current filtered RPM
-        if (rpmRaw > engineRPMEMA + halfEMA || rpmRaw < engineRPMEMA - halfEMA) {
+    if (engineRPMRaw > 500) {
+        int32_t halfRaw = engineRPMRaw >> 1;
+        if (rpmRaw > (int32_t)engineRPMRaw + halfRaw || rpmRaw < (int32_t)engineRPMRaw - halfRaw) {
             return;  // Spike detected – hold previous reading
         }
     }
 
     engineRPMRaw = rpmRaw;
 
-    // Apply exponential moving average filter with integer math
-    // FILTER_ENGINE_RPM is 0-256: higher value = less filtering
-    engineRPMEMA = (int)(((int32_t)rpmRaw * FILTER_ENGINE_RPM + (int32_t)engineRPMEMA * (256 - FILTER_ENGINE_RPM)) >> 8);
+    rpmFilterState = ema7Step((int32_t)rpmRaw * 128, rpmFilterState, FILTER_ENGINE_RPM);
+    engineRPMEMA = (int)(rpmFilterState / 128);
 
     // Uncomment for debugging (note: Serial.print in ISR can cause timing issues)
     // Serial.print("RPM: ");
@@ -503,18 +543,16 @@ void ignitionPulseISR() {
  * engineRPMUpdate - Handle engine RPM timeout and minimum threshold
  */
 void engineRPMUpdate() {
-    unsigned long currentTime = micros();
-    
-    // If it's been too long since last pulse, engine has stopped
-    if ((currentTime - ignitionLastTime) > IGNITION_PULSE_TIMEOUT) {
-        engineRPMRaw = 0;
-        engineRPMEMA = 0;
-    }
-    
-    // Clamp very low RPM to zero for display stability
-    // Prevents needle flutter during engine start/stop
-    if (engineRPMEMA < ENGINE_RPM_MIN) {
-        engineRPMEMA = 0;
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+        unsigned long currentTime = micros();
+        if ((currentTime - ignitionLastTime) > IGNITION_PULSE_TIMEOUT) {
+            engineRPMRaw = 0;
+            engineRPMEMA = 0;
+            rpmFilterState = 0;
+        }
+        if (engineRPMEMA < ENGINE_RPM_MIN) {
+            engineRPMEMA = 0;
+        }
     }
 }
 
@@ -716,14 +754,14 @@ void sigSelect (void) {
         case 1:  // CAN oil pressure
             oilPrs = (oilPrsCAN/10.0) - 101.3;  // Convert from absolute kPa to gauge pressure
             break;
-        case 2:  // Analog sensor AV1 (100 PSIG sensor, kPa*10)
-            oilPrs = sensor_av1 / 10.0;
+        case 2:  // Analog sensor AV1 (pressure sensor per AVn_TYPE)
+            oilPrs = avGaugeKpa(sensor_av1);
             break;
-        case 3:  // Analog sensor AV2 (100 PSIG sensor, kPa*10)
-            oilPrs = sensor_av2 / 10.0;
+        case 3:  // Analog sensor AV2 (pressure sensor per AVn_TYPE)
+            oilPrs = avGaugeKpa(sensor_av2);
             break;
-        case 4:  // Analog sensor AV3 (100 PSIG sensor, kPa*10)
-            oilPrs = sensor_av3 / 10.0;
+        case 4:  // Analog sensor AV3 (pressure sensor per AVn_TYPE)
+            oilPrs = avGaugeKpa(sensor_av3);
             break;
         case 5:  // Synthetic oil pressure (debug)
             oilPrs = generateSyntheticOilPressure();
@@ -744,14 +782,14 @@ void sigSelect (void) {
         case 1:  // CAN fuel pressure
             fuelPrs = (fuelPrsCAN/10.0) - 101.3;  // Convert from absolute kPa to gauge pressure
             break;
-        case 2:  // Analog sensor AV1 (100 PSIG sensor, kPa*10)
-            fuelPrs = sensor_av1 / 10.0;
+        case 2:  // Analog sensor AV1 (pressure sensor per AVn_TYPE)
+            fuelPrs = avGaugeKpa(sensor_av1);
             break;
-        case 3:  // Analog sensor AV2 (100 PSIG sensor, kPa*10)
-            fuelPrs = sensor_av2 / 10.0;
+        case 3:  // Analog sensor AV2 (pressure sensor per AVn_TYPE)
+            fuelPrs = avGaugeKpa(sensor_av2);
             break;
-        case 4:  // Analog sensor AV3 (100 PSIG sensor, kPa*10)
-            fuelPrs = sensor_av3 / 10.0;
+        case 4:  // Analog sensor AV3 (pressure sensor per AVn_TYPE)
+            fuelPrs = avGaugeKpa(sensor_av3);
             break;
         case 5:  // Synthetic fuel pressure (debug)
             fuelPrs = generateSyntheticFuelPressure();
@@ -808,16 +846,13 @@ void sigSelect (void) {
             manifoldPrs = mapCAN / 10.0;  // Convert from kPa*10 to kPa
             break;
         case 2:  // Analog sensor AV1
-            if ((OIL_PRS_SOURCE == 2) || (FUEL_PRS_SOURCE == 2)) break;  // Pressure source owns AV1
-            manifoldPrs = sensor_av1 / 10.0;
+            manifoldPrs = avAbsoluteKpa(sensor_av1);
             break;
         case 3:  // Analog sensor AV2
-            if ((OIL_PRS_SOURCE == 3) || (FUEL_PRS_SOURCE == 3)) break;  // Pressure source owns AV2
-            manifoldPrs = sensor_av2 / 10.0;
+            manifoldPrs = avAbsoluteKpa(sensor_av2);
             break;
         case 4:  // Analog sensor AV3
-            if ((OIL_PRS_SOURCE == 4) || (FUEL_PRS_SOURCE == 4)) break;  // Pressure source owns AV3
-            manifoldPrs = sensor_av3 / 10.0;
+            manifoldPrs = avAbsoluteKpa(sensor_av3);
             break;
         case 5:  // Synthetic manifold pressure (debug)
             manifoldPrs = generateSyntheticManifoldPressure();
@@ -836,13 +871,13 @@ void sigSelect (void) {
             afr = afr1CAN / 1000.0;  // Convert from AFR*1000 to AFR
             break;
         case 2:  // Analog sensor AV1
-            afr = sensor_av1 / 100.0;  // Assuming sensor gives AFR*100
+            afr = (AV1_TYPE == AV_TYPE_NONE) ? sensor_av1 / 100.0 : sensor_av1 / 1000.0;  // Raw volts*100, or Lambda*1000
             break;
         case 3:  // Analog sensor AV2
-            afr = sensor_av2 / 100.0;
+            afr = (AV2_TYPE == AV_TYPE_NONE) ? sensor_av2 / 100.0 : sensor_av2 / 1000.0;
             break;
         case 4:  // Analog sensor AV3
-            afr = sensor_av3 / 100.0;
+            afr = (AV3_TYPE == AV_TYPE_NONE) ? sensor_av3 / 100.0 : sensor_av3 / 1000.0;
             break;
         default:  // Fallback to off
             afr = 0;

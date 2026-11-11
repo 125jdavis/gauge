@@ -90,12 +90,18 @@ The Arduino Mega 2560 provides **4096 bytes** of EEPROM. The current firmware us
 | 10–13 | 4 | `odoTrip` | Trip odometer in km (float) |
 | 14–17 | 4 | `fuelSensorRaw` | Last fuel sensor ADC reading (int, persists level across restarts) |
 | 18 | 1 | `units` | Unit system: 0 = metric, 1 = imperial |
-| **19–511** | **493** | *(reserved)* | Available for configuration tool expansion |
-| **512–1023** | **512** | *(reserved)* | Custom splash image 1 (128×32 = 512 bytes) |
-| **1024–1535** | **512** | *(reserved)* | Custom splash image 2 (128×32 = 512 bytes) |
+| 19 | 1 | *(reserved)* | Padding |
+| 20–37 | 18 | `disp1List` | Display 1 screen count and IDs |
+| 38–55 | 18 | `disp2List` | Display 2 screen count and IDs |
+| 56–65 | 10 | Tach record | Versioned tach settings and checksum |
+| 66–76 | 11 | Tach colors | Versioned RGB colors and checksum |
+| 77–80 | 4 | Tach flash RPM | Versioned flash threshold and checksum |
+| 81–508 | 428 | *(reserved)* | Available for configuration expansion |
+| 509–510 | 2 | Splash flags | Validity flags for the two image slots |
+| 511 | 1 | *(reserved)* | Padding |
+| **512–1023** | **512** | Splash 1 | Custom splash image 1 (128×32 = 512 bytes) |
+| **1024–1535** | **512** | Splash 2 | Custom splash image 2 (128×32 = 512 bytes) |
 | 1536–4095 | 2560 | *(free)* | Available for future parameters |
-
-> **Note:** The ranges marked *reserved* are not yet implemented in firmware. They represent the allocation plan for the configuration tool (v1.2).
 
 ### SRAM Analysis
 
@@ -191,32 +197,38 @@ The Arduino Mega 2560 has **256 KB** of flash. All `PROGMEM` bitmaps, lookup tab
 | `m3_sweep` | uint16 | 100–4095 | Motor 3 full sweep steps |
 | `m4_sweep` | uint16 | 100–4095 | Motor 4 full sweep steps |
 | `ms_sweep` | uint16 | 100–16000 | Motor S (speedometer) full sweep steps |
-| `m1_func` … `m4_func` | uint8 | 0–2 | Signal shown by motors 1–4: 0=Off, 1=Fuel level, 2=Coolant temp |
-| `m1_min` … `m4_min` | int16 | -50–1000 | Gauge value at the zero end of the dial (fuel: %, coolant: °C) |
-| `m1_max` … `m4_max` | int16 | -50–1000 | Gauge value at the full end of the dial. Must differ from min; min > max reverses (CCW) the needle's travel. The tool's CW/CCW radios just swap these two values |
+| `m1_func` … `m4_func` | uint8 | 0–9 | Signal shown by motors 1–4: 0=Off, 1=Fuel level, 2=Coolant temp, 3=RPM, 4=Vehicle speed, 5=Oil pressure, 6=Fuel pressure, 7=Oil temp, 8=MAP, 9=Lambda |
+| `m1_min` … `m4_min` | int16 | -32768–32767 | Signal value at the zero end of the dial, in that signal's units |
+| `m1_max` … `m4_max` | int16 | -32768–32767 | Signal value at the full end of the dial. Must differ from min; min > max reverses (CCW) the needle's travel. The tool's CW/CCW radios just swap these two values |
 | `ms_zero_delay` | uint16 | 10–5000 | Motor S zeroing step delay (µs) |
 | `ms_zero_factor` | float | 0.1–1.0 | Motor S zeroing sweep fraction |
 | `motor_sweep_ms` | uint16 | 100–5000 | Nominal startup sweep duration per direction for motors 1–4 (ms); Motor S uses half its calculated update interval and acceleration delays. Actual times depend on motor timing and loop overhead. |
-| `filter_vbatt` | uint8 | 1–64 | Battery voltage filter coefficient |
+| `filter_vbatt` | uint8 | 0–127 | Battery voltage EMA retention coefficient |
 | `vbatt_scaler` | float | 0.001–0.1 | Voltage divider scale factor |
-| `filter_fuel` | uint8 | 1–64 | Fuel sensor filter coefficient |
-| `filter_therm` | uint8 | 1–100 | Thermistor filter coefficient |
-| `filter_av1` | uint8 | 1–16 | AV1 sensor filter coefficient |
-| `filter_av2` | uint8 | 1–16 | AV2 sensor filter coefficient |
-| `filter_av3` | uint8 | 1–16 | AV3 sensor filter coefficient |
+| `filter_fuel` | uint8 | 0–127 | Fuel sensor EMA retention coefficient |
+| `filter_therm` | uint8 | 0–127 | Thermistor EMA retention coefficient |
+| `filter_av1` | uint8 | 0–127 | AV1 sensor EMA retention coefficient |
+| `filter_av2` | uint8 | 0–127 | AV2 sensor EMA retention coefficient |
+| `filter_av3` | uint8 | 0–127 | AV3 sensor EMA retention coefficient |
 | `revs_per_km` | uint16 | 100–10000 | VSS pulses per km |
 | `teeth_per_rev` | uint8 | 1–64 | VSS teeth per shaft revolution |
-| `filter_hall` | uint8 | 1–255 | Hall speed EMA coefficient |
+| `filter_hall` | uint8 | 0–127 | Hall speed EMA retention coefficient |
+| `filter_gps` | uint8 | 0–127 | GPS speed EMA retention coefficient |
 | `hall_speed_min` | uint8 | 0–100 | Min reportable speed (km/h×100); GUI accepts km/h (0–1) |
 | `cyl_count` | uint8 | 2–16 | Engine cylinder count |
-| `filter_rpm` | uint8 | 1–255 | RPM EMA filter coefficient |
+| `filter_rpm` | uint8 | 0–127 | RPM EMA retention coefficient |
 | `rpm_debounce_us` | uint16 | 100–20000 | RPM pulse debounce window (µs) |
 | `engine_rpm_min` | uint8 | 0–255 | Min reportable RPM |
 | `speedo_max` | uint16 | 1000–30000 | Max speedometer (mph×100); GUI accepts km/h or mph |
 | `num_leds` | uint8 | 1–64 | LED strip length |
-| `warn_leds` | uint8 | 0–32 | Warning zone LED count |
-| `shift_leds` | uint8 | 0–16 | Shift light LED count |
-| `tach_max` | uint16 | 1000–15000 | Shift RPM |
+| `warn_leds` | uint8 | 0–63 | Steps from the final step to the warning-zone start |
+| `shift_leds` | uint8 | 0–63 | Steps from the final step to the shift-zone start |
+| `tach_sweep` | uint8 | 0–3 | Left-to-right, right-to-left, edge-to-center, center-to-edge |
+| `tach_color_normal` | RGB hex | 000000–FFFFFF | Normal-zone RGB color |
+| `tach_color_warning` | RGB hex | 000000–FFFFFF | Warning-zone RGB color |
+| `tach_color_shift` | RGB hex | 000000–FFFFFF | Shift-zone RGB color |
+| `tach_max` | uint16 | 1000–15000 | Max RPM (last LED step illuminates) |
+| `tach_flash` | uint16 | 0–15000 | Flash RPM (illuminated shift LEDs flash) |
 | `tach_min` | uint16 | 0–5000 | Min display RPM |
 | `odo_steps` | uint16 | 512–8192 | Odometer motor steps/rev |
 | `odo_motor_teeth` | uint8 | 1–64 | Odometer motor gear teeth |
@@ -370,15 +382,16 @@ class GaugeConfig:
     motor4: MotorConfig = field(default_factory=MotorConfig)
     motor_s: MotorConfig = field(default_factory=MotorConfig)
 
-    # Filters (0–255 unified scale, v1.1)
-    filter_vbatt: int = 8
-    filter_fuel: int = 1
-    filter_therm: int = 50
-    filter_av1: int = 4
-    filter_av2: int = 12
-    filter_av3: int = 12
-    filter_hall: int = 64
-    filter_rpm: int = 179
+    # Filters (0–127 retention out of 128)
+    filter_vbatt: int = 112
+    filter_fuel: int = 126
+    filter_therm: int = 64
+    filter_av1: int = 96
+    filter_av2: int = 32
+    filter_av3: int = 32
+    filter_hall: int = 96
+    filter_gps: int = 0
+    filter_rpm: int = 39
 
     # Curves
     therm_curve: Curve = field(default_factory=Curve)
@@ -466,9 +479,11 @@ class SplashID(IntEnum):
 | CYL_COUNT | 8 | 2 | 16 | Engine cylinders |
 | SPEEDO_MAX | 10000 | 1000 | 30000 | mph × 100; 10000 = 100 mph |
 | NUM_LEDS | 27 | 1 | 64 | Total LED strip count |
-| WARN_LEDS | 6 | 0 | 32 | Warning zone per side |
-| SHIFT_LEDS | 2 | 0 | 16 | Shift-light zone per side |
-| TACH_MAX | 6000 | 1000 | 15000 | Shift RPM |
+| WARN_LEDS | 6 | 0 | 63 | Steps from the final step to the warning-zone start |
+| SHIFT_LEDS | 2 | 0 | 63 | Steps from the final step to the shift-zone start |
+| TACH_SWEEP | 2 | 0 | 3 | LED sweep style |
+| TACH_MAX | 6000 | 1000 | 15000 | Max RPM for the final LED step |
+| TACH_FLASH | 6000 | 0 | 15000 | Shift-zone flash RPM |
 | TACH_MIN | 3000 | 0 | 5000 | Min lit RPM |
 | ODO_STEPS | 2048 | 512 | 8192 | Steps per revolution (wave drive) |
 | ODO_MOTOR_TEETH | 16 | 1 | 64 | Motor gear tooth count |
@@ -699,50 +714,31 @@ int16_t curveLookup(uint16_t input, const uint16_t *table_x,
 
 ## 7. Motor Assignment System
 
-### Dynamic Motor Assignment (v1.1)
+### Motors 1–4 Signal Assignment
 
-Each of the five motors can be independently assigned to any signal source. When `MOTOR_SRC_NONE` is selected, all angle calculations for that motor are skipped — saving CPU time and preventing twitching on unused gauges.
+Each of the four X25.168 gauge motors can be independently assigned a signal.
+Motor S remains the dedicated speedometer. Selecting Off parks the corresponding
+gauge needle at its zero stop.
 
 ### Source Enumeration
 
 | Value | Source | Unit |
 |-------|--------|------|
-| 0 | NONE (disabled) | — |
-| 1 | Fuel Level | gallons or liters |
-| 2 | Coolant Temperature | °C or °F |
-| 3 | Oil Temperature | °C or °F |
-| 4 | Oil Pressure | kPa or PSI |
-| 5 | Fuel Pressure | kPa or PSI |
-| 6 | Vehicle Speed | km/h or mph |
-| 7 | Engine RPM | RPM |
-| 8 | Battery Voltage | V |
-| 9 | Boost / MAP | kPa or PSI |
+| 0 | Off | — |
+| 1 | Fuel level | % of tank capacity |
+| 2 | Coolant temperature | °C |
+| 3 | Engine RPM | RPM |
+| 4 | Vehicle speed | whole km/h |
+| 5 | Oil pressure | kPa |
+| 6 | Fuel pressure | kPa |
+| 7 | Oil temperature | °C |
+| 8 | MAP | kPa absolute |
+| 9 | Lambda | Lambda × 1000 |
 
-### 3-Point Piecewise Mapping (v1.1)
-
-Rather than a simple 2-point `map()`, each motor supports a **midpoint calibration** to correct for non-linear gauge scales:
-
-```
-angle
-  │                      * sweep-1
-  │              *
-  │      *
-  0──────────────────── input
-     inLow  inMid  inHigh
-```
-
-```cpp
-int motorAngle3pt(int input, int inLow, int inMid, int inHigh,
-                  int sweep) {
-    int angle;
-    if (input <= inMid) {
-        angle = map(input, inLow, inMid, 1, sweep / 2);
-    } else {
-        angle = map(input, inMid, inHigh, sweep / 2, sweep - 1);
-    }
-    return constrain(angle, 1, sweep - 1);
-}
-```
+For general signals, the configured minimum and maximum map linearly from the
+needle's zero stop to its full-sweep stop. Reversing the endpoints reverses the
+needle direction. Fuel level is measured as a percentage of tank capacity and
+coolant temperature retains its built-in nonlinear hot-range mapping.
 
 ### Coolant Temperature Mapping (Current Implementation)
 
@@ -783,47 +779,38 @@ int speedometerAngleS(int sweep) {
 
 ## 8. Filter System
 
-### Unified 0–255 Scale (v1.1)
+### Unified 7-bit scale
 
-All filter coefficients use a **0–255 integer scale** where:
-- `255` = no filtering (pass-through)
-- `128` = moderate filtering (~50% weight on new sample)
-- `1` = maximum filtering (almost no response to new data)
+The GUI sliders show **0–99% filtering**: 0 is pass-through and 99 is
+heavy filtering. The protocol stores a previous-value retention coefficient
+`r` from 0 to 127, computed as `min(127, round(percent * 128 / 100))`.
+The inverse display conversion rounds `r * 100 / 128` and caps it at 99;
+loading a value does not change the stored coefficient.
 
-This replaces the previous ad-hoc scales (e.g., "out of 64", "out of 100") with a consistent convention.
+The EMA is `new_state = (sample * (128 - r) + old_state * r) / 128`.
+The integer filter uses a seven-bit shift and fractional state; if rounding
+would halt an increasing value, it advances by one fractional step instead.
+GPS uses wider arithmetic for its speed range.
+This filter is independent of the Hall median, acceleration and timeout
+logic and of motor interpolation.
 
-### Exponential Moving Average (EMA) Implementation
-
-```cpp
-// readSensor - Apply EMA filter to analog reading
-// alpha is in [1..255]; output = (alpha/256)*new + (1 - alpha/256)*prev
-float readSensor(uint8_t pin, float prev, uint8_t alpha) {
-    float raw = analogRead(pin) * (5000.0f / 1023.0f);  // mV
-    return prev + ((float)alpha / 256.0f) * (raw - prev);
-}
-```
-
-### Conversion from Old Scales
-
-| Old scale | Old value | Formula | New value (0–255) |
-|-----------|-----------|---------|-------------------|
-| Out of 64 | 8 | `round(8/64 × 255)` | 32 |
-| Out of 100 | 50 | `round(50/100 × 255)` | 128 |
-| EMA 0.8 | 205 | `round(0.8 × 256)` | 205 |
-| EMA 0.7 | 179 | `round(0.7 × 256)` | 179 |
+`get filter_format` and `dump` report `filter_format 7`. The GUI requires
+this marker before reading filter settings or writing them to a device:
+update older firmware and the tool together.
 
 ### Default Filter Values
 
-| Parameter | Default (0–255) | Effective Weight on New Sample |
+| Parameter | Default retention | Effective Weight on New Sample |
 |-----------|----------------|-------------------------------|
-| FILTER_VBATT | 32 | 12.5% |
-| FILTER_FUEL | 4 | 1.6% |
-| FILTER_THERM | 128 | 50% |
-| FILTER_AV1 | 64 | 25% |
-| FILTER_AV2 | 48 | 18.8% |
-| FILTER_AV3 | 48 | 18.8% |
-| FILTER_HALL_SPEED | 64 | 25% |
-| FILTER_ENGINE_RPM | 179 | 70% |
+| FILTER_VBATT | 112 | 12.5% |
+| FILTER_FUEL | 126 | 1.56% |
+| FILTER_THERM | 64 | 50% |
+| FILTER_AV1 | 96 | 25% |
+| FILTER_AV2 | 32 | 75% |
+| FILTER_AV3 | 32 | 75% |
+| FILTER_HALL_SPEED | 96 | 25% |
+| FILTER_GPS | 0 | 100% |
+| FILTER_ENGINE_RPM | 39 | 69.5% |
 
 ---
 
@@ -1192,16 +1179,15 @@ tool confirms by reading the device signature rather than asking.
 
 #### Tab 2 — Motor Configuration
 
-One group box per motor (Motor 1, 2, 3, 4, S). Each contains:
+One group box per gauge motor (Motor 1–4), with a separate Motor S speedometer
+section. Each gauge motor contains:
 
 | Widget | Type | Description |
 |--------|------|-------------|
-| Signal source | Combobox | MotorSource enum values |
-| Sweep steps | Spinbox | 100–16000 |
-| Input low | Spinbox | Physical input at needle minimum |
-| Input mid | Spinbox | Physical input at needle midpoint |
-| Input high | Spinbox | Physical input at needle maximum |
-| Live preview | Canvas | Animated needle at current sensor value |
+| Function | Combobox | Off, fuel level, coolant temperature, RPM, vehicle speed, oil/fuel pressure, oil temperature, MAP, or Lambda |
+| Sweep angle | Entry | 0–315 degrees, stored in steps |
+| Gauge min/max | Entries | Signal values at the needle's zero/full-sweep endpoints; units follow the selected function |
+| Sweep direction | Radio buttons | CW or CCW |
 
 #### Tab 3 — Signal Source
 
@@ -1217,25 +1203,60 @@ One group box per motor (Motor 1, 2, 3, 4, S). Each contains:
 | Widget | Description |
 |--------|-------------|
 | Revs per km, teeth per rev, minimum cutoff, Hall filter | Enabled only for Hall speed source |
+| GPS filter | Enabled only for GPS speed source |
 | Speedometer Max | Numeric input with km/h and mph radio buttons; disabled when speed is Off |
 | Cylinder count, debounce window, RPM minimum, RPM filter | Enabled only for coil RPM source |
 | Mechanical odometer calibration | Steps per revolution, motor gear teeth, driven gear teeth |
 
 #### Tab 5 — Sensors
 
-Sensor filter groups are shown together on one page: thermistor, fuel level,
+Sensor filter groups are shown together on one page as 0–99% sliders: thermistor, fuel level,
 analog inputs AV1/AV2/AV3, and battery voltage.
 
 #### Tab 6 — LED Tachometer
 
 | Widget | Description |
 |--------|-------------|
-| LED count | Spinbox 1–64 |
-| Shift RPM | Spinbox |
-| Min display RPM | Spinbox |
-| Warning LEDs | Spinbox |
-| Shift LEDs | Spinbox |
-| Live preview | Canvas showing LED strip simulation |
+| LED count | Entry 1–64 |
+| Max RPM | Entry; the final LED step illuminates at this RPM |
+| Flash RPM | Entry; illuminated shift-zone LEDs flash at and above this RPM |
+| Min display RPM | Entry; the first sweep step lights at this RPM |
+| Sweep style | Left to right, right to left, edge to center, or center to edge |
+| Zone editor | Drag warning and shift boundaries; two-sided handles are mirrored |
+| LED preview | Colors show the configured zones, not live RPM |
+| Color pickers | Hue and 0–100% brightness sliders for each zone; saturation is fixed at 100% |
+| Test strip | Toggle a physical preview of unsaved settings on the connected gauge |
+
+LED index 0 is the driver's left (data-input end). The zone handles snap to
+LED-step boundaries, and their displayed RPM is the first integer RPM at which
+that step lights. Odd two-sided strips have one center LED. With one step, the
+entire strip lights at Min display RPM and the shift zone flashes at Flash RPM.
+Flash RPM is independent of Max RPM; if it is lower, only already-illuminated
+shift-zone LEDs flash until subsequent LEDs light.
+Warning must start no later than shift. "Fit zones to strip" clamps zone
+positions after loading settings that do not fit the strip.
+
+The firmware stores tach count, sweep, zone positions, and RPM limits in a
+versioned EEPROM records when the tool writes and saves settings. Older EEPROM
+and configuration files without `tach_flash` use their existing `tach_max` as
+the initial flash threshold. Other
+calibration values retain their existing RAM-only behavior. Older configuration
+files without `tach_sweep` load as edge-to-center; review the zones, especially
+on odd-length strips, since the new sweep uses the center LED as a separate step.
+RGB colors default to `1E0F00`, `500A00`, and `500000` respectively, including
+when loading older files or EEPROM records without colors. The on-screen swatches
+and strip preview map LED brightness 0–100% linearly to display brightness
+60–100%; saved RGB values and physical LEDs retain the selected brightness.
+At zero brightness the preview uses the last hue selected in this session;
+RGB black cannot preserve a hue across restarts. Existing RGB values are
+preserved until the sliders are applied, at which point saturation becomes 100%.
+FastLED converts RGB values to GRB for the strip.
+Full-brightness colors can substantially increase strip current.
+The physical test displays all zones without flashing or saving any settings,
+and active faults retain priority on LED 0. Toggling it off, leaving the tab,
+disconnecting, reading, or writing restores normal output. A five-second firmware
+timeout restores normal output if preview refreshes stop unexpectedly. Requires
+firmware supporting `tachtest`; update the firmware before using this feature.
 
 #### Tab 7 — Display Settings
 
@@ -1273,7 +1294,7 @@ analog inputs AV1/AV2/AV3, and battery voltage.
 | Parameter | Rule |
 |-----------|------|
 | Sweep values | Must be ≥ 100 and ≤ 16000; warn if < 200 |
-| Filter coefficients | Must be 1–255 |
+| Filter coefficients | Must be 0–127 (GUI slider: 0–99%) |
 | Curve X values | Must be strictly increasing (0 < x[0] < x[1] < … < 5000) |
 | Curve Y values | No restriction, but warn if monotonically non-decreasing expected |
 | Num LEDs | Must be ≤ 64 (MAX_LEDS) |
@@ -1296,16 +1317,25 @@ units. Fields not introduced as human-readable in a given format remain in
 firmware units. Files without a `config_format` continue to load using legacy
 raw firmware values.
 
+New files include `filter_format=7`. Files without that marker use the older
+per-sensor coefficients and are converted to the new retention scale on load.
+For AV inputs the legacy conversion follows the saved sensor type (raw
+voltage used /64; mapped inputs used /16 and capped values at 16). Invalid
+legacy coefficients are rejected rather than silently reinterpreted. Filter
+settings are RAM-only in the current firmware; `save` does not persist them
+to EEPROM, so retain a config file to restore them after reboot.
+
 ```
 # Gauge V4 Configuration
 # Generated by gauge-config-tool v1.0
 # Date: 2025-01-01
 
 config_format=5
+filter_format=7
 m1_sweep=696
 m2_sweep=696
 ms_sweep=4032
-filter_vbatt=32
+filter_vbatt=112
 hall_speed_min=50
 speedo_max=10000
 speedo_max_units=mph

@@ -6,6 +6,8 @@
 
 #include "outputs.h"
 #include "globals.h"
+#include "tach_geometry.h"
+#include <math.h>
 
 // ===== CONVERSION CONSTANTS =====
 const float KM_TO_MILES = 0.621371;  // Conversion factor: kilometers to miles
@@ -74,6 +76,20 @@ static const uint8_t ODO_STEP_SEQUENCE[4][4] = {
 };
 static uint8_t odoMotorStepIndex = 0;  // Current position in step sequence (0-3)
 
+static TachPreview tachPreview;
+static bool tachPreviewActive = false;
+static unsigned long tachPreviewTime = 0;
+
+void setTachPreview(const TachPreview &preview) {
+  tachPreview = preview;
+  tachPreviewTime = millis();
+  tachPreviewActive = true;
+}
+
+void stopTachPreview(void) {
+  tachPreviewActive = false;
+}
+
 void ledShiftLight(int ledRPM){
   static bool tachFlashState = 0;  // Current state of shift light flashing (0=off, 1=on) - local static
 
@@ -82,79 +98,44 @@ void ledShiftLight(int ledRPM){
   // RGB values derived from CIE 3500K chromaticity: R=255, G=196, B=137 → scaled to 25%: R=64, G=49, B=34.
   const CRGB backlightColor = SPEEDO_BACKLIGHT_ENABLED ? CRGB(4, 3, 1) : CRGB::Black;
 
-  if (ledRPM < TACH_MIN) {
-    // Tachometer inactive: fill strip with backlight (warm white 3500K at 25%) or off
-    for (int i = 0; i < NUM_LEDS; i++){
-      leds[i] = backlightColor;
+  if (tachPreviewActive && tachPreviewExpired(millis(), tachPreviewTime)) tachPreviewActive = false;
+  const uint8_t count = tachPreviewActive ? tachPreview.count : NUM_LEDS;
+  const uint8_t sweep = tachPreviewActive ? tachPreview.sweep : TACH_SWEEP;
+  const uint8_t warning = tachPreviewActive ? tachPreview.warning : WARN_LEDS;
+  const uint8_t shift = tachPreviewActive ? tachPreview.shift : SHIFT_LEDS;
+  static uint8_t configuredCount = 0;
+  if (configuredCount != count) {
+    if (configuredCount > count) {
+      fill_solid(leds, configuredCount, CRGB::Black);
+      FastLED.show();
+    }
+    FastLED[0].setLeds(leds, count);
+    configuredCount = count;
+  }
+
+  const uint8_t steps = tachSteps(count, sweep);
+  const uint8_t lit = tachPreviewActive ? steps : tachLitSteps(ledRPM < 0 ? 0 : ledRPM, TACH_MIN, TACH_MAX, steps);
+  if (ledRPM >= 0 && (uint16_t)ledRPM >= TACH_FLASH) {
+    if (millis() - timerTachFlash >= TACH_FLASH_RATE) {
+      timerTachFlash = millis();
+      tachFlashState = !tachFlashState;
     }
   } else {
-    // ===== PAIR-BASED TACH RENDERING =====
-    // Works correctly for any NUM_LEDS (even or odd).
-    // Each LED at index p (from the left) is paired with its mirror at index
-    // NUM_LEDS-1-p (from the right).  For odd strip counts there is one
-    // unpaired center LED at index halfLeds which is always in the shift zone.
-    //
-    // Zone assignment uses distFromCenter (0 = innermost pair):
-    //   distFromCenter <= SHIFT_LEDS               → shift  (red)
-    //   SHIFT_LEDS < distFromCenter <= WARN_LEDS   → warning (orange)
-    //   distFromCenter > WARN_LEDS                 → normal  (amber)
-    //
-    // This produces the same LED layout as the original algorithm for even N
-    // and a perfectly symmetric layout for odd N.
-
-    int halfLeds = NUM_LEDS / 2;  // Number of symmetric pairs
-    int blackoutPairs = map(ledRPM, TACH_MIN, TACH_MAX, halfLeds, 0);
-
-    // 1. Assign zone colors to every paired LED
-    for (int p = 0; p < halfLeds; p++){
-      int leftIdx  = p;
-      int rightIdx = NUM_LEDS - 1 - p;
-      int distFromCenter = halfLeds - 1 - p;  // 0 = innermost, halfLeds-1 = outermost
-
-      CRGB color;
-      if      (distFromCenter <= SHIFT_LEDS) color = CRGB( 80,  0, 0);  // shift  (red)
-      else if (distFromCenter <= WARN_LEDS)  color = CRGB( 80, 10, 0);  // warning (orange)
-      else                                   color = CRGB( 30, 15, 0);  // normal  (amber)
-
-      leds[leftIdx]  = color;
-      leds[rightIdx] = color;
-    }
-
-    // 2. Center LED for odd strip counts is always in the shift zone
-    if (NUM_LEDS % 2 == 1){
-      leds[halfLeds] = CRGB(80, 0, 0);
-    }
-
-    // 3. Black out innermost pairs to reflect current RPM (or show backlight if enabled)
-    //    Pair p=0 in this loop targets the INNERMOST pair; as blackoutPairs
-    //    decreases (RPM rises), outer pairs are progressively revealed first.
-    for (int p = 0; p < blackoutPairs; p++){
-      leds[halfLeds - 1 - p]       = backlightColor;  // innermost left  → outward
-      leds[NUM_LEDS - halfLeds + p] = backlightColor;  // innermost right → outward
-    }
-
-    // 4. Center LED for odd N: show backlight whenever any pairs are blacked out
-    if ((NUM_LEDS % 2 == 1) && blackoutPairs > 0){
-      leds[halfLeds] = backlightColor;
-    }
-
-    // 5. Flash shift zone pairs when shift point is exceeded
-    if (RPM > TACH_MAX){
-      if (millis() - timerTachFlash > TACH_FLASH_RATE){
-        if (tachFlashState == 0){
-          // Show backlight (or black) on the SHIFT_LEDS+1 innermost pairs (the shift zone)
-          for (int p = 0; p <= SHIFT_LEDS; p++){
-            leds[halfLeds - 1 - p]       = backlightColor;
-            leds[NUM_LEDS - halfLeds + p] = backlightColor;
-          }
-          if (NUM_LEDS % 2 == 1){
-            leds[halfLeds] = backlightColor;  // center LED for odd N
-          }
-        }
-
-        timerTachFlash = millis();
-        tachFlashState = 1 - tachFlashState;
-      }
+    tachFlashState = true;
+    timerTachFlash = millis();
+  }
+  for (uint8_t i = 0; i < count; i++) {
+    uint8_t step = tachStepForLed(i, count, sweep);
+    uint8_t fromEnd = steps - 1 - step;
+    if (step >= lit || (ledRPM >= 0 && tachFlashBlank((uint16_t)ledRPM, TACH_FLASH, fromEnd,
+                                                      shift, tachPreviewActive, tachFlashState))) {
+      leds[i] = backlightColor;
+    } else if (fromEnd <= shift) {
+      leds[i] = CRGB(tachPreviewActive ? tachPreview.shiftColor : TACH_SHIFT_COLOR);
+    } else if (fromEnd <= warning) {
+      leds[i] = CRGB(tachPreviewActive ? tachPreview.warningColor : TACH_WARNING_COLOR);
+    } else {
+      leds[i] = CRGB(tachPreviewActive ? tachPreview.normalColor : TACH_NORMAL_COLOR);
     }
   }
 
@@ -543,11 +524,22 @@ int coolantTempAngle(int sweep, int minTemp, int maxTemp) {
  * @return Motor angle in steps (1 to sweep-1); 1 (zero) when off or unknown
  */
 int motorFunctionAngle(uint8_t func, int sweep, int minVal, int maxVal) {
+  long value;
   switch (func) {
     case MOTOR_FUNC_FUEL_LEVEL:   return fuelLvlAngle(sweep, minVal, maxVal);
     case MOTOR_FUNC_COOLANT_TEMP: return coolantTempAngle(sweep, minVal, maxVal);
-    default:                      return 1;
+    case MOTOR_FUNC_RPM:           value = RPM; break;
+    case MOTOR_FUNC_VEHICLE_SPEED: value = ((long)spd + 50L) / 100L; break;
+    case MOTOR_FUNC_OIL_PRESSURE:  value = lroundf(oilPrs); break;
+    case MOTOR_FUNC_FUEL_PRESSURE: value = lroundf(fuelPrs); break;
+    case MOTOR_FUNC_OIL_TEMP:      value = lroundf(oilTemp); break;
+    case MOTOR_FUNC_MAP:           value = lroundf(manifoldPrs); break;
+    case MOTOR_FUNC_LAMBDA:        value = lroundf(afr * 1000.0f); break;
+    default:                       return 1;
   }
+  if (minVal == maxVal) return 1;
+  long angle = map(value, (long)minVal, (long)maxVal, 1L, (long)sweep - 1L);
+  return (int)constrain(angle, 1L, (long)sweep - 1L);
 }
 
 void motorZeroSynchronous(void){

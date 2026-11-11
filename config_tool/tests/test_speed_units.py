@@ -5,6 +5,13 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from gui import (
+    AV_CAL_PARAMS,
+    AV_PRESETS,
+    adc_to_volts,
+    av_physical_unit,
+    physical_to_raw,
+    raw_to_physical,
+    volts_to_adc,
     CAN_PROTOCOL_OPTIONS,
     MOTOR_FUNCTION_OPTIONS,
     MOTOR_FUNCTION_PARAMS,
@@ -44,7 +51,10 @@ def test_can_protocol_dropdown_order_matches_firmware_protocol_values() -> None:
 
 
 def test_motor_function_dropdown_matches_firmware_values() -> None:
-    assert MOTOR_FUNCTION_OPTIONS == ("Off", "Fuel level", "Coolant temp")
+    assert MOTOR_FUNCTION_OPTIONS == (
+        "Off", "Fuel level", "Coolant temp", "RPM", "Vehicle speed",
+        "Oil pressure", "Fuel pressure", "Oil temp", "MAP", "Lambda (x1000)",
+    )
     assert all(p in ALL_PARAMS for p in MOTOR_FUNCTION_PARAMS)
 
 
@@ -53,6 +63,10 @@ def test_motor_range_params_are_configurable() -> None:
         assert all(p in ALL_PARAMS for p in params)
     assert DIRECTION_OPTIONS == ("CW", "CCW")
     assert len(MOTOR_FUNCTION_UNITS) == len(MOTOR_FUNCTION_RANGES) == len(MOTOR_FUNCTION_OPTIONS)
+    assert MOTOR_FUNCTION_RANGES == (
+        (0, 0), (10, 100), (50, 115), (0, 8000), (0, 240),
+        (0, 700), (0, 700), (0, 150), (0, 300), (700, 1300),
+    )
 
 
 def test_ccw_swaps_min_and_max_in_config() -> None:
@@ -130,7 +144,7 @@ def test_can_protocol_stays_editable_and_speedometer_requires_speed() -> None:
 
 def test_all_source_dependent_parameters_have_source_rules() -> None:
     assert set(SOURCE_DEPENDENT_PARAMS) == {
-        "revs_per_km", "teeth_per_rev", "filter_hall", "hall_speed_min",
+        "revs_per_km", "teeth_per_rev", "filter_hall", "filter_gps", "hall_speed_min",
         "cyl_count", "filter_rpm", "rpm_debounce_us", "engine_rpm_min",
         "filter_fuel", "filter_therm", "filter_av1", "filter_av2", "filter_av3",
     }
@@ -243,3 +257,34 @@ def test_legacy_config_formats_are_converted_to_firmware_units(
     converted, _units = _decode_config_units({"config_format": version, **params})
     for key, value in expected.items():
         assert float(converted[key]) == pytest.approx(float(value))
+
+def test_av_voltage_converts_to_adc_counts() -> None:
+    assert volts_to_adc("0.5") == 102
+    assert volts_to_adc("4.5") == 921
+    assert adc_to_volts(102) == pytest.approx(0.5, abs=0.005)
+    with pytest.raises(ValueError):
+        volts_to_adc("5.5")
+
+
+def test_av_physical_converts_to_firmware_units() -> None:
+    assert physical_to_raw("206.8", "kPa") == 2068
+    assert physical_to_raw("1.05", "Lambda") == 1050
+    assert raw_to_physical(7908, "kPa") == pytest.approx(790.8)
+    with pytest.raises(ValueError):
+        physical_to_raw("5000", "kPa")
+
+
+def test_av_physical_unit_follows_sensor_type() -> None:
+    assert av_physical_unit(5) == "Lambda"
+    assert av_physical_unit(4) == "kPa"
+    assert av_physical_unit(None) == "kPa"
+
+def test_av_presets_are_absolute_kpa_times_ten() -> None:
+    assert AV_PRESETS[0] == (102, 921, 0, 2068)
+    assert AV_PRESETS[1] == (102, 921, 0, 3000)
+    assert AV_PRESETS[2] == (102, 921, 1013, 7908)
+
+def test_av_calibration_params_are_not_source_gated() -> None:
+    for cal in AV_CAL_PARAMS:
+        for param in cal:
+            assert _source_uses_parameter(param, {"oil_prs_source": "1"})

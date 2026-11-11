@@ -206,6 +206,14 @@ class GaugeSerial:
         """Flush all RAM parameters to EEPROM."""
         self._expect_ok("save")
 
+    def tach_preview(self, payload: str) -> None:
+        """Preview a tach layout without modifying configuration."""
+        self._expect_ok(f"tachtest {payload}")
+
+    def tach_preview_stop(self) -> None:
+        """Release the tach preview and restore normal output."""
+        self._expect_ok("tachtest off")
+
     def load(self) -> None:
         """Re-read all parameters from EEPROM, discarding unsaved RAM changes."""
         self._expect_ok("load")

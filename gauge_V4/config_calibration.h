@@ -29,14 +29,21 @@ extern uint16_t MS_SWEEP;        // Motor S: 118 degrees (speedometer - 16 micro
 #define MOTOR_FUNC_OFF          0   // Needle parked at zero
 #define MOTOR_FUNC_FUEL_LEVEL   1
 #define MOTOR_FUNC_COOLANT_TEMP 2
-#define MOTOR_FUNC_COUNT        3   // Number of valid function values (0..MOTOR_FUNC_COUNT-1)
+#define MOTOR_FUNC_RPM          3
+#define MOTOR_FUNC_VEHICLE_SPEED 4
+#define MOTOR_FUNC_OIL_PRESSURE 5
+#define MOTOR_FUNC_FUEL_PRESSURE 6
+#define MOTOR_FUNC_OIL_TEMP     7
+#define MOTOR_FUNC_MAP          8
+#define MOTOR_FUNC_LAMBDA       9
+#define MOTOR_FUNC_COUNT        10  // Number of valid function values (0..MOTOR_FUNC_COUNT-1)
 extern uint8_t M1_FUNCTION;
 extern uint8_t M2_FUNCTION;
 extern uint8_t M3_FUNCTION;
 extern uint8_t M4_FUNCTION;
 
-// Gauge scale endpoints for motors 1-4, in the units of the assigned function:
-//   Fuel level = percent of tank capacity, Coolant temp = degrees C.
+// Gauge scale endpoints for motors 1-4, in the units shown by the assigned function.
+// Lambda endpoints use lambda * 1000; vehicle speed uses whole km/h.
 // The needle sits at its zero stop at the min value and at full sweep at the max value.
 // min may be greater than max to reverse the needle's direction of travel.
 extern int16_t M1_MIN;
@@ -57,29 +64,45 @@ extern float    MS_ZERO_SWEEP_FACTOR;   // Fraction of MS_SWEEP used for motorS 
 // ===== MOTOR SWEEP TIMING =====
 extern uint16_t MOTOR_SWEEP_TIME_MS;  // Time in milliseconds for motors to sweep full range during startup test
 
-// ===== ANALOG SENSOR FILTER COEFFICIENTS =====
-// Battery Voltage Sensor - Filter coefficient out of 64
-extern uint8_t FILTER_VBATT;           // 8/64 = light filtering
+// ===== EMA FILTER COEFFICIENTS =====
+// Retained previous-sample weight out of 128: 0 = off, 127 = heavy.
+extern uint8_t FILTER_VBATT;
 
 // Battery Voltage Sensor - Voltage divider scaling factor
 extern float VBATT_SCALER;      // Formula: Vbatt = ADC_reading * (5.0/1023) * ((R1+R2)/R2)
                                     // R1=10k, R2=3.3k
 
-// Fuel Level Sensor - Light filter: 1/64 = very responsive to changes
 extern uint8_t FILTER_FUEL;
-
-// Coolant/Oil Temperature Thermistor - Medium filter: 50/100 for stable temp reading
 extern uint8_t FILTER_THERM;
 
-// Analog Inputs for 0-5V sensors
-extern uint8_t FILTER_AV1;             // Filter coefficient for barometric pressure (4/16 = moderate filtering)
-extern uint8_t FILTER_AV2;            // Filter coefficient for sensor B (12/16)
-extern uint8_t FILTER_AV3;            // Filter coefficient for sensor C (12/16)
+extern uint8_t FILTER_AV1;
+extern uint8_t FILTER_AV2;
+extern uint8_t FILTER_AV3;
+
+// Analog input sensor types (AV_TYPE_*). Presets are applied by the config tool; the firmware
+// maps every type except AV_TYPE_NONE with the ADC/physical calibration points below.
+#define AV_TYPE_2BAR_ABS   0   // 2 bar absolute (30 PSIA), 0.5-4.5V
+#define AV_TYPE_3BAR_ABS   1   // 3 bar absolute (43.5 PSIA), 0.5-4.5V
+#define AV_TYPE_100PSI_G   2   // 100 PSI gauge, 0.5-4.5V
+#define AV_TYPE_NONE       3   // Raw voltage (0.01V units)
+#define AV_TYPE_CUSTOM     4   // User-defined calibration points
+#define AV_TYPE_LAMBDA     5   // Lambda sensor; physical values are Lambda*1000
+extern uint8_t AV1_TYPE;
+extern uint8_t AV2_TYPE;
+extern uint8_t AV3_TYPE;
+
+// Calibration points for AV1-AV3 (index 0-2): ADC counts (0-1023) map linearly to physical values.
+// Physical units: absolute kPa*10 for pressure sensors, Lambda*1000 for lambda sensors.
+extern uint16_t AV_ADC_LO[3];
+extern uint16_t AV_ADC_HI[3];
+extern int16_t  AV_PHYS_LO[3];
+extern int16_t  AV_PHYS_HI[3];
 
 // ===== HALL EFFECT SPEED SENSOR PARAMETERS =====
 extern uint16_t REVS_PER_KM;        // Revolutions per kilometer (vehicle-specific)
 extern uint8_t TEETH_PER_REV;         // Teeth per revolution (sensor-specific)
-extern uint8_t FILTER_HALL_SPEED;   // EMA filter coefficient (0-256): 256=no filter, 128=moderate, 64=heavy
+extern uint8_t FILTER_HALL_SPEED;
+extern uint8_t FILTER_GPS;
 extern uint8_t HALL_SPEED_MIN;      // Minimum reportable speed in km/h*100 (e.g., 50 = 0.5 km/h)
 
 // ===== ENGINE RPM SENSOR PARAMETERS =====
@@ -87,7 +110,6 @@ extern uint8_t HALL_SPEED_MIN;      // Minimum reportable speed in km/h*100 (e.g
 // Examples: 4-cyl=4, 6-cyl=6, 8-cyl=8, 3-cyl=3
 extern uint8_t CYL_COUNT;
 
-// EMA filter coefficient (0-256): 256=no filter, 179=moderate (0.7*256), 128=more filtered
 extern uint8_t FILTER_ENGINE_RPM;
 
 // Debounce window in microseconds: pulses arriving sooner than this after the last accepted
@@ -103,9 +125,14 @@ extern uint16_t SPEEDO_MAX;    // Maximum speedometer reading: 100 mph * 100 (st
 
 // ===== LED TACHOMETER CONFIGURATION =====
 extern uint8_t NUM_LEDS;              // Total number of LEDs in the tachometer strip
-extern uint8_t WARN_LEDS;              // Warning zone LEDs on each side of center (turns yellow/orange)
-extern uint8_t SHIFT_LEDS;             // Shift light LEDs on each side of center (turns red at shift point)
-extern unsigned int TACH_MAX;       // RPM at which shift light activates and flashes
+extern uint8_t WARN_LEDS;              // Warning start: steps before the final step
+extern uint8_t SHIFT_LEDS;             // Shift start: steps before the final step
+extern uint8_t TACH_SWEEP;             // 0=left-right, 1=right-left, 2=edge-center, 3=center-edge
+extern uint32_t TACH_NORMAL_COLOR;
+extern uint32_t TACH_WARNING_COLOR;
+extern uint32_t TACH_SHIFT_COLOR;
+extern unsigned int TACH_MAX; // RPM at which the last tach step illuminates
+extern unsigned int TACH_FLASH; // RPM at which illuminated shift LEDs flash
 extern unsigned int TACH_MIN;       // Minimum RPM to show on tach (below this LEDs are off)
 
 // ===== SPEEDOMETER BACKLIGHT =====
