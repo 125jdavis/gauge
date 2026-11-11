@@ -50,6 +50,20 @@ unsigned long readSensor(int inputPin, int oldVal, int filt);
 unsigned long read30PSIAsensor(int inputPin, int oldVal, int filt);
 
 /**
+ * read3barMapSensor - Read a 3 bar absolute MAP sensor
+ *
+ * Maps the 0.5-4.5V sensor range to 0-300 kPa absolute, represented as kPa * 10.
+ */
+unsigned long read3barMapSensor(int inputPin, int oldVal, int filt);
+
+/**
+ * read100PSIGsensor - Read a 0-100 PSIG pressure sensor
+ *
+ * Maps the 0.5-4.5V sensor range to 0-689.5 kPa gauge, represented as kPa * 10.
+ */
+unsigned long read100PSIGsensor(int inputPin, int oldVal, int filt);
+
+/**
  * readThermSensor - Read GM-style thermistor temperature sensor
  * 
  * GM thermistors have a non-linear resistance vs. temperature curve.

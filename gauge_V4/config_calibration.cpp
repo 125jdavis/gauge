@@ -49,9 +49,9 @@ uint8_t FILTER_VBATT = 8;           // 8/64 = light filtering
 float VBATT_SCALER = 0.040923;      // Voltage divider scaling factor
 uint8_t FILTER_FUEL = 1;            // Light filter
 uint8_t FILTER_THERM = 50;          // Medium filter
-uint8_t FILTER_AV1 = 4;             // Barometric pressure filter
-uint8_t FILTER_AV2 = 12;            // Sensor B filter
-uint8_t FILTER_AV3 = 12;            // Sensor C filter
+uint8_t FILTER_AV1 = 4;             // Sensor AV1 filter
+uint8_t FILTER_AV2 = 12;            // Sensor AV2 filter
+uint8_t FILTER_AV3 = 12;            // Sensor AV3 filter
 
 // ===== HALL EFFECT SPEED SENSOR PARAMETERS =====
 uint16_t REVS_PER_KM = 1625;        // Revolutions of VSS per kilometer (8000 pulses per mile is standard)

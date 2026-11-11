@@ -68,6 +68,28 @@ unsigned long read30PSIAsensor(int inputPin, int oldVal, int filt)
 }
 
 /**
+ * read3barMapSensor - Read a 3 bar absolute MAP sensor
+ */
+unsigned long read3barMapSensor(int inputPin, int oldVal, int filt)
+{
+    int raw = constrain(analogRead(inputPin), 102, 921);
+    unsigned long newVal = map(raw, 102, 921, 0, 3000);
+    unsigned long filtVal = ((newVal*filt) + (oldVal*(16-filt)))>>4;
+    return filtVal;
+}
+
+/**
+ * read100PSIGsensor - Read a 0-100 PSIG pressure sensor
+ */
+unsigned long read100PSIGsensor(int inputPin, int oldVal, int filt)
+{
+    int raw = constrain(analogRead(inputPin), 102, 921);
+    unsigned long newVal = map(raw, 102, 921, 0, 6895);
+    unsigned long filtVal = ((newVal*filt) + (oldVal*(16-filt)))>>4;
+    return filtVal;
+}
+
+/**
  * readThermSensor - Read GM-style thermistor temperature sensor
  */
 float readThermSensor(int inputPin, float oldVal, int filt)
@@ -694,13 +716,13 @@ void sigSelect (void) {
         case 1:  // CAN oil pressure
             oilPrs = (oilPrsCAN/10.0) - 101.3;  // Convert from absolute kPa to gauge pressure
             break;
-        case 2:  // Analog sensor AV1
+        case 2:  // Analog sensor AV1 (100 PSIG sensor, kPa*10)
             oilPrs = sensor_av1 / 10.0;
             break;
-        case 3:  // Analog sensor AV2
+        case 3:  // Analog sensor AV2 (100 PSIG sensor, kPa*10)
             oilPrs = sensor_av2 / 10.0;
             break;
-        case 4:  // Analog sensor AV3
+        case 4:  // Analog sensor AV3 (100 PSIG sensor, kPa*10)
             oilPrs = sensor_av3 / 10.0;
             break;
         case 5:  // Synthetic oil pressure (debug)
@@ -722,13 +744,13 @@ void sigSelect (void) {
         case 1:  // CAN fuel pressure
             fuelPrs = (fuelPrsCAN/10.0) - 101.3;  // Convert from absolute kPa to gauge pressure
             break;
-        case 2:  // Analog sensor AV1
+        case 2:  // Analog sensor AV1 (100 PSIG sensor, kPa*10)
             fuelPrs = sensor_av1 / 10.0;
             break;
-        case 3:  // Analog sensor AV2
+        case 3:  // Analog sensor AV2 (100 PSIG sensor, kPa*10)
             fuelPrs = sensor_av2 / 10.0;
             break;
-        case 4:  // Analog sensor AV3
+        case 4:  // Analog sensor AV3 (100 PSIG sensor, kPa*10)
             fuelPrs = sensor_av3 / 10.0;
             break;
         case 5:  // Synthetic fuel pressure (debug)
@@ -786,12 +808,15 @@ void sigSelect (void) {
             manifoldPrs = mapCAN / 10.0;  // Convert from kPa*10 to kPa
             break;
         case 2:  // Analog sensor AV1
+            if ((OIL_PRS_SOURCE == 2) || (FUEL_PRS_SOURCE == 2)) break;  // Pressure source owns AV1
             manifoldPrs = sensor_av1 / 10.0;
             break;
         case 3:  // Analog sensor AV2
+            if ((OIL_PRS_SOURCE == 3) || (FUEL_PRS_SOURCE == 3)) break;  // Pressure source owns AV2
             manifoldPrs = sensor_av2 / 10.0;
             break;
         case 4:  // Analog sensor AV3
+            if ((OIL_PRS_SOURCE == 4) || (FUEL_PRS_SOURCE == 4)) break;  // Pressure source owns AV3
             manifoldPrs = sensor_av3 / 10.0;
             break;
         case 5:  // Synthetic manifold pressure (debug)

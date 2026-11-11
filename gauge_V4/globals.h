@@ -43,9 +43,9 @@ extern int fuelSensorRaw;           // Raw fuel sensor ADC reading (0-500)
 extern float therm;                 // Current temperature in Celsius (after lookup table conversion)
 extern float thermSensor;           // Voltage reading from thermistor (0-5V)
 extern int thermCAN;                // Temperature formatted for CAN transmission (temp * 10)
-extern float sensor_av1;            // Barometric pressure in kPa * 10
-extern float sensor_av2;            // Reserved sensor B value
-extern float sensor_av3;            // Reserved sensor C value
+extern float sensor_av1;            // Analog AV1 reading; units depend on selected source
+extern float sensor_av2;            // Analog AV2 reading; units depend on selected source
+extern float sensor_av3;            // Analog AV3 reading; units depend on selected source
 
 // ===== HALL EFFECT SPEED SENSOR VARIABLES =====
 extern volatile unsigned long hallLastTime;     // Last pulse time (micros)
