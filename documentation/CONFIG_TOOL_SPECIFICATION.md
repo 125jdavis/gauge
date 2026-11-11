@@ -196,7 +196,7 @@ The Arduino Mega 2560 has **256 KB** of flash. All `PROGMEM` bitmaps, lookup tab
 | `m1_max` … `m4_max` | int16 | -50–1000 | Gauge value at the full end of the dial. Must differ from min; min > max reverses (CCW) the needle's travel. The tool's CW/CCW radios just swap these two values |
 | `ms_zero_delay` | uint16 | 10–5000 | Motor S zeroing step delay (µs) |
 | `ms_zero_factor` | float | 0.1–1.0 | Motor S zeroing sweep fraction |
-| `motor_sweep_ms` | uint16 | 100–5000 | Startup test sweep duration (ms) |
+| `motor_sweep_ms` | uint16 | 100–5000 | Nominal startup sweep duration per direction for motors 1–4 (ms); Motor S uses half its calculated update interval and acceleration delays. Actual times depend on motor timing and loop overhead. |
 | `filter_vbatt` | uint8 | 1–64 | Battery voltage filter coefficient |
 | `vbatt_scaler` | float | 0.001–0.1 | Voltage divider scale factor |
 | `filter_fuel` | uint8 | 1–64 | Fuel sensor filter coefficient |

@@ -604,9 +604,8 @@ void motorZeroSynchronous(void){
  * sweepDelay - Calculate per-motor update delay for a timed sweep
  *
  * Returns the number of microseconds between update() calls so that a motor
- * with `sweep` steps completes its full range in MOTOR_SWEEP_TIME_MS ms.
- * All motors share the same MOTOR_SWEEP_TIME_MS but get individually-scaled
- * delays so they all finish at exactly the same moment.
+ * with `sweep` steps has a nominal full-range time of MOTOR_SWEEP_TIME_MS.
+ * Library step timing and loop overhead can make the actual time longer.
  *
  * @param sweep - Total steps in the motor's range
  * @return Delay in microseconds (minimum 10 µs)
@@ -616,6 +615,17 @@ static unsigned long sweepDelay(uint16_t sweep) {
   if (sweep == 0 || MOTOR_SWEEP_TIME_MS == 0) return MIN_DELAY_US;
   unsigned long d = (unsigned long)MOTOR_SWEEP_TIME_MS * 1000UL / sweep;
   return (d < MIN_DELAY_US) ? MIN_DELAY_US : d;
+}
+
+static bool updateStartupMotorS(unsigned int &normalDelay) {
+  unsigned int previousStep = motorS.currentStep;
+  motorS.update();
+  if (motorS.currentStep != previousStep) {
+    normalDelay = motorS.microDelay;
+    motorS.microDelay = (normalDelay + 1U) / 2U;
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -687,14 +697,14 @@ void motorZeroTimed(void) {
  * Used during startup to verify motor operation and provide visual feedback.
  * 
  * Timing:
- * - Each direction (0→max, max→0) takes MOTOR_SWEEP_TIME_MS milliseconds
- * - Default: 1000ms per direction (2000ms total for full sweep test)
- * - Configurable via MOTOR_SWEEP_TIME_MS in config_calibration.cpp
+ * - MOTOR_SWEEP_TIME_MS sets the nominal duration for motors 1-4
+ * - Motor S uses half its nominal update interval and acceleration delays
+ * - Actual durations depend on library timing and loop overhead
  * 
  * Implementation:
  * - Each motor gets an independent per-motor delay calibrated to its sweep range:
  *   delay = MOTOR_SWEEP_TIME_MS * 1000 / M?_SWEEP  (microseconds between update() calls)
- * - All motors therefore complete their sweep in the same MOTOR_SWEEP_TIME_MS window
+ * - Motor S's startup acceleration delays are also halved to allow faster stepping
  * - Uses micros() for precise per-motor timing control
  * 
  * Note: Called before initMotorUpdateTimer() so the Timer3 ISR is not yet active;
@@ -705,14 +715,15 @@ void motorSweepSynchronous(void){
   motorZeroSynchronous();
   Serial.println(F("zeroed"));
 
-  // Per-motor delays: each motor steps at a rate that fills exactly MOTOR_SWEEP_TIME_MS
+  // Motor S's shorter polling interval and step delays apply only to this startup test.
   unsigned long d[5] = {
     sweepDelay(M1_SWEEP),
     sweepDelay(M2_SWEEP),
     sweepDelay(M3_SWEEP),
     sweepDelay(M4_SWEEP),
-    sweepDelay(MS_SWEEP)
+    sweepDelay(MS_SWEEP) / 2
   };
+  unsigned int motorSNormalDelay = motorS.microDelay;
 
   // ── Sweep up: command all motors to maximum position ──────────────────────
   motor1.setPosition(M1_SWEEP);
@@ -732,7 +743,8 @@ void motorSweepSynchronous(void){
     if (now - last[1] >= d[1]) { motor2.update(); last[1] = now; }
     if (now - last[2] >= d[2]) { motor3.update(); last[2] = now; }
     if (now - last[3] >= d[3]) { motor4.update(); last[3] = now; }
-    if (now - last[4] >= d[4]) { motorS.update(); last[4] = now; }
+    // Keep polling after the interval expires until the library actually steps.
+    if (now - last[4] >= d[4] && updateStartupMotorS(motorSNormalDelay)) last[4] = now;
     yield();
   }
 
@@ -756,9 +768,10 @@ void motorSweepSynchronous(void){
     if (now - lastReturn[1] >= d[1]) { motor2.update(); lastReturn[1] = now; }
     if (now - lastReturn[2] >= d[2]) { motor3.update(); lastReturn[2] = now; }
     if (now - lastReturn[3] >= d[3]) { motor4.update(); lastReturn[3] = now; }
-    if (now - lastReturn[4] >= d[4]) { motorS.update(); lastReturn[4] = now; }
+    if (now - lastReturn[4] >= d[4] && updateStartupMotorS(motorSNormalDelay)) lastReturn[4] = now;
     yield();
   }
+  motorS.microDelay = motorSNormalDelay;
 }
 
 /**
