@@ -133,3 +133,19 @@ float fuelCapacity = 16;            // Total fuel tank capacity in gallons
 
 // ===== CAN PROTOCOL SELECTION =====
 uint8_t CAN_PROTOCOL = CAN_PROTOCOL_HALTECH_V2;  // Default to Haltech v2 protocol
+
+// Thermistor defaults: GM CLT, 2490 ohm bias (curve voltages are in thermTable_x)
+uint8_t  THERM_TYPE = THERM_TYPE_GM_CLT;
+uint16_t THERM_BIAS_OHMS = 2490;
+uint32_t THERM_R_OHMS[6] = {48, 154, 395, 2795, 12261, 100865};
+
+// Fuel sender defaults match the previous 870-2300 mV sender range
+uint8_t  FUEL_SENDER_TYPE = FUEL_TYPE_CUSTOM;
+uint16_t FUEL_BIAS_OHMS = 100;
+uint16_t FUEL_R_EMPTY_OHMS = 85;
+uint16_t FUEL_R_MID_OHMS = 47;
+uint16_t FUEL_R_FULL_OHMS = 21;
+uint8_t  FUEL_MID_PCT = 50;
+uint16_t FUEL_V_EMPTY_MV = 2300;
+uint16_t FUEL_V_MID_MV = 1600;
+uint16_t FUEL_V_FULL_MV = 870;

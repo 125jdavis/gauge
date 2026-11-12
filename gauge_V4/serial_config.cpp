@@ -165,6 +165,132 @@ static void resetAvParams(void) {
 }
 
 // ---------------------------------------------------------------------------
+// Thermistor / fuel sender curve parameters
+//   therm_type, therm_bias, therm_r0..5 (ohm), therm_t0..5 (degC), therm_v0..5 (mV, ascending)
+//   fuel_type, fuel_bias, fuel_r_empty, fuel_r_full, fuel_v_empty, fuel_v_full
+// ---------------------------------------------------------------------------
+enum CurveKind : uint8_t { CK_NONE, CK_THERM_TYPE, CK_THERM_BIAS, CK_THERM_R, CK_THERM_T, CK_THERM_V,
+                           CK_FUEL_TYPE, CK_FUEL_BIAS, CK_FUEL_R_EMPTY, CK_FUEL_R_FULL, CK_FUEL_V_EMPTY, CK_FUEL_V_FULL,
+                           CK_FUEL_R_MID, CK_FUEL_V_MID, CK_FUEL_MID_PCT };
+
+static CurveKind parseCurveParam(const char *param, uint8_t &idx) {
+    if (strncmp_P(param, PSTR("therm_"), 6) == 0) {
+        const char *f = param + 6;
+        if (strcmp_P(f, PSTR("type")) == 0) return CK_THERM_TYPE;
+        if (strcmp_P(f, PSTR("bias")) == 0) return CK_THERM_BIAS;
+        if ((f[0] == 'r' || f[0] == 't' || f[0] == 'v') && f[1] >= '0' && f[1] <= '5' && f[2] == '\0') {
+            idx = f[1] - '0';
+            if (f[0] == 'r') return CK_THERM_R;
+            if (f[0] == 't') return CK_THERM_T;
+            return CK_THERM_V;
+        }
+        return CK_NONE;
+    }
+    if (strncmp_P(param, PSTR("fuel_"), 5) == 0) {
+        const char *f = param + 5;
+        if (strcmp_P(f, PSTR("type"))    == 0) return CK_FUEL_TYPE;
+        if (strcmp_P(f, PSTR("bias"))    == 0) return CK_FUEL_BIAS;
+        if (strcmp_P(f, PSTR("r_empty")) == 0) return CK_FUEL_R_EMPTY;
+        if (strcmp_P(f, PSTR("r_full"))  == 0) return CK_FUEL_R_FULL;
+        if (strcmp_P(f, PSTR("v_empty")) == 0) return CK_FUEL_V_EMPTY;
+        if (strcmp_P(f, PSTR("v_full"))  == 0) return CK_FUEL_V_FULL;
+        if (strcmp_P(f, PSTR("r_mid"))   == 0) return CK_FUEL_R_MID;
+        if (strcmp_P(f, PSTR("v_mid"))   == 0) return CK_FUEL_V_MID;
+        if (strcmp_P(f, PSTR("mid_pct")) == 0) return CK_FUEL_MID_PCT;
+    }
+    return CK_NONE;
+}
+
+static void printCurveParam(const char *param, uint8_t idx, CurveKind k) {
+    switch (k) {
+        case CK_THERM_TYPE:   printUint16Param(param, THERM_TYPE);        break;
+        case CK_THERM_BIAS:   printUint16Param(param, THERM_BIAS_OHMS);   break;
+        case CK_THERM_R:      Serial.print(param); Serial.print(' '); Serial.println(THERM_R_OHMS[idx]); break;
+        case CK_THERM_T:      printIntParam(param, thermTable_l[idx]);    break;
+        case CK_THERM_V:      printUint16Param(param, thermTable_x[idx]); break;
+        case CK_FUEL_TYPE:    printUint16Param(param, FUEL_SENDER_TYPE);  break;
+        case CK_FUEL_BIAS:    printUint16Param(param, FUEL_BIAS_OHMS);    break;
+        case CK_FUEL_R_EMPTY: printUint16Param(param, FUEL_R_EMPTY_OHMS); break;
+        case CK_FUEL_R_FULL:  printUint16Param(param, FUEL_R_FULL_OHMS);  break;
+        case CK_FUEL_V_EMPTY: printUint16Param(param, FUEL_V_EMPTY_MV);   break;
+        case CK_FUEL_R_MID:   printUint16Param(param, FUEL_R_MID_OHMS);   break;
+        case CK_FUEL_V_MID:   printUint16Param(param, FUEL_V_MID_MV);     break;
+        case CK_FUEL_MID_PCT: printUint16Param(param, FUEL_MID_PCT);      break;
+        default:              printUint16Param(param, FUEL_V_FULL_MV);    break;
+    }
+}
+
+static void printAllCurveParams(void) {
+    char name[16];
+    printCurveParam("therm_type", 0, CK_THERM_TYPE);
+    printCurveParam("therm_bias", 0, CK_THERM_BIAS);
+    for (uint8_t i = 0; i < 6; i++) {
+        snprintf_P(name, sizeof(name), PSTR("therm_r%u"), i); printCurveParam(name, i, CK_THERM_R);
+        snprintf_P(name, sizeof(name), PSTR("therm_t%u"), i); printCurveParam(name, i, CK_THERM_T);
+        snprintf_P(name, sizeof(name), PSTR("therm_v%u"), i); printCurveParam(name, i, CK_THERM_V);
+    }
+    printCurveParam("fuel_type",    0, CK_FUEL_TYPE);
+    printCurveParam("fuel_bias",    0, CK_FUEL_BIAS);
+    printCurveParam("fuel_r_empty", 0, CK_FUEL_R_EMPTY);
+    printCurveParam("fuel_r_mid",   0, CK_FUEL_R_MID);
+    printCurveParam("fuel_mid_pct", 0, CK_FUEL_MID_PCT);
+    printCurveParam("fuel_v_mid",   0, CK_FUEL_V_MID);
+    printCurveParam("fuel_r_full",  0, CK_FUEL_R_FULL);
+    printCurveParam("fuel_v_empty", 0, CK_FUEL_V_EMPTY);
+    printCurveParam("fuel_v_full",  0, CK_FUEL_V_FULL);
+}
+
+static void setCurveParam(uint8_t idx, CurveKind k, const char *value) {
+    long v = atol(value);
+    long lo = 0, hi = 65535L;
+    if (k == CK_THERM_TYPE) hi = THERM_TYPE_CUSTOM;
+    else if (k == CK_FUEL_TYPE) hi = FUEL_TYPE_CUSTOM;
+    else if (k == CK_THERM_T) { lo = -273; hi = 1000; }
+    else if (k == CK_THERM_V || k == CK_FUEL_V_EMPTY || k == CK_FUEL_V_MID || k == CK_FUEL_V_FULL) hi = 5000;
+    else if (k == CK_FUEL_MID_PCT) { lo = 1; hi = 99; }
+    else if (k == CK_THERM_R) hi = 2000000000L;
+    if (v < lo || v > hi) { SERIAL_PRINTLN_F("err: range"); return; }
+    switch (k) {
+        case CK_THERM_TYPE:   THERM_TYPE = (uint8_t)v;             break;
+        case CK_THERM_BIAS:   THERM_BIAS_OHMS = (uint16_t)v;       break;
+        case CK_THERM_R:      THERM_R_OHMS[idx] = (uint32_t)v;     break;
+        case CK_THERM_T:      thermTable_l[idx] = (int16_t)v;      break;
+        case CK_THERM_V:      thermTable_x[idx] = (uint16_t)v;     break;
+        case CK_FUEL_TYPE:    FUEL_SENDER_TYPE = (uint8_t)v;       break;
+        case CK_FUEL_BIAS:    FUEL_BIAS_OHMS = (uint16_t)v;        break;
+        case CK_FUEL_R_EMPTY: FUEL_R_EMPTY_OHMS = (uint16_t)v;     break;
+        case CK_FUEL_R_FULL:  FUEL_R_FULL_OHMS = (uint16_t)v;      break;
+        case CK_FUEL_V_EMPTY: FUEL_V_EMPTY_MV = (uint16_t)v;       break;
+        case CK_FUEL_R_MID:   FUEL_R_MID_OHMS = (uint16_t)v;       break;
+        case CK_FUEL_V_MID:   FUEL_V_MID_MV = (uint16_t)v;         break;
+        case CK_FUEL_MID_PCT: FUEL_MID_PCT = (uint8_t)v;           break;
+        default:              FUEL_V_FULL_MV = (uint16_t)v;        break;
+    }
+    SERIAL_PRINTLN_F("ok");
+}
+
+static void resetCurveParams(void) {
+    static const uint16_t defX[6] PROGMEM = {89, 277, 656, 2852, 4120, 4874};
+    static const int16_t  defT[6] PROGMEM = {150, 105, 75, 25, -5, -40};
+    static const uint32_t defR[6] PROGMEM = {48, 154, 395, 2795, 12261, 100865};
+    for (uint8_t i = 0; i < 6; i++) {
+        thermTable_x[i] = pgm_read_word(&defX[i]);
+        thermTable_l[i] = (int16_t)pgm_read_word(&defT[i]);
+        THERM_R_OHMS[i] = pgm_read_dword(&defR[i]);
+    }
+    THERM_TYPE = THERM_TYPE_GM_CLT;
+    THERM_BIAS_OHMS = 2490;
+    FUEL_SENDER_TYPE = FUEL_TYPE_CUSTOM;
+    FUEL_BIAS_OHMS = 100;
+    FUEL_R_EMPTY_OHMS = 85;
+    FUEL_R_MID_OHMS = 47;
+    FUEL_MID_PCT = 50;
+    FUEL_V_MID_MV = 1600;
+    FUEL_R_FULL_OHMS = 21;
+    FUEL_V_EMPTY_MV = 2300;
+    FUEL_V_FULL_MV = 870;
+}
+// ---------------------------------------------------------------------------
 // handleGet
 // ---------------------------------------------------------------------------
 void handleGet(const char *param) {
@@ -172,6 +298,8 @@ void handleGet(const char *param) {
         uint8_t avIdx;
         AvField avField = parseAvParam(param, avIdx);
         if (avField != AV_F_NONE) { printAvParam(param, avIdx, avField); return; }
+        CurveKind ck = parseCurveParam(param, avIdx);
+        if (ck != CK_NONE) { printCurveParam(param, avIdx, ck); return; }
     }
     if (strcmp_P(param, PSTR("disp1_order")) == 0) { printScreenListParam("disp1_order", disp1List, disp1Count); return; }
     if (strcmp_P(param, PSTR("disp2_order")) == 0) { printScreenListParam("disp2_order", disp2List, disp2Count); return; }
@@ -274,6 +402,8 @@ void handleSet(const char *param, const char *value) {
         uint8_t avIdx;
         AvField avField = parseAvParam(param, avIdx);
         if (avField != AV_F_NONE) { setAvParam(avIdx, avField, value); return; }
+        CurveKind ck = parseCurveParam(param, avIdx);
+        if (ck != CK_NONE) { setCurveParam(avIdx, ck, value); return; }
     }
 
     // ---- Screen lists ----
@@ -722,6 +852,7 @@ void handleDump(void) {
     printUint8Param ("av2_type",        AV2_TYPE);
     printUint8Param ("av3_type",        AV3_TYPE);
     printAllAvParams();
+    printAllCurveParams();
     // Hall speed sensor
     printUint16Param("revs_per_km",     REVS_PER_KM);
     printUint8Param ("teeth_per_rev",   TEETH_PER_REV);
@@ -812,6 +943,7 @@ static void applyDefaults(void) {
     AV2_TYPE                    = AV_TYPE_100PSI_G;
     AV3_TYPE                    = AV_TYPE_100PSI_G;
     resetAvParams();
+    resetCurveParams();
     REVS_PER_KM                 = 1625;
     TEETH_PER_REV               = 8;
     FILTER_HALL_SPEED           = 96;

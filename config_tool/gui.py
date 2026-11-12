@@ -210,6 +210,65 @@ def _trim_number(value: float, decimals: int = 3) -> str:
     return f"{value:.{decimals}f}".rstrip("0").rstrip(".")
 
 
+# Thermistor and fuel sender curves. The sensor is wired to ground with a bias resistor to the
+# 5 V reference, so V = 5 * R / (R + Rbias). The firmware stores curve voltages in millivolts.
+SENSOR_REF_MV = 5000
+THERM_POINTS = 6
+THERM_TYPE_OPTIONS = ("GM CLT", "Bosch NTC M12", "Custom")
+THERM_TYPE_CUSTOM = 2
+# (temperature degC, resistance ohm), ordered by ascending resistance
+THERM_PRESETS = {
+    0: ((150, 48), (105, 154), (75, 395), (25, 2795), (-5, 12261), (-40, 100865)),
+    1: ((130, 89), (100, 187), (70, 436), (30, 1707), (-10, 9397), (-40, 45313)),
+}
+THERM_TEMP_PARAMS = tuple(f"therm_t{i}" for i in range(THERM_POINTS))
+THERM_RES_PARAMS = tuple(f"therm_r{i}" for i in range(THERM_POINTS))
+THERM_VOLT_PARAMS = tuple(f"therm_v{i}" for i in range(THERM_POINTS))
+# Order must match the fuel sender options in firmware config_calibration.h (FUEL_TYPE_CUSTOM)
+FUEL_TYPE_OPTIONS = (
+    "Ford to 1986 - 73-10 Ohms",
+    "Ford 1987+ - 16-158 Ohms",
+    "GM to 1964 - 0-30 Ohms",
+    "GM 1965-1997 - 0-90 Ohms",
+    "GM 1998+ - 40-250 Ohms",
+    "Mopar to 1986 - 73-10 Ohms",
+    "Custom",
+)
+FUEL_TYPE_CUSTOM = 6
+# (resistance at empty, resistance at full) in ohms
+FUEL_PRESETS = {0: (73, 10), 1: (16, 158), 2: (0, 30), 3: (0, 90), 4: (40, 250), 5: (73, 10)}
+FUEL_DEFAULT_MID_PCT = 50
+CURVE_INPUT_PARAMS = (
+    "therm_bias", *THERM_TEMP_PARAMS, *THERM_RES_PARAMS,
+    "fuel_bias", "fuel_r_empty", "fuel_r_mid", "fuel_r_full", "fuel_mid_pct",
+)
+CURVE_PARAMS = (
+    "therm_type", *CURVE_INPUT_PARAMS, *THERM_VOLT_PARAMS,
+    "fuel_type", "fuel_v_empty", "fuel_v_mid", "fuel_v_full",
+)
+
+
+def divider_millivolts(resistance: int, bias: int) -> int:
+    """Voltage across a sensor to ground with a bias resistor to the 5 V reference."""
+    if bias <= 0 or resistance < 0:
+        raise ValueError("Bias must be above 0 ohms and resistance cannot be negative.")
+    return round(SENSOR_REF_MV * resistance / (resistance + bias))
+
+
+def thermistor_curve(points, bias: int):
+    """Return [(temp, resistance, millivolts)] sorted by ascending voltage.
+
+    Raises ValueError when two points end up with the same voltage.
+    """
+    rows = sorted(
+        ((int(temp), int(res), divider_millivolts(int(res), bias)) for temp, res in points),
+        key=lambda row: row[1],
+    )
+    if any(b[2] <= a[2] for a, b in zip(rows, rows[1:])):
+        raise ValueError("Thermistor resistances must be distinct and produce different voltages.")
+    return rows
+
+
 # Switec Z27.168: 3 steps per degree, driven with 4 microsteps per step
 MOTOR_STEPS_PER_DEGREE = 3 * 4
 MOTOR_MAX_ANGLE = 315  # Switec Z27.168 mechanical limit, degrees
@@ -535,6 +594,7 @@ ALL_PARAMS = [
     "filter_av1", "filter_av2", "filter_av3",
     "av1_type", "av2_type", "av3_type",
     *[param for cal in AV_CAL_PARAMS for param in cal],
+    *CURVE_PARAMS,
     "revs_per_km", "teeth_per_rev", "filter_hall", "filter_gps", "hall_speed_min",
     "cyl_count", "filter_rpm", "rpm_debounce_us", "engine_rpm_min",
     "speedo_max",
@@ -592,6 +652,20 @@ TOOLTIPS: Dict[str, str] = {
     "av3_adc_hi":     "AV3 voltage high calibration point, in volts (0-5). Stored as ADC counts.",
     "av3_phys_lo":    "AV3 physical value low calibration point, in kPa (absolute) or Lambda. Stored as kPa*10 or Lambda*1000.",
     "av3_phys_hi":    "AV3 physical value high calibration point, in kPa (absolute) or Lambda. Stored as kPa*10 or Lambda*1000.",
+    "therm_type":        "Thermistor curve. Presets fill the table; editing the table switches to Custom.",
+    "therm_bias":        "Thermistor bias resistor to +5 V, in ohms.",
+    "fuel_type":         "Fuel sender type. Presets fill the empty and full resistances; editing them switches to Custom.",
+    "fuel_bias":         "Fuel sender bias resistor to +5 V, in ohms.",
+    "fuel_r_empty":      "Fuel sender resistance at empty, in ohms.",
+    "fuel_r_full":       "Fuel sender resistance at full, in ohms.",
+    "fuel_v_empty":      "Computed sender voltage at empty, in mV.",
+    "fuel_v_full":       "Computed sender voltage at full, in mV.",
+    "fuel_r_mid":        "Fuel sender resistance at the mid point, in ohms.",
+    "fuel_v_mid":        "Computed sender voltage at the mid point, in mV.",
+    "fuel_mid_pct":      "Fuel level at the mid point, in percent (1-99). Fuel level is measured in percent of capacity.",
+    **{f"therm_t{i}": f"Thermistor point {i + 1} temperature, in degC." for i in range(THERM_POINTS)},
+    **{f"therm_r{i}": f"Thermistor point {i + 1} resistance, in ohms." for i in range(THERM_POINTS)},
+    **{f"therm_v{i}": f"Computed thermistor point {i + 1} voltage, in mV." for i in range(THERM_POINTS)},
     "revs_per_km":       "VSS shaft revolutions per km (100-10000).",
     "teeth_per_rev":     "VSS teeth per shaft revolution (1-64).",
     "filter_hall":       "Hall speed filtering: 0% off, 99% heavy.",
@@ -796,6 +870,7 @@ class GaugeConfigApp:
         self._av_display_vars: Dict[str, tk.StringVar] = {}
         self._av_entries: Dict[str, ttk.Entry] = {}
         self._av_unit_labels: Dict[int, ttk.Label] = {}
+        self._curve_labels: Dict[str, ttk.Label] = {}
         self._oil_warn_display_var = tk.StringVar(value="")
         self._oil_warn_units_var = tk.StringVar(value="kPa")
         self._coolant_warn_display_var = tk.StringVar(value="")
@@ -904,6 +979,10 @@ class GaugeConfigApp:
             options = MOTOR_FUNCTION_OPTIONS
         elif param in AV_TYPE_PARAMS:
             options = AV_TYPE_OPTIONS
+        elif param == "therm_type":
+            options = THERM_TYPE_OPTIONS
+        elif param == "fuel_type":
+            options = FUEL_TYPE_OPTIONS
         elif param == "tach_sweep":
             options = TACH_SWEEP_OPTIONS
         if options is not None:
@@ -2152,34 +2231,194 @@ class GaugeConfigApp:
         except ValueError:
             return None
 
+    def _curve_entry(self, parent: tk.Widget, param: str, row: int, col: int,
+                     type_param: Optional[str] = None, custom: int = 0) -> ttk.Entry:
+        entry = ttk.Entry(parent, textvariable=self._vars[param], width=8, justify="right")
+        entry.grid(row=row, column=col, padx=3, pady=2)
+        if type_param:
+            entry.bind("<KeyRelease>", lambda e: self._curve_edited(e, type_param, custom))
+        ToolTip(entry, TOOLTIPS[param])
+        self._param_widgets[param] = entry
+        self._vars[param].trace_add("write", lambda *_a: self._mark_parameter_dirty(param))
+        return entry
+
+    def _curve_value_label(self, parent: tk.Widget, param: str, row: int, col: int) -> None:
+        label = ttk.Label(parent, text="--", width=8, anchor="e")
+        label.grid(row=row, column=col, padx=3, pady=2)
+        self._curve_labels[param] = label
+
+    def _build_thermistor_curve(self, grp: ttk.LabelFrame) -> None:
+        top = ttk.Frame(grp)
+        top.grid(row=0, column=0, sticky="w", padx=6, pady=(4, 0))
+        combo = self._param_row(top, 0, 0, "Curve:", "therm_type", width=16)
+        combo.bind("<<ComboboxSelected>>", lambda _e: self._apply_therm_preset(), add="+")
+        self._param_row(top, 0, 2, "Bias resistor (\u03a9):", "therm_bias", width=8)
+        self._param_row(top, 1, 0, "Filter:", "filter_therm")
+
+        table = ttk.Frame(grp)
+        table.grid(row=1, column=0, sticky="w", padx=6, pady=(4, 6))
+        for row, text in enumerate(("Temperature (\u00b0C)", "Resistance (\u03a9)", "Voltage (mV)")):
+            ttk.Label(table, text=text).grid(row=row, column=0, sticky="e", padx=(0, 6), pady=2)
+        for i in range(THERM_POINTS):
+            self._curve_entry(table, THERM_TEMP_PARAMS[i], 0, i + 1, "therm_type", THERM_TYPE_CUSTOM)
+            self._curve_entry(table, THERM_RES_PARAMS[i], 1, i + 1, "therm_type", THERM_TYPE_CUSTOM)
+            self._curve_value_label(table, THERM_VOLT_PARAMS[i], 2, i + 1)
+        for param in ("therm_bias", *THERM_TEMP_PARAMS, *THERM_RES_PARAMS):
+            self._vars[param].trace_add("write", lambda *_a: self._refresh_curve_previews())
+
+    def _build_fuel_curve(self, grp: ttk.LabelFrame) -> None:
+        top = ttk.Frame(grp)
+        top.grid(row=0, column=0, sticky="w", padx=6, pady=(4, 0))
+        combo = self._param_row(top, 0, 0, "Sender:", "fuel_type", width=26)
+        combo.bind("<<ComboboxSelected>>", lambda _e: self._apply_fuel_preset(), add="+")
+        self._param_row(top, 1, 0, "Bias resistor (\u03a9):", "fuel_bias", width=8)
+        self._param_row(top, 2, 0, "Filter:", "filter_fuel")
+
+        table = ttk.Frame(grp)
+        table.grid(row=1, column=0, sticky="w", padx=6, pady=(4, 6))
+        for col, text in enumerate(("Empty", "Mid", "Full")):
+            ttk.Label(table, text=text).grid(row=0, column=col + 1, pady=2)
+        for row, text in enumerate(("Level (%)", "Resistance (\u03a9)", "Voltage (mV)")):
+            ttk.Label(table, text=text).grid(row=row + 1, column=0, sticky="e", padx=(0, 6), pady=2)
+        ttk.Label(table, text="0", anchor="e", width=8).grid(row=1, column=1, padx=3)
+        self._curve_entry(table, "fuel_mid_pct", 1, 2)
+        ttk.Label(table, text="100", anchor="e", width=8).grid(row=1, column=3, padx=3)
+        for col, (res, volt) in enumerate((
+            ("fuel_r_empty", "fuel_v_empty"),
+            ("fuel_r_mid", "fuel_v_mid"),
+            ("fuel_r_full", "fuel_v_full"),
+        )):
+            self._curve_entry(table, res, 2, col + 1, "fuel_type", FUEL_TYPE_CUSTOM)
+            self._curve_value_label(table, volt, 3, col + 1)
+        for param in ("fuel_bias", "fuel_r_empty", "fuel_r_mid", "fuel_r_full"):
+            self._vars[param].trace_add("write", lambda *_a: self._refresh_curve_previews())
+
+    def _curve_edited(self, event: tk.Event, type_param: str, custom: int) -> None:
+        if event.keysym in ("Tab", "ISO_Left_Tab", "Return", "Left", "Right", "Home", "End") \
+                or event.keysym.startswith(("Shift", "Control", "Alt")):
+            return
+        if self._vars[type_param].get() != str(custom):
+            self._vars[type_param].set(str(custom))
+
+    def _apply_therm_preset(self) -> None:
+        preset = THERM_PRESETS.get(self._safe_int("therm_type"))
+        if preset is None:
+            return
+        for i, (temp, res) in enumerate(preset):
+            self._vars[THERM_TEMP_PARAMS[i]].set(str(temp))
+            self._vars[THERM_RES_PARAMS[i]].set(str(res))
+
+    def _apply_fuel_preset(self) -> None:
+        preset = FUEL_PRESETS.get(self._safe_int("fuel_type"))
+        if preset is None:
+            return
+        self._vars["fuel_r_empty"].set(str(preset[0]))
+        self._vars["fuel_r_mid"].set(str(round((preset[0] + preset[1]) / 2)))
+        self._vars["fuel_r_full"].set(str(preset[1]))
+        if not self._vars["fuel_mid_pct"].get():
+            self._vars["fuel_mid_pct"].set(str(FUEL_DEFAULT_MID_PCT))
+
+    def _refresh_curve_previews(self) -> None:
+        def volts(res_param: str, bias_param: str) -> Optional[int]:
+            try:
+                return divider_millivolts(int(self._vars[res_param].get()), int(self._vars[bias_param].get()))
+            except ValueError:
+                return None
+
+        for i in range(THERM_POINTS):
+            mv = volts(THERM_RES_PARAMS[i], "therm_bias")
+            self._curve_labels[THERM_VOLT_PARAMS[i]].configure(text="--" if mv is None else str(mv))
+        for res_param, volt in (("fuel_r_empty", "fuel_v_empty"), ("fuel_r_mid", "fuel_v_mid"),
+                                ("fuel_r_full", "fuel_v_full")):
+            mv = volts(res_param, "fuel_bias")
+            self._curve_labels[volt].configure(text="--" if mv is None else str(mv))
+
+    def _curve_int(self, param: str, name: str, low: int, high: int) -> int:
+        try:
+            value = int(self._vars[param].get())
+        except ValueError:
+            raise ValueError(f"{name} must be a whole number.") from None
+        if not low <= value <= high:
+            raise ValueError(f"{name} must be from {low} to {high}.")
+        return value
+
+    def _set_curve_value(self, param: str, value: int, force_dirty: bool) -> None:
+        text = str(value)
+        if self._vars[param].get() != text:
+            self._vars[param].set(text)
+            force_dirty = True
+        if force_dirty:
+            self._mark_parameter_dirty(param)
+
+    def _validate_curves(self) -> bool:
+        """Compute the voltages the firmware needs and keep the thermistor rows in ascending order."""
+        def edited(params: tuple) -> bool:
+            return any(self._dirty[p] for p in params)
+
+        try:
+            if all(self._vars[p].get() for p in ("therm_bias", *THERM_TEMP_PARAMS, *THERM_RES_PARAMS)):
+                bias = self._curve_int("therm_bias", "Thermistor bias resistor", 1, 65535)
+                points = [
+                    (self._curve_int(THERM_TEMP_PARAMS[i], f"Thermistor temperature {i + 1}", -273, 1000),
+                     self._curve_int(THERM_RES_PARAMS[i], f"Thermistor resistance {i + 1}", 0, 2000000000))
+                    for i in range(THERM_POINTS)
+                ]
+                rows = thermistor_curve(points, bias)
+                dirty = edited(("therm_type", "therm_bias", *THERM_TEMP_PARAMS, *THERM_RES_PARAMS))
+                for i, (temp, res, mv) in enumerate(rows):
+                    self._set_curve_value(THERM_TEMP_PARAMS[i], temp, dirty)
+                    self._set_curve_value(THERM_RES_PARAMS[i], res, dirty)
+                    self._set_curve_value(THERM_VOLT_PARAMS[i], mv, dirty)
+            fuel_inputs = ("fuel_bias", "fuel_r_empty", "fuel_r_mid", "fuel_r_full", "fuel_mid_pct")
+            if all(self._vars[p].get() for p in fuel_inputs):
+                bias = self._curve_int("fuel_bias", "Fuel bias resistor", 1, 65535)
+                empty = self._curve_int("fuel_r_empty", "Fuel empty resistance", 0, 65535)
+                mid = self._curve_int("fuel_r_mid", "Fuel mid resistance", 0, 65535)
+                full = self._curve_int("fuel_r_full", "Fuel full resistance", 0, 65535)
+                self._curve_int("fuel_mid_pct", "Fuel mid level", 1, 99)
+                v_empty, v_mid, v_full = (divider_millivolts(r, bias) for r in (empty, mid, full))
+                if not (v_empty < v_mid < v_full or v_empty > v_mid > v_full):
+                    raise ValueError(
+                        "Fuel empty, mid and full resistances must give steadily rising or falling voltages."
+                    )
+                dirty = edited(("fuel_type", *fuel_inputs))
+                self._set_curve_value("fuel_v_empty", v_empty, dirty)
+                self._set_curve_value("fuel_v_mid", v_mid, dirty)
+                self._set_curve_value("fuel_v_full", v_full, dirty)
+        except ValueError as exc:
+            messagebox.showerror("Invalid sensor curve", str(exc))
+            return False
+        return True
+
     # ------ Tab 5: Sensors ------
     def _build_tab_sensors(self, frame: ttk.Frame) -> None:
         for col in range(2):
             frame.columnconfigure(col, weight=1)
 
-        therm = ttk.LabelFrame(frame, text="Thermistor")
-        therm.grid(row=0, column=0, padx=10, pady=10, sticky="nw")
-        self._param_row(therm, 0, 0, "Therm filter:", "filter_therm")
+        therm = ttk.LabelFrame(frame, text="Thermistor (coolant / oil temperature)")
+        therm.grid(row=0, column=0, columnspan=2, padx=10, pady=(10, 6), sticky="ew")
+        self._build_thermistor_curve(therm)
 
-        fuel = ttk.LabelFrame(frame, text="Fuel Level")
-        fuel.grid(row=0, column=1, padx=10, pady=10, sticky="nw")
-        self._param_row(fuel, 0, 0, "Fuel filter:", "filter_fuel")
+        fuel = ttk.LabelFrame(frame, text="Fuel Level Sender")
+        fuel.grid(row=1, column=0, padx=10, pady=6, sticky="nw")
+        self._build_fuel_curve(fuel)
+        self._refresh_curve_previews()
 
-        av = ttk.LabelFrame(frame, text="Analog Sensor Filters")
-        av.grid(row=1, column=0, padx=10, pady=10, sticky="nw")
-        self._param_row(av, 0, 0, "AV1 filter:", "filter_av1")
-        self._param_row(av, 1, 0, "AV2 filter:", "filter_av2")
-        self._param_row(av, 2, 0, "AV3 filter:", "filter_av3")
+        side = ttk.Frame(frame)
+        side.grid(row=1, column=1, padx=10, pady=6, sticky="nw")
+        av = ttk.LabelFrame(side, text="Analog Sensor Filters")
+        av.grid(row=0, column=0, pady=(0, 6), sticky="ew")
+        self._param_row(av, 0, 0, "AV1:", "filter_av1")
+        self._param_row(av, 1, 0, "AV2:", "filter_av2")
+        self._param_row(av, 2, 0, "AV3:", "filter_av3")
+        batt = ttk.LabelFrame(side, text="Battery Voltage Sensor")
+        batt.grid(row=1, column=0, sticky="ew")
+        self._param_row(batt, 0, 0, "Filter:", "filter_vbatt")
+        self._param_row(batt, 1, 0, "Scaler:", "vbatt_scaler")
 
         av_types = ttk.LabelFrame(frame, text="Analog Sensor Types and Calibration")
-        av_types.grid(row=2, column=0, columnspan=2, padx=10, pady=10, sticky="nw")
+        av_types.grid(row=2, column=0, columnspan=2, padx=10, pady=(6, 10), sticky="ew")
         self._build_av_calibration(av_types)
-
-        batt = ttk.LabelFrame(frame, text="Battery Voltage Sensor")
-        batt.grid(row=1, column=1, padx=10, pady=10, sticky="nw")
-        self._param_row(batt, 0, 0, "Vbatt filter:", "filter_vbatt")
-        self._param_row(batt, 1, 0, "Vbatt scaler:", "vbatt_scaler")
-
     # ------ Tab 7: LED Tach ------
     def _build_tab_led_tach(self, frame: ttk.Frame) -> None:
         grp = ttk.LabelFrame(frame, text="LED Tachometer")
@@ -2939,6 +3178,8 @@ class GaugeConfigApp:
             return
         if not self._validate_motor_ranges():
             return
+        if not self._validate_curves():
+            return
         selected_sources = self._selected_sources()
         dirty = [
             p for p in ALL_PARAMS
@@ -2998,6 +3239,8 @@ class GaugeConfigApp:
         if not self._validate_fuel_capacity():
             return
         if not self._validate_motor_ranges():
+            return
+        if not self._validate_curves():
             return
         params = {p: self._vars[p].get() for p in ALL_PARAMS if self._vars[p].get()}
         params["config_format"] = str(CONFIG_FILE_FORMAT)

@@ -7,6 +7,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from gui import (
     AV_CAL_PARAMS,
     AV_PRESETS,
+    CURVE_PARAMS,
+    THERM_PRESETS,
+    FUEL_PRESETS,
+    FUEL_TYPE_OPTIONS,
+    divider_millivolts,
+    thermistor_curve,
     adc_to_volts,
     av_physical_unit,
     physical_to_raw,
@@ -288,3 +294,35 @@ def test_av_calibration_params_are_not_source_gated() -> None:
     for cal in AV_CAL_PARAMS:
         for param in cal:
             assert _source_uses_parameter(param, {"oil_prs_source": "1"})
+
+def test_divider_millivolts_uses_5v_reference() -> None:
+    assert divider_millivolts(2490, 2490) == 2500
+    assert divider_millivolts(0, 100) == 0
+    with pytest.raises(ValueError):
+        divider_millivolts(10, 0)
+
+
+def test_gm_thermistor_preset_matches_firmware_table() -> None:
+    rows = thermistor_curve(THERM_PRESETS[0], 2490)
+    assert [r[0] for r in rows] == [150, 105, 75, 25, -5, -40]
+    for (_t, _r, mv), expected in zip(rows, (89, 277, 656, 2852, 4120, 4874)):
+        assert mv == pytest.approx(expected, rel=0.08)
+
+
+def test_thermistor_curve_sorts_and_rejects_duplicates() -> None:
+    rows = thermistor_curve(THERM_PRESETS[1][::-1], 2490)
+    assert [r[1] for r in rows] == sorted(r[1] for r in rows)
+    assert all(a[2] < b[2] for a, b in zip(rows, rows[1:]))
+    with pytest.raises(ValueError):
+        thermistor_curve(((10, 100), (20, 100)), 2490)
+
+
+def test_fuel_presets_cover_all_named_options() -> None:
+    assert len(FUEL_TYPE_OPTIONS) == len(FUEL_PRESETS) + 1
+    assert FUEL_PRESETS[4] == (40, 250)
+    assert all(p in ALL_PARAMS for p in CURVE_PARAMS)
+
+
+def test_fuel_mid_point_params_are_known() -> None:
+    for param in ("fuel_r_mid", "fuel_v_mid", "fuel_mid_pct"):
+        assert param in ALL_PARAMS

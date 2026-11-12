@@ -461,8 +461,7 @@ void updateMotors1to4Smoothing(void) {
 /**
  * fuelLvlAngle - Calculate fuel gauge needle angle from fuel level
  * 
- * Converts fuel level in gallons/liters to motor angle.
- * Uses percentage of tank capacity for linear gauge response.
+ * Converts fuel level (percent of capacity) to motor angle.
  * 
  * @param sweep  - Maximum motor steps for full gauge sweep
  * @param minPct - Fuel percentage at the zero end of the gauge
@@ -470,7 +469,7 @@ void updateMotors1to4Smoothing(void) {
  * @return Motor angle in steps (1 to sweep-1)
  */
 int fuelLvlAngle(int sweep, int minPct, int maxPct) {
-  float fuelLvlPct = (fuelLvl/fuelCapacity)*1000;  // Fuel percentage * 1000 for precision
+  float fuelLvlPct = fuelLvl * 10.0f;  // Fuel percentage * 10 (fuelLvl is percent) for precision
   fuelLevelPct_g = (unsigned int)fuelLvlPct;
   if (minPct == maxPct) return 1;
   int angle = map((long)fuelLevelPct_g, (long)minPct * 10, (long)maxPct * 10, 1, sweep-1);

@@ -1039,9 +1039,12 @@ void dispFuelLvlGfx (Adafruit_SSD1306 *display) {
     }
     
     // Redraw when the displayed value has changed (metric: 0dp liters; imperial: 1dp gallons)
+    // fuelLvl is percent of capacity; fuelCapacity is in gallons
+    float fuelGal = fuelLvl / 100.0f * fuelCapacity;
+    float fuelGalPrev = fuelLvl_prev / 100.0f * fuelCapacity;
     if (modeChanged || (units == 0
-          ? (int)roundf(fuelLvl * 3.785f) != (int)roundf(fuelLvl_prev * 3.785f)
-          : (int)roundf(fuelLvl * 10.0f)  != (int)roundf(fuelLvl_prev * 10.0f))) {
+          ? (int)roundf(fuelGal * 3.785f) != (int)roundf(fuelGalPrev * 3.785f)
+          : (int)roundf(fuelGal * 10.0f)  != (int)roundf(fuelGalPrev * 10.0f))) {
       float fuelLvlDisp;
       display->setTextColor(WHITE); 
       display->clearDisplay();             //clear buffer
@@ -1049,7 +1052,7 @@ void dispFuelLvlGfx (Adafruit_SSD1306 *display) {
       byte center = 71;
       
       if (units == 0){    // Metric Units
-        fuelLvlDisp = fuelLvl*3.785; // convert to liters
+        fuelLvlDisp = fuelGal*3.785; // convert to liters
         byte nDig = digits(fuelLvlDisp);
         display->setTextSize(3); 
         display->setCursor(center-((nDig*18)/2),6);
@@ -1059,7 +1062,7 @@ void dispFuelLvlGfx (Adafruit_SSD1306 *display) {
       }
 
       else {              // 'Merican Units
-        fuelLvlDisp = fuelLvl; // read in gallons
+        fuelLvlDisp = fuelGal; // gallons
         byte nDig = digits(fuelLvlDisp) +2 ;
         display->setTextSize(3); 
         display->setCursor(center-((nDig*18)/2),6);

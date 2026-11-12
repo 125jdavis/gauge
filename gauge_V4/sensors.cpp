@@ -894,22 +894,35 @@ void sigSelect (void) {
             break;
         case 1:  // Analog fuel level sensor
             {
-                // fuelSensorRaw is 0-500 (mapped ADC); multiply by 10 to get millivolts (0-5000)
-                fuelLvl = curveLookup((uint16_t)(fuelSensorRaw * 10), fuelLvlTable_x, fuelLvlTable_l, fuelLvlTable_length);
+                // fuelSensorRaw is 0-500 (mapped ADC); multiply by 10 to get millivolts (0-5000).
+                // Piecewise linear through empty (0%), mid (FUEL_MID_PCT) and full (100%).
+                // Works for senders whose voltage rises or falls toward full (fuelLvlTable is no longer used).
+                float dir = (FUEL_V_FULL_MV >= FUEL_V_EMPTY_MV) ? 1.0f : -1.0f;
+                float x  = fuelSensorRaw * 10.0f * dir;
+                float xe = FUEL_V_EMPTY_MV * dir;
+                float xm = FUEL_V_MID_MV * dir;
+                float xf = FUEL_V_FULL_MV * dir;
+                float pct;
+                if (x <= xm) {
+                    pct = (xm == xe) ? 0.0f : FUEL_MID_PCT * (x - xe) / (xm - xe);
+                } else {
+                    pct = (xf == xm) ? 100.0f : FUEL_MID_PCT + (100.0f - FUEL_MID_PCT) * (x - xm) / (xf - xm);
+                }
+                fuelLvl = constrain(pct, 0.0f, 100.0f);
             }
             break;
         case 2:  // Synthetic fuel level (debug)
-            fuelLvl = (generateSyntheticFuelLevel() / 100.0) * fuelCapacity;
+            fuelLvl = generateSyntheticFuelLevel();
             break;
         case 3:  // Serial signal source (percent of capacity)
-            fuelLvl = (fuelLvlSerial / 100.0) * fuelCapacity;
+            fuelLvl = fuelLvlSerial;
             break;
         default:  // Fallback to off
             fuelLvl = 0;
             break;
     }
 
-    fuelLvlCAN = (int)((fuelLvl/fuelCapacity)*100);  // Calculate fuel level percentage for CAN transmission
+    fuelLvlCAN = (int)fuelLvl;  // fuelLvl is already percent
 
     // Set boost pressure to manifold absolute pressure for display
     // Note: Called "boost" for simplicity, but displays absolute manifold pressure (MAP)

@@ -116,7 +116,7 @@ float oilPrs = 25;         // Oil pressure in kPa (gauge pressure, atmospheric o
 float coolantTemp = 0;     // Coolant temperature in Celsius
 float fuelPrs = 43;        // Fuel pressure in kPa (gauge pressure)
 float oilTemp = 0;         // Oil temperature in Celsius
-float fuelLvl = 0;         // Fuel level in gallons (or liters if metric)
+float fuelLvl = 0;         // Fuel level in percent of capacity (0-100)
 float battVolt = 12.6;     // Battery voltage in volts
 float afr = 14.2;          // Air/Fuel Ratio (stoichiometric for gasoline ~14.7)
 float fuelComp = 0;        // Ethanol percentage (0-100%)
@@ -149,8 +149,8 @@ unsigned char rxBuf[8];            // Raw receive buffer from CAN controller
 // Converts voltage reading (x-axis) to temperature in Celsius (y-axis)
 // GM thermistors have a non-linear resistance curve that varies with temperature
 const int thermTable_length = 6;
-const uint16_t thermTable_x[thermTable_length] = {89, 277, 656, 2852, 4120, 4874};  // Voltage breakpoints (millivolts)
-const int16_t  thermTable_l[thermTable_length] = {150,  105,   75,   25,   -5,  -40};  // Temperature values in Celsius
+uint16_t thermTable_x[thermTable_length] = {89, 277, 656, 2852, 4120, 4874};  // Voltage breakpoints (millivolts)
+int16_t  thermTable_l[thermTable_length] = {150,  105,   75,   25,   -5,  -40};  // Temperature values in Celsius
 
 // Fuel Level Lookup Table
 // Converts voltage reading (x-axis) to fuel quantity in gallons (y-axis)

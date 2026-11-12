@@ -122,7 +122,7 @@ extern float oilPrs;                // Oil pressure in kPa (gauge pressure)
 extern float coolantTemp;           // Coolant temperature in Celsius
 extern float fuelPrs;               // Fuel pressure in kPa (gauge pressure)
 extern float oilTemp;               // Oil temperature in Celsius
-extern float fuelLvl;               // Fuel level in gallons (or liters if metric)
+extern float fuelLvl;               // Fuel level in percent of capacity (0-100)
 extern float battVolt;              // Battery voltage in volts
 extern float afr;                   // Air/Fuel Ratio
 extern float fuelComp;              // Ethanol percentage (0-100%)
@@ -148,8 +148,8 @@ extern unsigned char rxBuf[8];      // Raw receive buffer from CAN controller
 
 // ===== LOOKUP TABLES =====
 extern const int thermTable_length;
-extern const uint16_t thermTable_x[];   // Voltage breakpoints in millivolts
-extern const int16_t  thermTable_l[];   // Temperature values in Celsius
+extern uint16_t thermTable_x[];   // Voltage breakpoints in millivolts
+extern int16_t  thermTable_l[];   // Temperature values in Celsius
 extern const int fuelLvlTable_length;
 extern const uint16_t fuelLvlTable_x[]; // Voltage breakpoints in millivolts
 extern const uint8_t  fuelLvlTable_l[]; // Gallons * 10 remaining

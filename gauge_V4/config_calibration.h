@@ -205,4 +205,24 @@ enum CANProtocol {
 
 extern uint8_t CAN_PROTOCOL;          // Selected CAN protocol (0=Haltech v2, 1=Megasquirt, 2=Aim, 3=OBDII)
 
+// ===== THERMISTOR / FUEL SENDER CURVE SETUP =====
+// The PC tool converts resistances to voltages (5V reference, bias resistor to +5V, sensor to ground).
+// The firmware only uses thermTable_x/thermTable_l (mV -> degC) and FUEL_V_EMPTY_MV/FUEL_V_FULL_MV;
+// the type, bias and resistance values are stored so the tool can show them again after a read.
+#define THERM_TYPE_GM_CLT    0
+#define THERM_TYPE_BOSCH_M12 1
+#define THERM_TYPE_CUSTOM    2
+#define FUEL_TYPE_CUSTOM     6   // 0-5 are presets (Ford/GM/Mopar), listed in the PC tool
+extern uint8_t  THERM_TYPE;
+extern uint16_t THERM_BIAS_OHMS;
+extern uint32_t THERM_R_OHMS[6];   // Resistance at each thermTable_l temperature
+extern uint8_t  FUEL_SENDER_TYPE;
+extern uint16_t FUEL_BIAS_OHMS;
+extern uint16_t FUEL_R_EMPTY_OHMS;
+extern uint16_t FUEL_R_MID_OHMS;
+extern uint16_t FUEL_R_FULL_OHMS;
+extern uint8_t  FUEL_MID_PCT;      // Fuel level (%) at the mid point
+extern uint16_t FUEL_V_EMPTY_MV;   // Sender voltage at empty (linear interpolation to full)
+extern uint16_t FUEL_V_MID_MV;
+extern uint16_t FUEL_V_FULL_MV;
 #endif // CONFIG_CALIBRATION_H
