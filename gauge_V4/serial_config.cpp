@@ -291,6 +291,100 @@ static void resetCurveParams(void) {
     FUEL_V_FULL_MV = 870;
 }
 // ---------------------------------------------------------------------------
+// Low side output parameters (N = 1-2, i = 0-7)
+//   outN_mode (0 off, 1 on/off, 2 PWM), outN_param (1-10), outN_on_op (0 '>', 1 '<'),
+//   outN_on_val, outN_off_val, outN_freq (20-500 Hz), outN_x<i> (curve values), outN_d<i> (duty %)
+// Each set is range checked only; the PC tool enforces thresholds/curve ordering because
+// parameters arrive one at a time and intermediate states may be temporarily illogical.
+// ---------------------------------------------------------------------------
+enum OutField : uint8_t { OF_NONE, OF_MODE, OF_PARAM, OF_ON_OP, OF_ON_VAL, OF_OFF_VAL, OF_FREQ, OF_X, OF_D };
+
+static OutField parseOutParam(const char *param, uint8_t &out, uint8_t &pt) {
+    if (strncmp_P(param, PSTR("out"), 3) != 0 || param[3] < '1' || param[3] > '0' + LSO_COUNT || param[4] != '_')
+        return OF_NONE;
+    out = param[3] - '1';
+    const char *f = param + 5;
+    if ((f[0] == 'x' || f[0] == 'd') && f[1] >= '0' && f[1] < '0' + LSO_PWM_POINTS && f[2] == '\0') {
+        pt = f[1] - '0';
+        return f[0] == 'x' ? OF_X : OF_D;
+    }
+    if (strcmp_P(f, PSTR("mode"))    == 0) return OF_MODE;
+    if (strcmp_P(f, PSTR("param"))   == 0) return OF_PARAM;
+    if (strcmp_P(f, PSTR("on_op"))   == 0) return OF_ON_OP;
+    if (strcmp_P(f, PSTR("on_val"))  == 0) return OF_ON_VAL;
+    if (strcmp_P(f, PSTR("off_val")) == 0) return OF_OFF_VAL;
+    if (strcmp_P(f, PSTR("freq"))    == 0) return OF_FREQ;
+    return OF_NONE;
+}
+
+static void printOutParam(const char *param, uint8_t out, uint8_t pt, OutField f) {
+    const LowSideOutputConfig &c = LOW_SIDE_OUT[out];
+    switch (f) {
+        case OF_MODE:    printUint8Param (param, c.mode);        break;
+        case OF_PARAM:   printUint8Param (param, c.param);       break;
+        case OF_ON_OP:   printUint8Param (param, c.onOp);        break;
+        case OF_ON_VAL:  printIntParam   (param, c.onVal);       break;
+        case OF_OFF_VAL: printIntParam   (param, c.offVal);      break;
+        case OF_FREQ:    printUint16Param(param, c.freqHz);      break;
+        case OF_X:       printIntParam   (param, c.pwmX[pt]);    break;
+        default:         printUint8Param (param, c.pwmDuty[pt]); break;
+    }
+}
+
+static void printAllOutParams(void) {
+    static const char fields[6][8] PROGMEM = {"mode", "param", "on_op", "on_val", "off_val", "freq"};
+    char name[16];
+    for (uint8_t o = 0; o < LSO_COUNT; o++) {
+        for (uint8_t f = 0; f < 6; f++) {
+            snprintf_P(name, sizeof(name), PSTR("out%u_%S"), o + 1, fields[f]);
+            printOutParam(name, o, 0, (OutField)(OF_MODE + f));
+        }
+        for (uint8_t i = 0; i < LSO_PWM_POINTS; i++) {
+            snprintf_P(name, sizeof(name), PSTR("out%u_x%u"), o + 1, i); printOutParam(name, o, i, OF_X);
+            snprintf_P(name, sizeof(name), PSTR("out%u_d%u"), o + 1, i); printOutParam(name, o, i, OF_D);
+        }
+    }
+}
+
+static void setOutParam(uint8_t out, uint8_t pt, OutField f, const char *value) {
+    char *end;
+    long v = strtol(value, &end, 10);
+    long lo = -32768L, hi = 32767L;
+    if      (f == OF_MODE)  { lo = 0; hi = LSO_MODE_COUNT - 1; }
+    else if (f == OF_PARAM) { lo = 1; hi = OUT_PARAM_COUNT - 1; }
+    else if (f == OF_ON_OP) { lo = 0; hi = 1; }
+    else if (f == OF_FREQ)  { lo = LSO_FREQ_MIN_HZ; hi = LSO_FREQ_MAX_HZ; }
+    else if (f == OF_D)     { lo = 0; hi = 100; }
+    if (end == value || *end != '\0' || v < lo || v > hi) { SERIAL_PRINTLN_F("err: range"); return; }
+    LowSideOutputConfig &c = LOW_SIDE_OUT[out];
+    switch (f) {
+        case OF_MODE:    c.mode = (uint8_t)v;           break;
+        case OF_PARAM:   c.param = (uint8_t)v;          break;
+        case OF_ON_OP:   c.onOp = (uint8_t)v;           break;
+        case OF_ON_VAL:  c.onVal = (int16_t)v;          break;
+        case OF_OFF_VAL: c.offVal = (int16_t)v;         break;
+        case OF_FREQ:    c.freqHz = (uint16_t)v;        break;
+        case OF_X:       c.pwmX[pt] = (int16_t)v;       break;
+        default:         c.pwmDuty[pt] = (uint8_t)v;    break;
+    }
+    SERIAL_PRINTLN_F("ok");
+}
+
+static void resetOutParams(void) {
+    static const LowSideOutputConfig def PROGMEM = LSO_DEFAULT_CONFIG;
+    for (uint8_t o = 0; o < LSO_COUNT; o++) memcpy_P(&LOW_SIDE_OUT[o], &def, sizeof(def));
+}
+
+// Fault warning debounce times (ms): oil_warn_ms, coolant_warn_ms, batt_warn_ms, fuel_warn_ms
+static uint16_t *warnDebounceParam(const char *param) {
+    if (strcmp_P(param, PSTR("oil_warn_ms"))     == 0) return &OIL_PRS_WARN_DEBOUNCE_MS;
+    if (strcmp_P(param, PSTR("coolant_warn_ms")) == 0) return &COOLANT_TEMP_WARN_DEBOUNCE_MS;
+    if (strcmp_P(param, PSTR("batt_warn_ms"))    == 0) return &BATT_VOLT_WARN_DEBOUNCE_MS;
+    if (strcmp_P(param, PSTR("fuel_warn_ms"))    == 0) return &FUEL_LVL_WARN_DEBOUNCE_MS;
+    return NULL;
+}
+
+// ---------------------------------------------------------------------------
 // handleGet
 // ---------------------------------------------------------------------------
 void handleGet(const char *param) {
@@ -300,6 +394,9 @@ void handleGet(const char *param) {
         if (avField != AV_F_NONE) { printAvParam(param, avIdx, avField); return; }
         CurveKind ck = parseCurveParam(param, avIdx);
         if (ck != CK_NONE) { printCurveParam(param, avIdx, ck); return; }
+        uint8_t pt = 0;
+        OutField of = parseOutParam(param, avIdx, pt);
+        if (of != OF_NONE) { printOutParam(param, avIdx, pt, of); return; }
     }
     if (strcmp_P(param, PSTR("disp1_order")) == 0) { printScreenListParam("disp1_order", disp1List, disp1Count); return; }
     if (strcmp_P(param, PSTR("disp2_order")) == 0) { printScreenListParam("disp2_order", disp2List, disp2Count); return; }
@@ -380,6 +477,10 @@ void handleGet(const char *param) {
     if (strcmp_P(param, PSTR("batt_warn_v"))     == 0) { printFloatParam ("batt_warn_v",     BATT_VOLT_WARN_THRESHOLD, 2); return; }
     if (strcmp_P(param, PSTR("engine_run_rpm"))  == 0) { printIntParam   ("engine_run_rpm",  ENGINE_RUNNING_RPM_MIN);     return; }
     if (strcmp_P(param, PSTR("fuel_warn_pct"))   == 0) { printUint8Param ("fuel_warn_pct",   FUEL_LVL_WARN_THRESHOLD_PCT); return; }
+    {
+        uint16_t *debounce = warnDebounceParam(param);
+        if (debounce) { printUint16Param(param, *debounce); return; }
+    }
     // System
     if (strcmp_P(param, PSTR("clock_offset"))    == 0) { printIntParam   ("clock_offset",    (int8_t)clockOffset);        return; }
     if (strcmp_P(param, PSTR("fuel_capacity"))   == 0) { printFloatParam ("fuel_capacity",   fuelCapacity, 2);            return; }
@@ -404,6 +505,9 @@ void handleSet(const char *param, const char *value) {
         if (avField != AV_F_NONE) { setAvParam(avIdx, avField, value); return; }
         CurveKind ck = parseCurveParam(param, avIdx);
         if (ck != CK_NONE) { setCurveParam(avIdx, ck, value); return; }
+        uint8_t pt = 0;
+        OutField of = parseOutParam(param, avIdx, pt);
+        if (of != OF_NONE) { setOutParam(avIdx, pt, of, value); return; }
     }
 
     // ---- Screen lists ----
@@ -726,6 +830,15 @@ void handleSet(const char *param, const char *value) {
         if (v > 50) { SERIAL_PRINTLN_F("err: range"); return; }
         FUEL_LVL_WARN_THRESHOLD_PCT = v; SERIAL_PRINTLN_F("ok"); return;
     }
+    {
+        uint16_t *debounce = warnDebounceParam(param);
+        if (debounce) {
+            char *end;
+            long v = strtol(value, &end, 10);
+            if (end == value || *end || v < 0 || v > WARN_DEBOUNCE_MAX_MS) { SERIAL_PRINTLN_F("err: range"); return; }
+            *debounce = (uint16_t)v; SERIAL_PRINTLN_F("ok"); return;
+        }
+    }
     // ---- System ----
     if (strcmp_P(param, PSTR("clock_offset")) == 0) {
         int v = atoi(value);
@@ -853,6 +966,7 @@ void handleDump(void) {
     printUint8Param ("av3_type",        AV3_TYPE);
     printAllAvParams();
     printAllCurveParams();
+    printAllOutParams();
     // Hall speed sensor
     printUint16Param("revs_per_km",     REVS_PER_KM);
     printUint8Param ("teeth_per_rev",   TEETH_PER_REV);
@@ -897,6 +1011,10 @@ void handleDump(void) {
     printFloatParam ("batt_warn_v",     BATT_VOLT_WARN_THRESHOLD, 2);
     printIntParam   ("engine_run_rpm",  ENGINE_RUNNING_RPM_MIN);
     printUint8Param ("fuel_warn_pct",   FUEL_LVL_WARN_THRESHOLD_PCT);
+    printUint16Param("oil_warn_ms",     OIL_PRS_WARN_DEBOUNCE_MS);
+    printUint16Param("coolant_warn_ms", COOLANT_TEMP_WARN_DEBOUNCE_MS);
+    printUint16Param("batt_warn_ms",    BATT_VOLT_WARN_DEBOUNCE_MS);
+    printUint16Param("fuel_warn_ms",    FUEL_LVL_WARN_DEBOUNCE_MS);
     // System
     printIntParam   ("clock_offset",    (int8_t)clockOffset);
     printFloatParam ("fuel_capacity",   fuelCapacity, 2);
@@ -944,7 +1062,8 @@ static void applyDefaults(void) {
     AV3_TYPE                    = AV_TYPE_100PSI_G;
     resetAvParams();
     resetCurveParams();
-    REVS_PER_KM                 = 1625;
+    resetOutParams();
+    REVS_PER_KM                = 1625;
     TEETH_PER_REV               = 8;
     FILTER_HALL_SPEED           = 96;
     FILTER_GPS                  = 0;
@@ -981,6 +1100,10 @@ static void applyDefaults(void) {
     BATT_VOLT_WARN_THRESHOLD    = 11.0f;
     ENGINE_RUNNING_RPM_MIN      = 400;
     FUEL_LVL_WARN_THRESHOLD_PCT = 5;
+    OIL_PRS_WARN_DEBOUNCE_MS      = 3000;
+    COOLANT_TEMP_WARN_DEBOUNCE_MS = 3000;
+    BATT_VOLT_WARN_DEBOUNCE_MS    = 3000;
+    FUEL_LVL_WARN_DEBOUNCE_MS     = 3000;
     clockOffset                 = 0;
     fuelCapacity                = 16.0f;
     CAN_PROTOCOL                = 0;

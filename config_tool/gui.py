@@ -9,6 +9,7 @@ Implements CONFIG_TOOL_SPECIFICATION.md §12 (Python Application Specification):
   Tab 3  - Signal Source
   Tab 4  - Speed/RPM (including mechanical odometer calibration)
   Tab 5  - Sensors
+  Outputs - Low side outputs (ULN2003 on D12 / D13): on/off with hysteresis or PWM curve
   Tab 6  - LED Tachometer
   Tab 7  - Display Settings (including clock and fuel)
   Tab 8  - Fault Warnings
@@ -170,12 +171,15 @@ AV_CAL_PARAMS = tuple(
     tuple(f"av{n}_{field}" for field in ("adc_lo", "adc_hi", "phys_lo", "phys_hi"))
     for n in (1, 2, 3)
 )
-PHYS_UNIT_SCALE = {"kPa": 10, "Lambda": 1000}
+# Stored raw = physical value * scale (pressure is stored as absolute kPa * 10)
+PHYS_UNIT_SCALE = {"kPa": 10, "Lambda": 1000, "PSI (abs)": 10 / 0.1450377377}
 
 
-def av_physical_unit(av_type: Optional[int]) -> str:
+def av_physical_unit(av_type: Optional[int], imperial: bool = False) -> str:
     """Unit the user enters physical values in for an AV input of the given type."""
-    return "Lambda" if av_type == AV_TYPE_LAMBDA else "kPa"
+    if av_type == AV_TYPE_LAMBDA:
+        return "Lambda"
+    return "PSI (abs)" if imperial else "kPa"
 
 def volts_to_adc(value: str) -> int:
     try:
@@ -298,6 +302,222 @@ MOTOR_PARAMS = (
     ("m4_func", "m4_min", "m4_max"),
 )
 DIRECTION_OPTIONS = ("CW", "CCW")
+
+# ---- Low side outputs (ULN2003 on D12 = Output 1, D13 = Output 2) ----
+OUTPUT_COUNT = 2
+OUTPUT_PWM_POINTS = 8
+OUTPUT_FREQ_RANGE = (20, 500)
+OUTPUT_INT16_RANGE = (-32768, 32767)
+OUTPUT_MODE_OPTIONS = ("Disabled", "On/Off", "PWM")  # index = firmware LSO_MODE_*
+OUTPUT_MODE_DISABLED, OUTPUT_MODE_ON_OFF, OUTPUT_MODE_PWM = 0, 1, 2
+OUTPUT_ON_OPS = (">", "<")  # index = firmware on_op; the off operator is always the other one
+# Firmware parameter values are MOTOR_FUNC_* 1-9 plus OUT_PARAM_BATTERY (10): value = index + 1
+OUTPUT_PARAM_OPTIONS = (*MOTOR_FUNCTION_OPTIONS[1:], "Battery voltage (x10)")
+OUTPUT_PARAM_UNITS = (*MOTOR_FUNCTION_UNITS[1:], "V×10")
+OUTPUT_PARAM_RANGES = (*MOTOR_FUNCTION_RANGES[1:], (100, 150))
+# Conversion kind per output parameter (None = same in both unit systems)
+OUTPUT_PARAM_KINDS = (None, "temp", None, "speed", "pressure", "pressure", "temp", "pressure_abs", None, None)
+
+# ---- Fault warning debounce: entered in seconds, stored in ms (firmware *_WARN_DEBOUNCE_MS) ----
+WARN_DEBOUNCE_MAX_S = 60
+WARN_DEBOUNCE_PARAMS = ("oil_warn_ms", "coolant_warn_ms", "batt_warn_ms", "fuel_warn_ms")
+WARN_DEBOUNCE_NAMES = {
+    "oil_warn_ms": "Oil pressure", "coolant_warn_ms": "Engine temp",
+    "batt_warn_ms": "Battery voltage", "fuel_warn_ms": "Low fuel",
+}
+
+
+def debounce_seconds_to_ms(text: str) -> int:
+    """Seconds as typed (0-60, ms resolution) -> stored milliseconds. Raises ValueError."""
+    try:
+        seconds = float(str(text).strip())
+    except ValueError:
+        raise ValueError(f"Delay must be a number of seconds from 0 to {WARN_DEBOUNCE_MAX_S}.") from None
+    if not math.isfinite(seconds) or not 0 <= seconds <= WARN_DEBOUNCE_MAX_S:
+        raise ValueError(f"Delay must be from 0 to {WARN_DEBOUNCE_MAX_S} seconds.")
+    return round(seconds * 1000)
+
+
+def debounce_ms_to_seconds(text: str) -> str:
+    try:
+        return _trim_number(int(text) / 1000, 3)
+    except ValueError:
+        return text
+
+
+# ---- Tool-wide display unit system (the firmware always stores metric) ----
+UNIT_SYSTEMS = ("metric", "imperial")
+# Unit chosen for each older per-field unit setting under each system
+FIELD_UNITS = {
+    "metric":   {"speedo_max_units": "km/h", "oil_warn_units": "kPa", "coolant_warn_units": "C",
+                 "fuel_capacity_units": "L"},
+    "imperial": {"speedo_max_units": "mph", "oil_warn_units": "PSI", "coolant_warn_units": "F",
+                 "fuel_capacity_units": "gal"},
+}
+IMPERIAL_UNIT_LABELS = {"temp": "°F", "speed": "mph", "pressure": "PSI", "pressure_abs": "PSI (abs)"}
+METRIC_UNIT_LABELS = {"temp": "°C", "speed": "km/h", "pressure": "kPa", "pressure_abs": "kPa"}
+
+
+def unit_label(kind: Optional[str], imperial: bool, metric_label: str = "") -> str:
+    if kind is None:
+        return metric_label
+    return (IMPERIAL_UNIT_LABELS if imperial else METRIC_UNIT_LABELS)[kind]
+
+
+def raw_to_display(text: str, kind: Optional[str], imperial: bool) -> str:
+    """Stored metric integer -> text in the selected unit system (non-numbers pass through)."""
+    if not imperial or kind is None:
+        return text
+    try:
+        raw = int(text)
+    except ValueError:
+        return text
+    if kind == "temp":
+        value = raw * 9 / 5 + 32
+    elif kind == "speed":
+        value = raw / 1.609344
+    else:
+        value = raw * 0.1450377377
+    return _trim_number(value, 1)
+
+
+def display_to_raw(text: str, kind: Optional[str], imperial: bool) -> int:
+    """Text in the selected unit system -> stored metric integer. Raises ValueError."""
+    text = text.strip()
+    if not imperial or kind is None:
+        return int(text)
+    value = float(text)
+    if not math.isfinite(value):
+        raise ValueError("not a number")
+    if kind == "temp":
+        return round((value - 32) * 5 / 9)
+    if kind == "speed":
+        return round(value * 1.609344)
+    return round(value / 0.1450377377)
+
+
+def output_param_names(n: int) -> tuple:
+    """Config parameter names for output n (1-2), with the mode last so it is written last."""
+    p = f"out{n}_"
+    return (
+        p + "param", p + "on_op", p + "on_val", p + "off_val", p + "freq",
+        *(f"{p}x{i}" for i in range(OUTPUT_PWM_POINTS)),
+        *(f"{p}d{i}" for i in range(OUTPUT_PWM_POINTS)),
+        p + "mode",
+    )
+
+
+OUTPUT_PARAMS = tuple(p for n in range(1, OUTPUT_COUNT + 1) for p in output_param_names(n))
+
+
+def output_off_operator(on_op: int) -> str:
+    """The off comparison is the opposite of the on comparison."""
+    return OUTPUT_ON_OPS[1 - on_op]
+
+
+def _output_int(text: str, name: str, low: int, high: int) -> int:
+    try:
+        value = int(str(text).strip())
+    except ValueError:
+        raise ValueError(f"{name} must be a whole number.") from None
+    if not low <= value <= high:
+        raise ValueError(f"{name} must be from {low} to {high}.")
+    return value
+
+
+def validate_on_off(on_op: str, on_val: str, off_val: str, fmt: Callable[[int], str] = str) -> None:
+    """On/off thresholds must leave a hysteresis band on the off side of the on value.
+
+    fmt formats a stored value for messages (e.g. in the selected display units).
+    """
+    op = _output_int(on_op, "On comparison", 0, 1)
+    on = _output_int(on_val, "On value", *OUTPUT_INT16_RANGE)
+    off = _output_int(off_val, "Off value", *OUTPUT_INT16_RANGE)
+    if op == 0 and not off < on:
+        raise ValueError(f"Turns on above {fmt(on)}, so the off value must be below {fmt(on)}.")
+    if op == 1 and not off > on:
+        raise ValueError(f"Turns on below {fmt(on)}, so the off value must be above {fmt(on)}.")
+
+
+def validate_pwm_curve(freq: str, xs: list, duties: list, fmt: Callable[[int], str] = str) -> None:
+    """Frequency 20-500 Hz, parameter values strictly ascending, duty 0-100 %."""
+    _output_int(freq, "PWM frequency (Hz)", *OUTPUT_FREQ_RANGE)
+    values = [_output_int(x, f"Point {i + 1} value", *OUTPUT_INT16_RANGE) for i, x in enumerate(xs)]
+    for i, d in enumerate(duties):
+        _output_int(d, f"Point {i + 1} duty (%)", 0, 100)
+    for i in range(1, len(values)):
+        if values[i] <= values[i - 1]:
+            raise ValueError(
+                f"Point {i + 1} value ({fmt(values[i])}) must be greater than point {i} ({fmt(values[i - 1])})."
+            )
+
+
+def validate_outputs(values: Dict[str, str], imperial: bool = False) -> None:
+    """Validate every configured output; raises ValueError naming the output.
+
+    Values are stored metric integers; messages show them in the selected unit system.
+    """
+    pwm_freqs = []
+    for n in range(1, OUTPUT_COUNT + 1):
+        p = f"out{n}_"
+        mode_text = values.get(p + "mode", "")
+        if mode_text == "":
+            continue  # Not read from a device or file yet
+        try:
+            mode = _output_int(mode_text, "Mode", 0, len(OUTPUT_MODE_OPTIONS) - 1)
+            if mode == OUTPUT_MODE_DISABLED:
+                continue
+            param = _output_int(values.get(p + "param", ""), "Parameter", 1, len(OUTPUT_PARAM_OPTIONS))
+            kind = OUTPUT_PARAM_KINDS[param - 1]
+            unit = unit_label(kind, imperial, OUTPUT_PARAM_UNITS[param - 1])
+
+            def fmt(raw: int, kind: Optional[str] = kind, unit: str = unit) -> str:
+                return f"{raw_to_display(str(raw), kind, imperial)} {unit}".strip()
+
+            if mode == OUTPUT_MODE_ON_OFF:
+                validate_on_off(values.get(p + "on_op", ""), values.get(p + "on_val", ""),
+                                values.get(p + "off_val", ""), fmt)
+            else:
+                validate_pwm_curve(
+                    values.get(p + "freq", ""),
+                    [values.get(f"{p}x{i}", "") for i in range(OUTPUT_PWM_POINTS)],
+                    [values.get(f"{p}d{i}", "") for i in range(OUTPUT_PWM_POINTS)],
+                    fmt,
+                )
+                pwm_freqs.append(int(values[p + "freq"]))
+        except ValueError as exc:
+            raise ValueError(f"Output {n}: {exc}") from None
+    if len(set(pwm_freqs)) > 1:
+        raise ValueError(
+            "Both outputs are PWM and share one hardware timer, so they must use the same frequency."
+        )
+
+
+def output_param_active(param: str, values: Dict[str, str]) -> bool:
+    """False for output settings the selected mode does not use (they are not written to the device)."""
+    if not param.startswith("out") or param not in OUTPUT_PARAMS:
+        return True
+    field = param[5:]
+    mode = values.get(param[:5] + "mode", "")
+    if field in ("on_op", "on_val", "off_val"):
+        return mode == str(OUTPUT_MODE_ON_OFF)
+    if field == "freq" or field[0] in "xd":
+        return mode == str(OUTPUT_MODE_PWM)
+    return True
+
+
+def pwm_duty_permille(xs: list, duties: list, value: int) -> int:
+    """Mirror of firmware lsoPwmDutyPermille(): duty in 0.1 % steps, clamped at the curve ends."""
+    if value <= xs[0]:
+        return duties[0] * 10
+    for i in range(len(xs) - 1):
+        if value < xs[i + 1]:
+            span = xs[i + 1] - xs[i]
+            if span <= 0:
+                return duties[i + 1] * 10
+            d0, d1 = duties[i] * 10, duties[i + 1] * 10
+            return d0 + int((value - xs[i]) * (d1 - d0) / span)  # C truncates toward zero
+    return duties[-1] * 10
 
 
 def _gauge_range_to_device(low: str, high: str, ccw: bool) -> tuple:
@@ -604,8 +824,10 @@ ALL_PARAMS = [
     "speed_source", "rpm_source", "oil_prs_source", "fuel_prs_source",
     "coolant_src", "oil_temp_src", "map_source", "lambda_source", "fuel_lvl_src",
     "oil_warn_kpa", "coolant_warn_c", "batt_warn_v", "engine_run_rpm", "fuel_warn_pct",
+    *WARN_DEBOUNCE_PARAMS,
     "clock_offset", "fuel_capacity", "can_protocol", "units",
     "disp1_order", "disp2_order",
+    *OUTPUT_PARAMS,
 ]
 
 TOOLTIPS: Dict[str, str] = {
@@ -663,7 +885,8 @@ TOOLTIPS: Dict[str, str] = {
     "fuel_r_mid":        "Fuel sender resistance at the mid point, in ohms.",
     "fuel_v_mid":        "Computed sender voltage at the mid point, in mV.",
     "fuel_mid_pct":      "Fuel level at the mid point, in percent (1-99). Fuel level is measured in percent of capacity.",
-    **{f"therm_t{i}": f"Thermistor point {i + 1} temperature, in degC." for i in range(THERM_POINTS)},
+    **{f"therm_t{i}": f"Thermistor point {i + 1} temperature, in the selected units (stored as whole degC)."
+       for i in range(THERM_POINTS)},
     **{f"therm_r{i}": f"Thermistor point {i + 1} resistance, in ohms." for i in range(THERM_POINTS)},
     **{f"therm_v{i}": f"Computed thermistor point {i + 1} voltage, in mV." for i in range(THERM_POINTS)},
     "revs_per_km":       "VSS shaft revolutions per km (100-10000).",
@@ -700,12 +923,37 @@ TOOLTIPS: Dict[str, str] = {
     "batt_warn_v":       "Battery voltage fault threshold V (5-16). Flash below this.",
     "engine_run_rpm":    "Min RPM to consider engine running for fault logic (0-2000).",
     "fuel_warn_pct":     "Low fuel warning threshold % (0-50). Flash below this.",
+    **{
+        param: f"{name} warning delay, in seconds (0-{WARN_DEBOUNCE_MAX_S}). The reading must stay past "
+               "its threshold this long before the warning activates; it clears as soon as it recovers."
+        for param, name in WARN_DEBOUNCE_NAMES.items()
+    },
     "clock_offset":      "UTC offset hours (-12 to +12).",
     "fuel_capacity":     "Fuel tank capacity in gallons or liters (1-200 gallons).",
     "can_protocol":      "Select the CAN protocol used by your vehicle.",
     "units":             "Unit system shown on the gauge: Metric or 'Merican (imperial).",
     "disp1_order":       "Screens reachable by scrolling display 1, in order (Settings is always last).",
     "disp2_order":       "Screens selectable for display 2 from the Settings menu, in order.",
+    **{
+        f"out{n}_{field}": text.format(n=n)
+        for n in range(1, OUTPUT_COUNT + 1)
+        for field, text in (
+            ("mode", "Output {n}: Disabled holds it off; On/Off switches with hysteresis; PWM follows the curve."),
+            ("param", "Output {n}: signal that drives the output. Units match the Motor Config tab."),
+            ("on_op", "Output {n}: turn on when the value is above (>) or below (<) the on value."),
+            ("on_val", "Output {n}: value at which the output turns on."),
+            ("off_val", "Output {n}: value at which the output turns off. Must be on the off side of the on value."),
+            ("freq", "Output {n}: PWM frequency, 20-500 Hz. Shared with the other output when both are PWM."),
+        )
+    },
+    **{
+        f"out{n}_x{i}": f"Output {n}: point {i + 1} parameter value. Values must increase left to right."
+        for n in range(1, OUTPUT_COUNT + 1) for i in range(OUTPUT_PWM_POINTS)
+    },
+    **{
+        f"out{n}_d{i}": f"Output {n}: point {i + 1} duty cycle, 0-100 %."
+        for n in range(1, OUTPUT_COUNT + 1) for i in range(OUTPUT_PWM_POINTS)
+    },
 }
 
 SCREEN_NAMES = [
@@ -884,6 +1132,12 @@ class GaugeConfigApp:
         self._source_dependent_widgets: Dict[str, list[ttk.Widget]] = {}
         self._splash_data: Dict[int, bytes] = {}
         self._port_devices: Dict[str, str] = {}
+        self._output_ui: Dict[int, dict] = {}
+        self._debounce_display_vars: Dict[str, tk.StringVar] = {}
+        # Tool-wide display unit system shared by the Sensors and Outputs tabs (firmware stores metric)
+        self._unit_system_var = tk.StringVar(value="metric")
+        self._unit_entry_syncs: list = []
+        self._therm_temp_header: Optional[ttk.Label] = None
 
         # Firmware flashing runs on a worker thread; it reports back here.
         self._fw_queue: "queue.Queue[tuple]" = queue.Queue()
@@ -894,6 +1148,8 @@ class GaugeConfigApp:
         self._build_toolbar()
         self._build_tabs()
         self._build_status_bar()
+        self._unit_system_var.trace_add("write", lambda *_a: self._unit_system_changed())
+        self._unit_system_changed()  # Bring every per-field unit in line with the default system
 
     def _build_menu(self) -> None:
         mb = tk.Menu(self.root)
@@ -937,6 +1193,7 @@ class GaugeConfigApp:
             ("Signal Source",    self._build_tab_signal_source),
             ("Speed/RPM",        self._build_tab_speed_rpm),
             ("Sensors",          self._build_tab_sensors),
+            ("Outputs",          self._build_tab_outputs),
             ("LED Tach",         self._build_tab_led_tach),
             ("Display Settings", self._build_tab_display),
             ("Fault Warnings",   self._build_tab_faults),
@@ -1107,32 +1364,22 @@ class GaugeConfigApp:
             "write",
             lambda *_args, p=param: self._mark_parameter_dirty(p),
         )
-        self._unit_radio_group(
-            parent, row, 2, units_var, units,
-            lambda p=param: self._warning_units_changed(p),
-        )
+        self._field_unit_label(parent, row, 2, units_var)
         self._sync_warning_display(param)
 
     @staticmethod
-    def _unit_radio_group(
-        parent: tk.Widget,
-        row: int,
-        column: int,
-        units_var: tk.StringVar,
-        units: tuple,
-        command: Callable[[], None],
-    ) -> list[ttk.Radiobutton]:
-        group = ttk.Frame(parent)
-        group.grid(row=row, column=column, columnspan=2, sticky="w", padx=4, pady=2)
-        radios = []
-        for unit in units:
-            radio = ttk.Radiobutton(
-                group, text=unit, variable=units_var, value=unit,
-                command=command,
-            )
-            radio.pack(side="left", padx=(0, 8))
-            radios.append(radio)
-        return radios
+    def _field_unit_label(parent: tk.Widget, row: int, column: int, units_var: tk.StringVar) -> ttk.Label:
+        """Unit shown beside a value; it follows the tool-wide unit system via units_var."""
+        label = ttk.Label(parent)
+        label.grid(row=row, column=column, sticky="w", padx=4, pady=2)
+
+        def update(*_args: object) -> None:
+            unit = units_var.get()
+            label.configure(text=f"\u00b0{unit}" if unit in TEMPERATURE_UNITS else unit)
+
+        units_var.trace_add("write", update)
+        update()
+        return label
 
     def _mark_parameter_dirty(self, param: str) -> None:
         self._dirty[param] = True
@@ -2047,6 +2294,7 @@ class GaugeConfigApp:
             self._param_row(other_sources, i, 0, label, param)
 
     def _build_tab_speed_rpm(self, frame: ttk.Frame) -> None:
+        self._unit_system_radios(frame).pack(anchor="w", padx=10, pady=(10, 0))
         self._build_tab_speed(frame)
         self._build_tab_rpm(frame)
         odo = ttk.LabelFrame(frame, text="Mechanical odometer calibration")
@@ -2101,11 +2349,8 @@ class GaugeConfigApp:
         self._vars["speedo_max"].trace_add(
             "write", lambda *_args: self._sync_speed_display("speedo_max"),
         )
-        speed_units = self._unit_radio_group(
-            grp, 4, 2, self._speedo_max_units_var, SPEEDO_MAX_UNITS,
-            self._speedo_max_units_changed,
-        )
-        self._source_dependent_widgets["speedo_max"] = speed_units
+        speed_units = self._field_unit_label(grp, 4, 2, self._speedo_max_units_var)
+        self._source_dependent_widgets["speedo_max"] = [speed_units]
         self._sync_speed_display("hall_speed_min")
         self._sync_speed_display("speedo_max")
 
@@ -2152,7 +2397,7 @@ class GaugeConfigApp:
         self._refresh_av_calibration()
 
     def _av_unit(self, av_index: int) -> str:
-        return av_physical_unit(self._av_type(av_index))
+        return av_physical_unit(self._av_type(av_index), self._imperial())
 
     def _av_type(self, av_index: int) -> Optional[int]:
         try:
@@ -2242,6 +2487,90 @@ class GaugeConfigApp:
         self._vars[param].trace_add("write", lambda *_a: self._mark_parameter_dirty(param))
         return entry
 
+    def _imperial(self) -> bool:
+        return self._unit_system_var.get() == "imperial"
+
+    def _unit_system_radios(self, parent: tk.Widget, label: str = "Units:") -> ttk.Frame:
+        """Metric / 'Merican radios bound to the tool-wide unit system (every copy stays in step)."""
+        group = ttk.Frame(parent)
+        ttk.Label(group, text=label).pack(side="left", padx=(0, 6))
+        for value, text in zip(UNIT_SYSTEMS, UNIT_SYSTEM_OPTIONS):
+            radio = ttk.Radiobutton(group, text=text, value=value, variable=self._unit_system_var)
+            radio.pack(side="left", padx=(0, 8))
+            ToolTip(radio, "Units used to enter values throughout this tool. Values are converted "
+                           "automatically; the gauge always stores metric.")
+        return group
+
+    def _unit_entry(self, parent: tk.Widget, param: str, row: int, col: int,
+                    kind_fn: Callable[[], Optional[str]],
+                    type_param: Optional[str] = None, custom: int = 0) -> ttk.Entry:
+        """Entry showing a stored metric integer in the tool-wide unit system.
+
+        Typing converts to the stored value immediately; leaving the field shows the value
+        that will actually be stored (after rounding to whole metric units).
+        """
+        display = tk.StringVar()
+        entry = ttk.Entry(parent, textvariable=display, width=8, justify="right")
+        entry.grid(row=row, column=col, padx=3, pady=2)
+        if type_param:
+            entry.bind("<KeyRelease>", lambda e: self._curve_edited(e, type_param, custom))
+        ToolTip(entry, TOOLTIPS[param])
+        self._param_widgets[param] = entry
+        busy = [False]
+
+        def to_raw(*_args: object) -> None:
+            if busy[0]:
+                return
+            busy[0] = True
+            try:
+                text = display.get().strip()
+                try:
+                    raw = str(display_to_raw(text, kind_fn(), self._imperial()))
+                except ValueError:
+                    raw = text  # Left as typed so validation reports it
+                if self._vars[param].get() != raw:
+                    self._vars[param].set(raw)
+            finally:
+                busy[0] = False
+
+        def to_display(*_args: object) -> None:
+            if busy[0]:
+                return
+            busy[0] = True
+            try:
+                display.set(raw_to_display(self._vars[param].get(), kind_fn(), self._imperial()))
+            finally:
+                busy[0] = False
+
+        display.trace_add("write", to_raw)
+        self._vars[param].trace_add("write", to_display)
+        self._vars[param].trace_add("write", lambda *_a: self._mark_parameter_dirty(param))
+        entry.bind("<FocusOut>", to_display, add="+")
+        self._unit_entry_syncs.append(to_display)
+        to_display()
+        return entry
+
+    def _resync_unit_entries(self) -> None:
+        for sync in self._unit_entry_syncs:
+            sync()
+
+    def _unit_system_changed(self) -> None:
+        """Re-show every converted value in the newly selected units (stored values are untouched)."""
+        for name, unit in FIELD_UNITS[self._unit_system_var.get()].items():
+            getattr(self, f"_{name}_var").set(unit)
+        self._speedo_max_units_changed()
+        self._warning_units_changed("oil_warn_kpa")
+        self._warning_units_changed("coolant_warn_c")
+        self._fuel_capacity_units_changed()
+        if hasattr(self, "_test_units_var"):
+            self._test_units_var.set(self._unit_system_var.get())
+            self._test_units_changed()
+        self._resync_unit_entries()
+        if self._therm_temp_header is not None:
+            self._therm_temp_header.configure(text=f"Temperature ({unit_label('temp', self._imperial())})")
+        self._refresh_av_calibration()
+        self._refresh_outputs()
+
     def _curve_value_label(self, parent: tk.Widget, param: str, row: int, col: int) -> None:
         label = ttk.Label(parent, text="--", width=8, anchor="e")
         label.grid(row=row, column=col, padx=3, pady=2)
@@ -2258,9 +2587,13 @@ class GaugeConfigApp:
         table = ttk.Frame(grp)
         table.grid(row=1, column=0, sticky="w", padx=6, pady=(4, 6))
         for row, text in enumerate(("Temperature (\u00b0C)", "Resistance (\u03a9)", "Voltage (mV)")):
-            ttk.Label(table, text=text).grid(row=row, column=0, sticky="e", padx=(0, 6), pady=2)
+            lbl = ttk.Label(table, text=text)
+            lbl.grid(row=row, column=0, sticky="e", padx=(0, 6), pady=2)
+            if row == 0:
+                self._therm_temp_header = lbl
         for i in range(THERM_POINTS):
-            self._curve_entry(table, THERM_TEMP_PARAMS[i], 0, i + 1, "therm_type", THERM_TYPE_CUSTOM)
+            self._unit_entry(table, THERM_TEMP_PARAMS[i], 0, i + 1, lambda: "temp",
+                             "therm_type", THERM_TYPE_CUSTOM)
             self._curve_entry(table, THERM_RES_PARAMS[i], 1, i + 1, "therm_type", THERM_TYPE_CUSTOM)
             self._curve_value_label(table, THERM_VOLT_PARAMS[i], 2, i + 1)
         for param in ("therm_bias", *THERM_TEMP_PARAMS, *THERM_RES_PARAMS):
@@ -2395,17 +2728,18 @@ class GaugeConfigApp:
         for col in range(2):
             frame.columnconfigure(col, weight=1)
 
+        self._unit_system_radios(frame).grid(row=0, column=0, columnspan=2, padx=10, pady=(10, 0), sticky="w")
         therm = ttk.LabelFrame(frame, text="Thermistor (coolant / oil temperature)")
-        therm.grid(row=0, column=0, columnspan=2, padx=10, pady=(10, 6), sticky="ew")
+        therm.grid(row=1, column=0, columnspan=2, padx=10, pady=(6, 6), sticky="ew")
         self._build_thermistor_curve(therm)
 
         fuel = ttk.LabelFrame(frame, text="Fuel Level Sender")
-        fuel.grid(row=1, column=0, padx=10, pady=6, sticky="nw")
+        fuel.grid(row=2, column=0, padx=10, pady=6, sticky="nw")
         self._build_fuel_curve(fuel)
         self._refresh_curve_previews()
 
         side = ttk.Frame(frame)
-        side.grid(row=1, column=1, padx=10, pady=6, sticky="nw")
+        side.grid(row=2, column=1, padx=10, pady=6, sticky="nw")
         av = ttk.LabelFrame(side, text="Analog Sensor Filters")
         av.grid(row=0, column=0, pady=(0, 6), sticky="ew")
         self._param_row(av, 0, 0, "AV1:", "filter_av1")
@@ -2417,8 +2751,236 @@ class GaugeConfigApp:
         self._param_row(batt, 1, 0, "Scaler:", "vbatt_scaler")
 
         av_types = ttk.LabelFrame(frame, text="Analog Sensor Types and Calibration")
-        av_types.grid(row=2, column=0, columnspan=2, padx=10, pady=(6, 10), sticky="ew")
+        av_types.grid(row=3, column=0, columnspan=2, padx=10, pady=(6, 10), sticky="ew")
         self._build_av_calibration(av_types)
+
+    # ------ Outputs tab (ULN2003 low side outputs) ------
+    def _build_tab_outputs(self, frame: ttk.Frame) -> None:
+        ttk.Label(
+            frame,
+            text="Low side outputs ground the load when ON. DO NOT EXCEED 0.5A PER OUTPUT. \n"
+                 "Both outputs use one PWM timer, so when both are PWM they share a frequency.",
+            wraplength=760, justify="left",
+        ).pack(anchor="w", padx=10, pady=(10, 0))
+        self._unit_system_radios(frame).pack(anchor="w", padx=10, pady=(4, 0))
+        for n, pin in ((1, "D12"), (2, "D13")):
+            grp = ttk.LabelFrame(frame, text=f"Output {n} ({pin})")
+            grp.pack(fill="x", padx=10, pady=6)
+            self._build_output_group(grp, n)
+        self._refresh_outputs()
+
+    def _output_combo(self, parent: tk.Widget, row: int, col: int, label: str, param: str,
+                      options: tuple, offset: int = 0, width: int = 0) -> ttk.Combobox:
+        """Read-only combobox whose index + offset is the stored firmware value."""
+        lbl = ttk.Label(parent, text=label)
+        if label:
+            lbl.grid(row=row, column=col, sticky="e", padx=4, pady=2)
+        display = tk.StringVar()
+        combo = ttk.Combobox(parent, textvariable=display, values=options, state="readonly",
+                             width=width or max(map(len, options)) + 1)
+        combo.grid(row=row, column=col + 1, sticky="w", padx=4, pady=2)
+        combo.bind("<<ComboboxSelected>>",
+                   lambda _e: self._vars[param].set(str(combo.current() + offset)))
+
+        def sync(*_args: object) -> None:
+            try:
+                index = int(self._vars[param].get()) - offset
+                display.set(options[index] if 0 <= index < len(options) else "Unsupported")
+            except ValueError:
+                display.set("")
+
+        self._vars[param].trace_add("write", sync)
+        self._vars[param].trace_add("write", lambda *_a: self._mark_parameter_dirty(param))
+        sync()
+        self._param_widgets[param] = combo
+        self._param_labels[param] = lbl
+        ToolTip(combo, TOOLTIPS[param])
+        return combo
+
+    def _build_output_group(self, grp: ttk.LabelFrame, n: int) -> None:
+        p = f"out{n}_"
+        ui: dict = {}
+        top = ttk.Frame(grp)
+        top.grid(row=0, column=0, sticky="w", padx=6, pady=(4, 0))
+        mode = self._output_combo(top, 0, 0, "Mode:", p + "mode", OUTPUT_MODE_OPTIONS)
+        mode.bind("<<ComboboxSelected>>", lambda _e: self._output_mode_selected(n), add="+")
+        param = self._output_combo(top, 0, 2, "Parameter:", p + "param", OUTPUT_PARAM_OPTIONS, offset=1)
+        param.bind("<<ComboboxSelected>>", lambda _e: self._seed_output_values(n), add="+")
+        ui["param"] = (self._param_labels[p + "param"], param)
+
+        # On/off: "Turn ON when value [> / <] [on]" / "Turn OFF when value [opposite] [off]"
+        onoff = ttk.Frame(grp)
+        ttk.Label(onoff, text="Turn ON when value").grid(row=0, column=0, sticky="e", padx=4, pady=2)
+        self._output_combo(onoff, 0, 0, "", p + "on_op", OUTPUT_ON_OPS, width=3)
+        kind = lambda: self._output_kind(n)  # noqa: E731
+        self._unit_entry(onoff, p + "on_val", 0, 2, kind)
+        ttk.Label(onoff, text="Turn OFF when value").grid(row=1, column=0, sticky="e", padx=4, pady=2)
+        ui["off_op"] = ttk.Label(onoff, text="", width=3, anchor="center")
+        ui["off_op"].grid(row=1, column=1, padx=4, pady=2)
+        ToolTip(ui["off_op"], "Set automatically to the opposite of the on comparison.")
+        self._unit_entry(onoff, p + "off_val", 1, 2, kind)
+        ui["units"] = [ttk.Label(onoff, text="") for _ in range(2)]
+        for row, lbl in enumerate(ui["units"]):
+            lbl.grid(row=row, column=3, sticky="w", padx=2)
+        ui["onoff"] = onoff
+
+        # PWM: frequency plus an 8 point value -> duty table and a preview of the curve
+        pwm = ttk.Frame(grp)
+        ttk.Label(pwm, text="Frequency (Hz):").grid(row=0, column=0, sticky="e", padx=4, pady=2)
+        freq = self._curve_entry(pwm, p + "freq", 0, 1)
+        freq.bind("<KeyRelease>", lambda _e: self._sync_output_freq(n), add="+")
+        ttk.Label(pwm, text=f"{OUTPUT_FREQ_RANGE[0]}-{OUTPUT_FREQ_RANGE[1]} Hz").grid(
+            row=0, column=2, columnspan=3, sticky="w", padx=2)
+        for i in range(OUTPUT_PWM_POINTS):
+            ttk.Label(pwm, text=str(i + 1)).grid(row=1, column=i + 1)
+            self._unit_entry(pwm, f"{p}x{i}", 2, i + 1, kind)
+            self._curve_entry(pwm, f"{p}d{i}", 3, i + 1)
+        ui["value_label"] = ttk.Label(pwm, text="Value:")
+        ui["value_label"].grid(row=2, column=0, sticky="e", padx=4, pady=2)
+        ttk.Label(pwm, text="Duty (%):").grid(row=3, column=0, sticky="e", padx=4, pady=2)
+        ui["canvas"] = tk.Canvas(pwm, width=480, height=140, background="white",
+                                 highlightthickness=1, highlightbackground="#999999")
+        ui["canvas"].grid(row=4, column=0, columnspan=OUTPUT_PWM_POINTS + 1, sticky="w", padx=4, pady=(4, 2))
+        ui["pwm"] = pwm
+
+        ui["status"] = ttk.Label(grp, text="", foreground="red", wraplength=700, justify="left")
+        ui["status"].grid(row=3, column=0, sticky="w", padx=10, pady=(0, 4))
+        self._output_ui[n] = ui
+        for name in output_param_names(n):
+            self._vars[name].trace_add("write", lambda *_a: self._refresh_outputs())
+        # A new parameter may use different units: re-show the converted values
+        self._vars[p + "param"].trace_add("write", lambda *_a: self._resync_unit_entries())
+
+    def _output_kind(self, n: int) -> Optional[str]:
+        try:
+            return OUTPUT_PARAM_KINDS[int(self._vars[f"out{n}_param"].get()) - 1]
+        except (ValueError, IndexError):
+            return None
+
+    def _output_values(self) -> Dict[str, str]:
+        return {p: self._vars[p].get() for p in OUTPUT_PARAMS}
+
+    def _refresh_outputs(self) -> None:
+        """Show the controls for each output's mode, update unit/operator labels and live validation."""
+        values = self._output_values()
+        pwm = str(OUTPUT_MODE_PWM)
+        shared_freq_mismatch = (values["out1_mode"] == pwm and values["out2_mode"] == pwm
+                                and values["out1_freq"] != values["out2_freq"])
+        for n, ui in self._output_ui.items():
+            p = f"out{n}_"
+            mode = values[p + "mode"]
+            for widget in ui["param"]:
+                widget.grid() if mode in ("1", "2") else widget.grid_remove()
+            if mode == str(OUTPUT_MODE_ON_OFF):
+                ui["onoff"].grid(row=1, column=0, sticky="w", padx=6, pady=2)
+            else:
+                ui["onoff"].grid_remove()
+            if mode == str(OUTPUT_MODE_PWM):
+                ui["pwm"].grid(row=2, column=0, sticky="w", padx=6, pady=2)
+            else:
+                ui["pwm"].grid_remove()
+            try:
+                index = int(values[p + "param"]) - 1
+                unit = unit_label(OUTPUT_PARAM_KINDS[index], self._imperial(), OUTPUT_PARAM_UNITS[index])
+            except (ValueError, IndexError):
+                unit = ""
+            for lbl in ui["units"]:
+                lbl.configure(text=unit)
+            ui["value_label"].configure(text=f"Value ({unit}):" if unit else "Value:")
+            try:
+                ui["off_op"].configure(text=output_off_operator(int(values[p + "on_op"])))
+            except (ValueError, IndexError):
+                ui["off_op"].configure(text="")
+            try:
+                validate_outputs({k: v for k, v in values.items() if k.startswith(p)}, self._imperial())
+                message = ""
+            except ValueError as exc:
+                message = str(exc)
+            if not message and shared_freq_mismatch:
+                message = "Both outputs are PWM and share one timer: set the same frequency on both."
+            ui["status"].configure(text=message)
+            self._draw_output_curve(n, values)
+
+    def _draw_output_curve(self, n: int, values: Dict[str, str]) -> None:
+        canvas: tk.Canvas = self._output_ui[n]["canvas"]
+        canvas.delete("all")
+        w, h = int(canvas["width"]), int(canvas["height"])
+        p = f"out{n}_"
+        try:
+            xs = [int(values[f"{p}x{i}"]) for i in range(OUTPUT_PWM_POINTS)]
+            ds = [int(values[f"{p}d{i}"]) for i in range(OUTPUT_PWM_POINTS)]
+            validate_pwm_curve(str(OUTPUT_FREQ_RANGE[0]), xs, ds)
+        except ValueError:
+            canvas.create_text(w // 2, h // 2, text="Enter a valid curve to see the preview", fill="#888888")
+            return
+        left, right, top, bottom = 40, 12, 10, 22
+        px = lambda x: left + (x - xs[0]) * (w - left - right) / (xs[-1] - xs[0])  # noqa: E731
+        py = lambda d: top + (100 - d) * (h - top - bottom) / 100  # noqa: E731
+        canvas.create_line(left, top, left, h - bottom, w - right, h - bottom, fill="#666666")
+        canvas.create_text(left - 4, py(100), text="100%", anchor="e", fill="#444444")
+        canvas.create_text(left - 4, py(0), text="0%", anchor="e", fill="#444444")
+        kind, imperial = self._output_kind(n), self._imperial()
+        canvas.create_text(left, h - bottom + 4, text=raw_to_display(str(xs[0]), kind, imperial),
+                           anchor="nw", fill="#444444")
+        canvas.create_text(w - right, h - bottom + 4, text=raw_to_display(str(xs[-1]), kind, imperial),
+                           anchor="ne", fill="#444444")
+        points = [coord for x, d in zip(xs, ds) for coord in (px(x), py(d))]
+        canvas.create_line(*points, fill="#1f6feb", width=2)
+        for x, d in zip(xs, ds):
+            canvas.create_oval(px(x) - 3, py(d) - 3, px(x) + 3, py(d) + 3, fill="#1f6feb", outline="")
+
+    def _output_mode_selected(self, n: int) -> None:
+        """A newly PWM output adopts the other output's frequency, since they share Timer1."""
+        other = 3 - n
+        if self._vars[f"out{n}_mode"].get() == str(OUTPUT_MODE_PWM) \
+                and self._vars[f"out{other}_mode"].get() == str(OUTPUT_MODE_PWM):
+            other_freq = self._vars[f"out{other}_freq"].get()
+            if other_freq:
+                self._vars[f"out{n}_freq"].set(other_freq)
+
+    def _sync_output_freq(self, n: int) -> None:
+        """Typing a frequency on one PWM output updates the other PWM output to match."""
+        other = 3 - n
+        if self._vars[f"out{n}_mode"].get() != str(OUTPUT_MODE_PWM) \
+                or self._vars[f"out{other}_mode"].get() != str(OUTPUT_MODE_PWM):
+            return
+        freq = self._vars[f"out{n}_freq"].get()
+        if self._vars[f"out{other}_freq"].get() != freq:
+            self._vars[f"out{other}_freq"].set(freq)
+
+    def _seed_output_values(self, n: int) -> None:
+        """Fill typical thresholds and an evenly spaced curve for the newly picked parameter."""
+        p = f"out{n}_"
+        try:
+            lo, hi = OUTPUT_PARAM_RANGES[int(self._vars[p + "param"].get()) - 1]
+        except (ValueError, IndexError):
+            return
+        span = hi - lo
+        try:
+            op = int(self._vars[p + "on_op"].get())
+        except ValueError:
+            op = 0
+        if op not in (0, 1):
+            op = 0
+        band = max(1, round(span * 0.05))
+        on = lo + round(span * (0.8 if op == 0 else 0.2))
+        self._vars[p + "on_op"].set(str(op))
+        self._vars[p + "on_val"].set(str(on))
+        self._vars[p + "off_val"].set(str(on - band if op == 0 else on + band))
+        last = None
+        for i in range(OUTPUT_PWM_POINTS):
+            x = lo + round(span * i / (OUTPUT_PWM_POINTS - 1))
+            x = x if last is None or x > last else last + 1
+            self._vars[f"{p}x{i}"].set(str(x))
+            last = x
+
+    def _validate_outputs(self) -> bool:
+        try:
+            validate_outputs(self._output_values(), self._imperial())
+        except ValueError as exc:
+            messagebox.showerror("Invalid output configuration", str(exc))
+            return False
+        return True
     # ------ Tab 7: LED Tach ------
     def _build_tab_led_tach(self, frame: ttk.Frame) -> None:
         grp = ttk.LabelFrame(frame, text="LED Tachometer")
@@ -2724,7 +3286,9 @@ class GaugeConfigApp:
     def _build_tab_display(self, frame: ttk.Frame) -> None:
         grp = ttk.LabelFrame(frame, text="Units")
         grp.pack(padx=10, pady=10, fill="x")
-        self._param_row(grp, 0, 0, "Unit system:", "units")
+        self._param_row(grp, 0, 0, "Gauge unit system:", "units")
+        self._unit_system_radios(grp, "Config tool units:").grid(
+            row=1, column=0, columnspan=2, sticky="w", padx=4, pady=2)
         screens_frame = ttk.Frame(frame)
         screens_frame.pack(padx=10, pady=6, fill="x")
         for col, (title, param) in enumerate((
@@ -2750,6 +3314,7 @@ class GaugeConfigApp:
 
     # ------ Tab 9: Faults ------
     def _build_tab_faults(self, frame: ttk.Frame) -> None:
+        self._unit_system_radios(frame).pack(anchor="w", padx=10, pady=(10, 0))
         grp = ttk.LabelFrame(frame, text="Fault Warning Thresholds")
         grp.pack(padx=10, pady=10, fill="both")
         self._warning_threshold_row(
@@ -2761,8 +3326,68 @@ class GaugeConfigApp:
             TEMPERATURE_UNITS, self._coolant_warn_display_var, self._coolant_warn_units_var,
         )
         self._param_row(grp, 2, 0, "Battery voltage (V):", "batt_warn_v")
-        self._param_row(grp, 3, 0, "Engine running RPM:",  "engine_run_rpm")
-        self._param_row(grp, 4, 0, "Low fuel (%):",        "fuel_warn_pct")
+        self._param_row(grp, 3, 0, "Low fuel (%):",        "fuel_warn_pct")
+        self._param_row(grp, 4, 0, "Engine running RPM:",  "engine_run_rpm")
+        for row, param in zip((0, 1, 2, 3), WARN_DEBOUNCE_PARAMS):
+            self._debounce_entry(grp, row, param)
+
+    def _debounce_entry(self, parent: tk.Widget, row: int, param: str) -> None:
+        """'Delay (s)' entry; seconds are converted to the stored milliseconds as you type."""
+        lbl = ttk.Label(parent, text="Delay (s):")
+        lbl.grid(row=row, column=3, sticky="e", padx=(16, 4), pady=2)
+        display = tk.StringVar()
+        entry = ttk.Entry(parent, textvariable=display, width=8, justify="right")
+        entry.grid(row=row, column=4, sticky="w", padx=4, pady=2)
+        self._param_labels[param] = lbl
+        self._param_widgets[param] = entry
+        ToolTip(lbl, TOOLTIPS[param])
+        ToolTip(entry, TOOLTIPS[param])
+        busy = [False]
+
+        def to_raw(*_args: object) -> None:
+            if busy[0]:
+                return
+            busy[0] = True
+            try:
+                text = display.get().strip()
+                try:
+                    raw = str(debounce_seconds_to_ms(text))
+                except ValueError:
+                    # Never pass seconds text through as ms; keep the stored value and flag the field
+                    self._mark_parameter_dirty(param)
+                    return
+                if self._vars[param].get() != raw:
+                    self._vars[param].set(raw)
+            finally:
+                busy[0] = False
+
+        def to_display(*_args: object) -> None:
+            if busy[0]:
+                return
+            busy[0] = True
+            try:
+                display.set(debounce_ms_to_seconds(self._vars[param].get()))
+            finally:
+                busy[0] = False
+
+        display.trace_add("write", to_raw)
+        self._vars[param].trace_add("write", to_display)
+        self._vars[param].trace_add("write", lambda *_a: self._mark_parameter_dirty(param))
+        self._debounce_display_vars[param] = display
+        to_display()
+
+    def _validate_warning_delays(self) -> bool:
+        """Check the seconds as typed (invalid text is never copied into the stored ms value)."""
+        for param in WARN_DEBOUNCE_PARAMS:
+            text = self._debounce_display_vars[param].get()
+            if text.strip() == "" and self._vars[param].get() == "":
+                continue  # Not read from a device or file yet
+            try:
+                debounce_seconds_to_ms(text)
+            except ValueError as exc:
+                messagebox.showerror("Invalid warning delay", f"{WARN_DEBOUNCE_NAMES[param]}: {exc}")
+                return False
+        return True
 
     # ------ Display Settings: Clock & Fuel group ------
     def _build_tab_clock(self, frame: ttk.Frame) -> None:
@@ -2786,10 +3411,7 @@ class GaugeConfigApp:
         self._vars["fuel_capacity"].trace_add(
             "write", lambda *_args: self._mark_parameter_dirty("fuel_capacity"),
         )
-        self._unit_radio_group(
-            grp, 1, 2, self._fuel_capacity_units_var, FUEL_CAPACITY_UNITS,
-            self._fuel_capacity_units_changed,
-        )
+        self._field_unit_label(grp, 1, 2, self._fuel_capacity_units_var)
         self._sync_fuel_capacity_display()
 
     # ------ Test tab ------
@@ -2822,14 +3444,10 @@ class GaugeConfigApp:
 
         units_row = ttk.Frame(frame)
         units_row.pack(padx=10, pady=2, anchor="w")
-        ttk.Label(units_row, text="Input units:").pack(side="left", padx=(0, 6))
-        self._test_units_var = tk.StringVar(value="metric")
-        self._test_prev_units = "metric"
-        for text, value in (("Metric", "metric"), ("'Merican", "imperial")):
-            ttk.Radiobutton(
-                units_row, text=text, value=value, variable=self._test_units_var,
-                command=self._test_units_changed,
-            ).pack(side="left", padx=4)
+        # Follows the tool-wide unit system (set in _unit_system_changed)
+        self._test_units_var = tk.StringVar(value=self._unit_system_var.get())
+        self._test_prev_units = self._test_units_var.get()
+        self._unit_system_radios(units_row, "Input units:").pack(side="left")
         ttk.Button(
             units_row, text="Restore sources now", command=self._test_restore_sources,
         ).pack(side="left", padx=(20, 0))
@@ -3180,11 +3798,17 @@ class GaugeConfigApp:
             return
         if not self._validate_curves():
             return
+        if not self._validate_outputs():
+            return
+        if not self._validate_warning_delays():
+            return
         selected_sources = self._selected_sources()
+        output_values = self._output_values()
         dirty = [
             p for p in ALL_PARAMS
             if self._dirty[p] and self._vars[p].get()
             and _source_uses_parameter(p, selected_sources)
+            and output_param_active(p, output_values)
         ]
         if not dirty:
             messagebox.showinfo("Nothing to write", "No parameters have been edited.")
@@ -3242,6 +3866,10 @@ class GaugeConfigApp:
             return
         if not self._validate_curves():
             return
+        if not self._validate_outputs():
+            return
+        if not self._validate_warning_delays():
+            return
         params = {p: self._vars[p].get() for p in ALL_PARAMS if self._vars[p].get()}
         params["config_format"] = str(CONFIG_FILE_FORMAT)
         params["filter_format"] = "7"
@@ -3249,6 +3877,7 @@ class GaugeConfigApp:
         params["oil_warn_units"] = self._oil_warn_units_var.get()
         params["coolant_warn_units"] = self._coolant_warn_units_var.get()
         params["fuel_capacity_units"] = self._fuel_capacity_units_var.get()
+        params["tool_units"] = self._unit_system_var.get()
         try:
             _decode_config_filters(params)
             self._config_file.save_to_file(path, params)
@@ -3276,10 +3905,12 @@ class GaugeConfigApp:
                 params["tach_sweep"] = "2"
             converted_params, units = _decode_config_units(params)
             converted_params.update(_decode_config_filters(params))
-            self._speedo_max_units_var.set(units["speedo_max_units"])
-            self._oil_warn_units_var.set(units["oil_warn_units"])
-            self._coolant_warn_units_var.set(units["coolant_warn_units"])
-            self._fuel_capacity_units_var.set(units["fuel_capacity_units"])
+            # Older values were already converted to stored units above; display follows one system.
+            # Files without tool_units take it from their speedometer unit.
+            system = params.get("tool_units")
+            if system not in UNIT_SYSTEMS:
+                system = "imperial" if units["speedo_max_units"] == "mph" else "metric"
+            self._unit_system_var.set(system)
             loaded_count = 0
             for k, v in params.items():
                 if k in (

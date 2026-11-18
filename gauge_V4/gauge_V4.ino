@@ -190,6 +190,9 @@ void setup() {
   pinMode(PWR_PIN, OUTPUT);
   digitalWrite(PWR_PIN, HIGH);
 
+  // Low side outputs held off until the main loop applies their configuration
+  initLowSideOutputs();
+
   // ===== GPS INITIALIZATION =====
   GPS.begin(9600);
   GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCONLY);
@@ -394,6 +397,15 @@ void loop() {
   //
   // Note: Do not call update() here - would conflict with ISR and cause race conditions
 
+  // ===== LOW SIDE OUTPUTS (D12 / D13) =====
+  {
+    static unsigned long timerLsoUpdate = 0;
+    if (millis() - timerLsoUpdate > LSO_UPDATE_RATE) {
+      updateLowSideOutputs();
+      timerLsoUpdate = millis();
+    }
+  }
+
   // ===== LED TACHOMETER UPDATE =====
   if (millis() - timerTachUpdate > TACH_UPDATE_RATE) {
     ledShiftLight(RPM);
@@ -440,7 +452,7 @@ void loop() {
 
   // ===== FAULT DEBOUNCE + FLASH =====
   // Raw fault conditions are debounced: each must persist continuously for
-  // FAULT_DEBOUNCE_MS before the warning (OLED invert + LED) activates.
+  // its *_WARN_DEBOUNCE_MS time before the warning (OLED invert + LED) activates.
   // Clearing the condition immediately resets the debounce timer.
   //
   // Fault conditions:
@@ -455,16 +467,16 @@ void loop() {
     bool battRaw    = (vBatt > BATT_VOLT_MIN_VALID) && (vBatt < BATT_VOLT_WARN_THRESHOLD);
     bool fuelRaw    = (FUEL_LVL_SOURCE != 0) && (fuelLvlCAN < FUEL_LVL_WARN_THRESHOLD_PCT);
 
-    // Debounce: reset timer while condition is false; activate after FAULT_DEBOUNCE_MS
+    // Debounce: reset timer while condition is false; activate after that warning's debounce time
     unsigned long now = millis();
     if (!oilPrsRaw)  { timerOilFaultDebounce     = now; oilFaultActive     = false; }
-    else if (now - timerOilFaultDebounce     >= FAULT_DEBOUNCE_MS) oilFaultActive     = true;
+    else if (now - timerOilFaultDebounce     >= OIL_PRS_WARN_DEBOUNCE_MS)      oilFaultActive     = true;
     if (!coolantRaw) { timerCoolantFaultDebounce  = now; coolantFaultActive = false; }
-    else if (now - timerCoolantFaultDebounce >= FAULT_DEBOUNCE_MS) coolantFaultActive = true;
+    else if (now - timerCoolantFaultDebounce >= COOLANT_TEMP_WARN_DEBOUNCE_MS) coolantFaultActive = true;
     if (!battRaw)    { timerBattFaultDebounce     = now; battFaultActive    = false; }
-    else if (now - timerBattFaultDebounce    >= FAULT_DEBOUNCE_MS) battFaultActive    = true;
+    else if (now - timerBattFaultDebounce    >= BATT_VOLT_WARN_DEBOUNCE_MS)    battFaultActive    = true;
     if (!fuelRaw)    { timerFuelFaultDebounce     = now; fuelFaultActive    = false; }
-    else if (now - timerFuelFaultDebounce    >= FAULT_DEBOUNCE_MS) fuelFaultActive    = true;
+    else if (now - timerFuelFaultDebounce    >= FUEL_LVL_WARN_DEBOUNCE_MS)     fuelFaultActive    = true;
 
     // Determine which displays are showing a faulted reading
     bool disp1Fault = (oilFaultActive     && (dispArray1[0] == 1)) ||

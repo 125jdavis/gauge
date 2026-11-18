@@ -224,7 +224,7 @@ bool faultFlashState = false;        // Current inversion state for fault flash 
 // ===== FAULT DEBOUNCE STATE =====
 // Each fault timer is reset to millis() while the raw condition is false.
 // The confirmed flag becomes true only after the raw condition has been
-// continuously true for FAULT_DEBOUNCE_MS.
+// continuously true for its *_WARN_DEBOUNCE_MS.
 unsigned long timerOilFaultDebounce     = 0;
 unsigned long timerCoolantFaultDebounce = 0;
 unsigned long timerBattFaultDebounce    = 0;

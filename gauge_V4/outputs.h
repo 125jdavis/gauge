@@ -25,6 +25,12 @@ void updateMotors1to4Smoothing(void);         // Interpolate motors 1-4 position
 int fuelLvlAngle(int sweep, int minPct, int maxPct);        // Fuel level to gauge angle
 int coolantTempAngle(int sweep, int minTemp, int maxTemp);  // Coolant temp to gauge angle
 int motorFunctionAngle(uint8_t func, int sweep, int minVal, int maxVal);  // Angle for a configured MOTOR_FUNC_* assignment
+long signalValue(uint8_t func);               // Current value of a MOTOR_FUNC_* / OUT_PARAM_* signal
+
+// Low side outputs (ULN2003 on D12 / D13, Timer1 PWM)
+void initLowSideOutputs(void);                // Pins low + Timer1 setup (call early in setup)
+void updateLowSideOutputs(void);              // Apply on/off or PWM from LOW_SIDE_OUT (call at LSO_UPDATE_RATE)
+void lowSideOutputsOff(void);                 // Force both outputs off (shutdown)
 
 // Stepper motor control functions
 void motorZeroSynchronous(void);              // Return all motors to zero (fast, for startup calibration)

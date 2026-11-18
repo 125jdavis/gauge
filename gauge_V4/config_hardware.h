@@ -110,6 +110,14 @@ constexpr uint8_t ODO_PIN2 = 9;    // Odometer motor coil 2 pin
 constexpr uint8_t ODO_PIN3 = 10;    // Odometer motor coil 3 pin
 constexpr uint8_t ODO_PIN4 = 11;    // Odometer motor coil 4 pin
 
+// ===== LOW SIDE OUTPUTS (ULN2003ADR) =====
+// MCU pin HIGH = ULN2003 channel sinks = load ON.
+// D12 = PB6 = OC1B, D13 = PB7 = OC1C: both PWM from Timer1, so they share one PWM frequency.
+// NOTE: Timer1 OC1A is D11 (ODO_PIN4); its COM1A bits stay 0 so D11 remains a plain GPIO.
+constexpr uint8_t OUT1_PIN = 12;    // Output 1 (ULN2003 input, PB6 / OC1B)
+constexpr uint8_t OUT2_PIN = 13;    // Output 2 (ULN2003 input, PB7 / OC1C)
+constexpr uint32_t LSO_TIMER_HZ = F_CPU / 64;  // Timer1 clock with /64 prescaler: 250 kHz (TOP 499-12499 for 500-20 Hz)
+
 // ===== TIMING CONSTANTS =====
 // Update rate periods (in milliseconds)
 constexpr unsigned int CAN_SEND_RATE = 50;        // Send CAN messages every 50ms (20Hz)
@@ -121,11 +129,12 @@ constexpr unsigned int SIG_SELECT_UPDATE_RATE = 10; // Update signal selection/s
 constexpr unsigned int GPS_UPDATE_RATE = 100;     // GPS update check rate (might not be needed)
 constexpr unsigned int CHECK_GPS_RATE = 1;        // Check for GPS data every 1ms
 constexpr unsigned int ANGLE_UPDATE_RATE = 150;    // Update motor angles every 150ms (~7Hz)
+constexpr unsigned int LSO_UPDATE_RATE = 50;      // Update low side outputs every 50ms (20Hz)
 constexpr unsigned int SPLASH_TIME = 1500;        // Duration of startup splash screens (milliseconds)
 constexpr unsigned int HALL_UPDATE_RATE = 20;     // Recalculate Hall sensor speed every 20ms (50Hz)
 constexpr unsigned int ENGINE_RPM_UPDATE_RATE = 20; // Check engine RPM timeout every 20ms (50Hz)
 constexpr unsigned int FAULT_FLASH_INTERVAL_MS = 500; // Fault flash toggle interval: invert display every 500ms
-constexpr unsigned int FAULT_DEBOUNCE_MS = 3000;      // Fault must persist this long (ms) before warning activates
+// Fault debounce times are calibration parameters (*_WARN_DEBOUNCE_MS in config_calibration.h)
 constexpr float BATT_VOLT_MIN_VALID = 1.0f;          // Battery voltage below this means system is powered off (ignore for fault detection)
 
 // ===== MOTOR UPDATE TIMER CONFIGURATION =====

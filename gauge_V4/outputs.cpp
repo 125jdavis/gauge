@@ -514,6 +514,91 @@ int coolantTempAngle(int sweep, int minTemp, int maxTemp) {
   return angle;
 }
 /**
+ * signalValue - Current value of a MOTOR_FUNC_* / OUT_PARAM_* signal, in the config tool's units
+ *
+ * Fuel %, degC, RPM, km/h, kPa, lambda * 1000, battery volts * 10. Unknown/off returns 0.
+ */
+long signalValue(uint8_t func) {
+  switch (func) {
+    case MOTOR_FUNC_FUEL_LEVEL:    return lroundf(fuelLvl);
+    case MOTOR_FUNC_COOLANT_TEMP:  return lroundf(coolantTemp);
+    case MOTOR_FUNC_RPM:           return RPM;
+    case MOTOR_FUNC_VEHICLE_SPEED: return ((long)spd + 50L) / 100L;
+    case MOTOR_FUNC_OIL_PRESSURE:  return lroundf(oilPrs);
+    case MOTOR_FUNC_FUEL_PRESSURE: return lroundf(fuelPrs);
+    case MOTOR_FUNC_OIL_TEMP:      return lroundf(oilTemp);
+    case MOTOR_FUNC_MAP:           return lroundf(manifoldPrs);
+    case MOTOR_FUNC_LAMBDA:        return lroundf(afr * 1000.0f);
+    case OUT_PARAM_BATTERY:        return lroundf(vBatt * 10.0f);
+    default:                       return 0;
+  }
+}
+
+/*
+ * ========================================
+ * LOW SIDE OUTPUTS (ULN2003ADR)
+ * ========================================
+ * Output 1 = D12 (PB6/OC1B), Output 2 = D13 (PB7/OC1C). MCU HIGH = load ON.
+ * Timer1 runs fast PWM mode 15 (TOP = OCR1A, double buffered, so frequency changes are glitch-free)
+ * at F_CPU/64. Both channels share TOP, so PWM frequency is common to both outputs.
+ * Pins are driven by direct register access: digitalWrite(13) on the Mega core maps to Timer0 (OC0A),
+ * not OC1C, so it would not disconnect the Timer1 output.
+ * NOTE: No ISR touches Timer1, so its 16-bit register writes (shared TEMP register) are safe from loop().
+ */
+static bool lsoState[LSO_COUNT] = {false, false};  // Hysteresis state for on/off mode
+
+// Drive one channel: permille 0 = low, 1000 = high, otherwise PWM via Timer1
+static void lsoWrite(uint8_t idx, uint16_t permille, uint16_t top) {
+  const uint8_t com = idx == 0 ? _BV(COM1B1) : _BV(COM1C1);
+  const uint8_t bit = idx == 0 ? _BV(PB6) : _BV(PB7);
+  if (permille == 0 || permille >= 1000) {
+    TCCR1A &= ~com;                                   // Disconnect timer; PORTB drives the pin
+    if (permille == 0) PORTB &= ~bit; else PORTB |= bit;
+    return;
+  }
+  uint16_t compare = lsoPwmCompare(top, permille);
+  if (idx == 0) OCR1B = compare; else OCR1C = compare;
+  TCCR1A |= com;
+}
+
+void initLowSideOutputs(void) {
+  PORTB &= ~(_BV(PB6) | _BV(PB7));                    // Outputs off before enabling drivers
+  DDRB  |=  (_BV(PB6) | _BV(PB7));
+  TCCR1A = _BV(WGM11) | _BV(WGM10);                   // Mode 15 (fast PWM, TOP = OCR1A), pins disconnected
+  TCCR1B = _BV(WGM13) | _BV(WGM12) | _BV(CS11) | _BV(CS10);  // Prescaler 64
+  OCR1A  = lsoPwmTop(LSO_TIMER_HZ, LOW_SIDE_OUT[0].freqHz);
+}
+
+void lowSideOutputsOff(void) {
+  for (uint8_t i = 0; i < LSO_COUNT; i++) {
+    lsoState[i] = false;
+    lsoWrite(i, 0, 0);
+  }
+}
+
+void updateLowSideOutputs(void) {
+  // Shared PWM frequency: Output 1's when it is PWM, otherwise Output 2's (tool keeps them equal)
+  const LowSideOutputConfig &freqSrc =
+      (LOW_SIDE_OUT[0].mode == LSO_MODE_PWM || LOW_SIDE_OUT[1].mode != LSO_MODE_PWM) ? LOW_SIDE_OUT[0] : LOW_SIDE_OUT[1];
+  uint16_t top = lsoPwmTop(LSO_TIMER_HZ, freqSrc.freqHz);
+  if (OCR1A != top) OCR1A = top;
+
+  for (uint8_t i = 0; i < LSO_COUNT; i++) {
+    const LowSideOutputConfig &cfg = LOW_SIDE_OUT[i];
+    long value = signalValue(cfg.param);
+    uint16_t permille = 0;
+    if (cfg.mode == LSO_MODE_ON_OFF) {
+      lsoState[i] = lsoHysteresisStep(lsoState[i], cfg.onOp, cfg.onVal, cfg.offVal, value);
+      permille = lsoState[i] ? 1000 : 0;
+    } else {
+      lsoState[i] = false;  // Re-entering on/off mode starts from off
+      if (cfg.mode == LSO_MODE_PWM) permille = lsoPwmDutyPermille(cfg.pwmX, cfg.pwmDuty, value);
+    }
+    lsoWrite(i, permille, top);
+  }
+}
+
+/**
  * motorFunctionAngle - Needle angle for the signal assigned to a gauge motor
  *
  * @param func   MOTOR_FUNC_* value (M1_FUNCTION..M4_FUNCTION)
@@ -523,19 +608,15 @@ int coolantTempAngle(int sweep, int minTemp, int maxTemp) {
  * @return Motor angle in steps (1 to sweep-1); 1 (zero) when off or unknown
  */
 int motorFunctionAngle(uint8_t func, int sweep, int minVal, int maxVal) {
-  long value;
   switch (func) {
     case MOTOR_FUNC_FUEL_LEVEL:   return fuelLvlAngle(sweep, minVal, maxVal);
     case MOTOR_FUNC_COOLANT_TEMP: return coolantTempAngle(sweep, minVal, maxVal);
-    case MOTOR_FUNC_RPM:           value = RPM; break;
-    case MOTOR_FUNC_VEHICLE_SPEED: value = ((long)spd + 50L) / 100L; break;
-    case MOTOR_FUNC_OIL_PRESSURE:  value = lroundf(oilPrs); break;
-    case MOTOR_FUNC_FUEL_PRESSURE: value = lroundf(fuelPrs); break;
-    case MOTOR_FUNC_OIL_TEMP:      value = lroundf(oilTemp); break;
-    case MOTOR_FUNC_MAP:           value = lroundf(manifoldPrs); break;
-    case MOTOR_FUNC_LAMBDA:        value = lroundf(afr * 1000.0f); break;
-    default:                       return 1;
+    case MOTOR_FUNC_RPM: case MOTOR_FUNC_VEHICLE_SPEED: case MOTOR_FUNC_OIL_PRESSURE:
+    case MOTOR_FUNC_FUEL_PRESSURE: case MOTOR_FUNC_OIL_TEMP: case MOTOR_FUNC_MAP:
+    case MOTOR_FUNC_LAMBDA:       break;
+    default:                      return 1;
   }
+  long value = signalValue(func);
   if (minVal == maxVal) return 1;
   long angle = map(value, (long)minVal, (long)maxVal, 1L, (long)sweep - 1L);
   return (int)constrain(angle, 1L, (long)sweep - 1L);

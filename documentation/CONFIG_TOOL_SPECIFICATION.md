@@ -247,10 +247,18 @@ The Arduino Mega 2560 has **256 KB** of flash. All `PROGMEM` bitmaps, lookup tab
 | `batt_warn_v` | float | 5–16 | Battery voltage warning threshold (V) |
 | `engine_run_rpm` | int | 0–2000 | Min RPM to consider engine running |
 | `fuel_warn_pct` | uint8 | 0–50 | Low fuel warning threshold (%) |
+| `oil_warn_ms`, `coolant_warn_ms`, `batt_warn_ms`, `fuel_warn_ms` | uint16 | 0–60000 | Warning debounce (ms): the condition must persist this long before that warning activates; it clears immediately. Default 3000. GUI accepts seconds |
 | `clock_offset` | int8 | −12–12 | Time zone offset from UTC (hours) |
 | `fuel_capacity` | float | 1–200 | Fuel tank capacity (gallons); GUI accepts gallons or liters |
 | `can_protocol` | uint8 | 0–3 | CAN protocol: 0=Haltech v2, 1=Megasquirt, 2=AiM, 3=OBDII |
 | `units` | uint8 | 0–1 | 0 = metric, 1 = imperial |
+| `out1_mode`, `out2_mode` | uint8 | 0–2 | Low side output 1 (D12) / 2 (D13): 0=Disabled, 1=On/Off, 2=PWM |
+| `outN_param` | uint8 | 1–10 | Driving signal: 1–9 = `m*_func` values (same units), 10 = battery voltage (V×10) |
+| `outN_on_op` | uint8 | 0–1 | On/Off: 0 = on when value > `on_val`, off when value < `off_val`; 1 = on when <, off when > |
+| `outN_on_val`, `outN_off_val` | int16 | -32768–32767 | On/Off thresholds; the tool requires `off_val` strictly on the off side of `on_val` (hysteresis band) |
+| `outN_freq` | uint16 | 20–500 | PWM frequency (Hz). Both outputs share Timer1, so the tool requires equal frequencies when both are PWM |
+| `outN_x0` … `outN_x7` | int16 | -32768–32767 | PWM curve parameter values; the tool requires strictly ascending values |
+| `outN_d0` … `outN_d7` | uint8 | 0–100 | PWM duty (%) at each curve point; linear between points, clamped beyond the ends |
 
 ### Error Codes
 
@@ -1213,6 +1221,32 @@ section. Each gauge motor contains:
 Sensor filter groups are shown together on one page as 0–99% sliders: thermistor, fuel level,
 analog inputs AV1/AV2/AV3, and battery voltage.
 
+#### Outputs tab — Low side outputs
+
+ULN2003ADR channels on D12 (Output 1, OC1B) and D13 (Output 2, OC1C); pin HIGH = load grounded (ON).
+One group per output:
+
+| Widget | Type | Description |
+|--------|------|-------------|
+| Mode | Combobox | Disabled, On/Off or PWM. Only the selected mode's settings are shown and written |
+| Parameter | Combobox | Same signals and units as Motor Config, plus battery voltage (V×10). Picking one seeds typical thresholds and an evenly spaced curve |
+| Turn ON when value | Combobox + Entry | `>` or `<` and the on value |
+| Turn OFF when value | Label + Entry | Operator set automatically to the opposite of the on operator; off value |
+| Frequency (Hz) | Entry | 20–500 Hz; kept equal on both outputs when both are PWM |
+| Curve table | 8 × 2 Entries | Parameter value and duty (%) per point, with a live preview plot |
+
+**Units (Metric / 'Merican):** one tool-wide selection, shown on the Speed/RPM, Sensors, Outputs,
+Display Settings, Fault Warnings and Test tabs (changing any copy changes all). It also sets the
+speedometer max (mph/km/h), warning thresholds (PSI/kPa, °F/°C), fuel capacity (gal/L) and Test inputs,
+which no longer have their own unit radios. It is separate from the device `units` parameter
+(the gauge's own display units). It is display-only: values are converted for entry (°C↔°F, km/h↔mph,
+kPa↔PSI; AV pressure as PSI absolute) and always stored in firmware metric units, rounded to whole
+units on entry. Toggling never changes stored values. Saved in config files as `tool_units`.
+
+Firmware updates the outputs every 50 ms (`LSO_UPDATE_RATE`) using Timer1 fast PWM mode 15 at F_CPU/64,
+and turns both off at shutdown. Like other calibration parameters they are RAM-only until EEPROM
+persistence is added; the tool re-sends them.
+
 #### Tab 6 — LED Tachometer
 
 | Widget | Description |
@@ -1300,6 +1334,8 @@ firmware supporting `tachtest`; update the firmware before using this feature.
 | Num LEDs | Must be ≤ 64 (MAX_LEDS) |
 | WARN_LEDS + SHIFT_LEDS | Must be < NUM_LEDS/2 |
 | Splash image | Must be exactly 512 bytes after conversion |
+| Output on/off thresholds | Off value strictly below on value for `>`, strictly above for `<` |
+| Output PWM curve | Frequency 20–500 Hz; values strictly ascending; duty 0–100 %; equal frequency when both outputs are PWM |
 
 ### File Format (.txt config files)
 

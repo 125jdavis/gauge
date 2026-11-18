@@ -184,6 +184,12 @@ extern float COOLANT_TEMP_WARN_THRESHOLD; // Coolant temperature warning (°C) -
 extern float BATT_VOLT_WARN_THRESHOLD;    // Battery voltage warning (V) - flash when below this
 extern int   ENGINE_RUNNING_RPM_MIN;      // Minimum RPM to consider the engine running (RPM)
 extern uint8_t FUEL_LVL_WARN_THRESHOLD_PCT; // Low fuel warning (%) - flash when fuel level drops below this
+// Debounce: each condition must persist this long (ms, 0-60000) before its warning activates
+extern uint16_t OIL_PRS_WARN_DEBOUNCE_MS;
+extern uint16_t COOLANT_TEMP_WARN_DEBOUNCE_MS;
+extern uint16_t BATT_VOLT_WARN_DEBOUNCE_MS;
+extern uint16_t FUEL_LVL_WARN_DEBOUNCE_MS;
+constexpr uint16_t WARN_DEBOUNCE_MAX_MS = 60000;
 
 // ===== TIME ZONE OFFSET =====
 // Hours to add to UTC time for local time zone (-12 to +12)
@@ -225,4 +231,25 @@ extern uint8_t  FUEL_MID_PCT;      // Fuel level (%) at the mid point
 extern uint16_t FUEL_V_EMPTY_MV;   // Sender voltage at empty (linear interpolation to full)
 extern uint16_t FUEL_V_MID_MV;
 extern uint16_t FUEL_V_FULL_MV;
+
+// ===== LOW SIDE OUTPUTS (ULN2003 on D12 / D13) =====
+// Parameter values use the MOTOR_FUNC_* numbering and units (1-9), plus battery voltage.
+#include "output_logic.h"
+#define OUT_PARAM_BATTERY 10   // Battery voltage in volts * 10 (outputs only)
+#define OUT_PARAM_COUNT   11   // Valid parameter values are 1..OUT_PARAM_COUNT-1
+
+struct LowSideOutputConfig {
+    uint8_t  mode;                        // LSO_MODE_*
+    uint8_t  param;                       // Signal that drives the output
+    uint8_t  onOp;                        // LSO_ON_ABOVE / LSO_ON_BELOW
+    int16_t  onVal;                       // On/off: switch-on threshold
+    int16_t  offVal;                      // On/off: switch-off threshold
+    uint16_t freqHz;                      // PWM: 20-500 Hz (both outputs share Timer1)
+    int16_t  pwmX[LSO_PWM_POINTS];        // PWM: parameter breakpoints, strictly ascending
+    uint8_t  pwmDuty[LSO_PWM_POINTS];     // PWM: duty at each breakpoint, 0-100 %
+};
+// Default: disabled; coolant fan style thresholds and curve ready to enable
+#define LSO_DEFAULT_CONFIG { LSO_MODE_DISABLED, MOTOR_FUNC_COOLANT_TEMP, LSO_ON_ABOVE, 95, 90, 100, \
+                             {60, 70, 75, 80, 85, 90, 95, 100}, {0, 0, 20, 35, 50, 65, 80, 100} }
+extern LowSideOutputConfig LOW_SIDE_OUT[LSO_COUNT];
 #endif // CONFIG_CALIBRATION_H

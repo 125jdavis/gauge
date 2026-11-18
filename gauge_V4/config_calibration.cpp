@@ -123,6 +123,10 @@ float COOLANT_TEMP_WARN_THRESHOLD = 110.0;  // Coolant temperature warning: flas
 float BATT_VOLT_WARN_THRESHOLD    = 11.0;   // Battery voltage warning: flash below 11 V
 int   ENGINE_RUNNING_RPM_MIN      = 400;    // Engine considered running above 400 RPM
 uint8_t FUEL_LVL_WARN_THRESHOLD_PCT = 5;   // Low fuel warning: flash below 5% fuel level
+uint16_t OIL_PRS_WARN_DEBOUNCE_MS      = 3000;  // Each warning must persist 3 s before it activates
+uint16_t COOLANT_TEMP_WARN_DEBOUNCE_MS = 3000;
+uint16_t BATT_VOLT_WARN_DEBOUNCE_MS    = 3000;
+uint16_t FUEL_LVL_WARN_DEBOUNCE_MS     = 3000;
 
 // ===== TIME ZONE OFFSET =====
 byte clockOffset = 0;               // Hours to add to UTC time
@@ -149,3 +153,6 @@ uint8_t  FUEL_MID_PCT = 50;
 uint16_t FUEL_V_EMPTY_MV = 2300;
 uint16_t FUEL_V_MID_MV = 1600;
 uint16_t FUEL_V_FULL_MV = 870;
+
+// Low side outputs: both start disabled (see LSO_DEFAULT_CONFIG)
+LowSideOutputConfig LOW_SIDE_OUT[LSO_COUNT] = { LSO_DEFAULT_CONFIG, LSO_DEFAULT_CONFIG };

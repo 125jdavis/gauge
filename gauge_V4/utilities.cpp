@@ -16,6 +16,9 @@
 #include <EEPROM.h>
 
 void shutdown (void){
+  // Release low side output loads first (key is off)
+  lowSideOutputsOff();
+
   // Save all display menu positions (4 bytes)
   for (int i = dispArray1Address; i < sizeof(dispArray1); i++) {
     EEPROM.update(i, dispArray1[i]);  // Only writes if changed
