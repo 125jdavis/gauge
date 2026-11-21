@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark" class="booting">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gauge V4 Configuration Tool</title>
+  <script>
+    // Apply the last theme before first paint; app.js confirms it from the saved prefs.
+    try {
+      var t = localStorage.getItem('gauge-theme');
+      if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+    } catch (e) { /* storage unavailable: keep the default */ }
+  </script>
+  <link rel="stylesheet" href="theme.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <div class="app">
+    <header class="app-header" id="header"></header>
+    <div class="app-body">
+      <nav class="sidebar" id="sidebar" aria-label="Sections"></nav>
+      <main class="page-scroll" id="page-scroll">
+        <div class="page" id="page"></div>
+      </main>
+    </div>
+    <footer class="app-footer" id="footer"></footer>
+  </div>
+  <div id="modal"></div>
+</body>
+</html>

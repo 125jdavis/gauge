@@ -1146,8 +1146,10 @@ void loadConfig(void) {
 
 ### GUI Framework
 
-- **Primary:** `tkinter` (stdlib, zero-install)
-- **Alternative:** `PyQt5` / `PySide6` for richer widgets (requires `pip install`)
+- **Primary:** HTML/CSS/JS front end (`config_tool/web/`) in a native window via `pywebview`
+  (Edge WebView2 on Windows). Entry point: `python app.py`; the JS bridge is `api.py`, and
+  option lists, conversions and validation live in `gui_model.py`.
+- **Legacy:** the original `tkinter` UI (`gui.py`) remains until the web UI is confirmed at parity.
 - **Minimum Python version:** 3.8
 
 ### Library Requirements
@@ -1155,7 +1157,7 @@ void loadConfig(void) {
 ```
 pyserial>=3.5
 Pillow>=9.0
-tkinter (stdlib)
+pywebview>=6.0
 zlib (stdlib)
 struct (stdlib)
 ```

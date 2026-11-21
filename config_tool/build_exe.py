@@ -3,8 +3,9 @@ build_exe.py
 ============
 Build the standalone Windows executable customers run.
 
-Produces ``dist/GaugeConfig.exe`` — a single file with Python, Tk and pyserial
-inside, so customers install nothing. Alongside it the script creates a
+Produces ``dist/GaugeConfig.exe`` — a single file with Python, pywebview, pyserial
+and the web UI (``web/``) inside, so customers install nothing. On Windows 10/11 the
+window uses the Edge WebView2 runtime that ships with the OS. Alongside it the script creates a
 ``dist/firmware/`` folder; drop the ``.hex`` you built for a customer in there
 and the tool pre-selects it on startup.
 
@@ -21,7 +22,8 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP_NAME = "GaugeConfig"
-ENTRY_POINT = os.path.join(HERE, "gui.py")
+ENTRY_POINT = os.path.join(HERE, "app.py")
+WEB_DIR = os.path.join(HERE, "web")
 DIST_DIR = os.path.join(HERE, "dist")
 
 # pyserial picks its backend at runtime, so name every platform module here
@@ -55,6 +57,8 @@ def build() -> int:
     ]
     for module in HIDDEN_IMPORTS:
         cmd += ["--hidden-import", module]
+    # The HTML/CSS/JS front end is loaded from disk at runtime (app.resource).
+    cmd += ["--add-data", f"{WEB_DIR}{os.pathsep}web"]
     icon = os.path.join(HERE, "gauge.ico")
     if os.path.isfile(icon):
         cmd += ["--icon", icon]

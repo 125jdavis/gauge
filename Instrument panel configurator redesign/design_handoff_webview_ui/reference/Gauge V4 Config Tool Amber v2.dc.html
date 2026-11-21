@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/industry-bb68cd05-7ceb-4b4e-90f0-044876a285bb/styles.css">
+<script src="_ds/industry-bb68cd05-7ceb-4b4e-90f0-044876a285bb/_ds_bundle.js"></script>
+<style>body{margin:0}a{color:var(--color-accent)}a:hover{color:var(--color-accent-700)}input[type=range]{accent-color:var(--color-accent)}select.input:disabled,input.input:disabled{cursor:not-allowed}</style>
+</helmet>
+<div style="--color-bg:{{ th.bg }}; --color-surface:{{ th.surface }}; --color-text:{{ th.text }}; --color-accent:{{ th.accent }}; --color-divider:{{ th.divider }}; --color-neutral-100:{{ th.neutral100 }}; --color-neutral-200:{{ th.neutral200 }}; --color-neutral-300:{{ th.neutral300 }}; --color-neutral-400:{{ th.neutral400 }}; --color-neutral-500:{{ th.neutral500 }}; --color-neutral-600:{{ th.neutral600 }}; --color-neutral-700:{{ th.neutral700 }}; --color-neutral-800:{{ th.neutral800 }}; --color-neutral-900:{{ th.neutral900 }}; --color-accent-100:{{ th.accent100 }}; --color-accent-200:{{ th.accent200 }}; --color-accent-300:{{ th.accent300 }}; --color-accent-400:{{ th.accent400 }}; --color-accent-500:{{ th.accent500 }}; --color-accent-600:{{ th.accent600 }}; --color-accent-700:{{ th.accent700 }}; --color-accent-800:{{ th.accent800 }}; --color-accent-900:{{ th.accent900 }}; color-scheme:{{ th.scheme }}; height:100vh; display:grid; grid-template-rows:auto auto minmax(0,1fr) auto; background:var(--color-bg); color:var(--color-text); font-family:var(--font-body);">
+
+  <header style="display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-4) var(--space-6); padding:11px 18px; border-bottom:1px solid var(--color-divider);">
+    <div style="display:flex; align-items:baseline; gap:var(--space-3); margin-right:auto;">
+      <span style="font-family:var(--font-heading); font-weight:600; font-size:20px; letter-spacing:0.03em; text-transform:uppercase;">Gauge V4</span>
+      <span style="font-family:var(--font-heading); font-size:16px; color:var(--color-neutral-700);">Configuration Tool</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:var(--space-2); font-size:13px;">
+      <span style="width:9px; height:9px; border:1.5px solid var(--color-accent); background:{{ connDot }};"></span>
+      <span>{{ connText }}</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:var(--space-2);">
+      <span style="font-size:12px; color:var(--color-neutral-700);">Theme</span>
+      <div class="seg">
+        <label class="seg-opt"><input type="radio" name="tool-theme" checked="{{ isDark }}" onChange="{{ setDark }}">Dark</label>
+        <label class="seg-opt"><input type="radio" name="tool-theme" checked="{{ isLight }}" onChange="{{ setLight }}">Light</label>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:var(--space-2);">
+      <span style="font-size:12px; color:var(--color-neutral-700);">Tool units</span>
+      <div class="seg">
+        <label class="seg-opt"><input type="radio" name="tool-units" checked="{{ isMetric }}" onChange="{{ setMetric }}">Metric</label>
+        <label class="seg-opt"><input type="radio" name="tool-units" checked="{{ isImperial }}" onChange="{{ setImperial }}">'Merican</label>
+      </div>
+    </div>
+    <div style="display:flex; flex-wrap:wrap; gap:var(--space-3);">
+      <button style="font-size:13.5px; padding:6px 11px;" class="btn btn-ghost" onClick="{{ loadFile }}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"></path></svg>
+        Load from file…
+      </button>
+      <button style="font-size:13.5px; padding:6px 11px;" class="btn btn-ghost" onClick="{{ saveFile }}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"></path><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"></path><path d="M7 3v4a1 1 0 0 0 1 1h7"></path></svg>
+        Save to file…
+      </button>
+      <button style="font-size:13.5px; padding:6px 11px;" class="btn btn-secondary" onClick="{{ readDevice }}" disabled="{{ offline }}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="m7 10 5 5 5-5"></path><path d="M12 15V3"></path></svg>
+        Read from device
+      </button>
+      <button style="font-size:13.5px; padding:6px 11px;" class="btn btn-primary blueprint" onClick="{{ writeDevice }}" disabled="{{ offline }}">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="m17 8-5-5-5 5"></path><path d="M12 3v12"></path></svg>
+        Write to device
+        <sc-if value="{{ hasDirty }}"><span style="font-family:var(--font-body); font-size:11px; padding:1px 6px; background:var(--color-bg); color:var(--color-accent-800);">{{ dirtyCount }}</span></sc-if>
+      </button>
+    </div>
+  </header>
+
+  <sc-if value="{{ isTabs }}" hint-placeholder-val="{{ false }}">
+    <nav style="display:flex; overflow-x:auto; border-bottom:1px solid var(--color-divider); padding:0 var(--space-4);">
+      <sc-for list="{{ flatNav }}" as="n" hint-placeholder-count="11">
+        <button style="flex:none; display:flex; gap:6px; align-items:center; padding:var(--space-3) var(--space-3); background:transparent; border:0; border-bottom:2px solid {{ n.bar }}; margin-bottom:-1px; font-family:var(--font-heading); font-weight:600; font-size:16px; color:{{ n.color }}; cursor:pointer; white-space:nowrap;" style-hover="color:var(--color-text)" onClick="{{ n.go }}">
+          {{ n.label }}
+          <sc-if value="{{ n.hasCount }}"><span style="font-family:var(--font-body); font-weight:500; font-size:11px; padding:0 5px; background:var(--color-accent-100); color:var(--color-accent-800);">{{ n.count }}</span></sc-if>
+        </button>
+      </sc-for>
+    </nav>
+  </sc-if>
+  <sc-if value="{{ isSidebar }}" hint-placeholder-val="{{ true }}"><div></div></sc-if>
+
+  <div style="display:grid; grid-template-columns:{{ cols }}; min-height:0;">
+    <sc-if value="{{ isSidebar }}" hint-placeholder-val="{{ true }}">
+      <aside style="border-right:1px solid var(--color-divider); padding:17px 0; overflow-y:auto; display:flex; flex-direction:column; gap:17px;">
+        <sc-for list="{{ nav }}" as="g" hint-placeholder-count="4">
+          <div style="display:flex; flex-direction:column;">
+            <h6 style="margin:0 0 5px; padding:0 18px; color:var(--color-accent-700);">{{ g.group }}</h6>
+            <sc-for list="{{ g.items }}" as="n">
+              <button style="display:flex; align-items:center; justify-content:space-between; gap:8px; text-align:left; padding:6px 18px; background:{{ n.bg }}; border:0; border-left:2px solid {{ n.bar }}; font-family:var(--font-heading); font-weight:600; font-size:16px; color:{{ n.color }}; cursor:pointer;" style-hover="color:var(--color-text); background:var(--color-neutral-200)" onClick="{{ n.go }}">
+                <span>{{ n.label }}</span>
+                <sc-if value="{{ n.hasCount }}"><span title="Unsaved changes" style="font-family:var(--font-body); font-weight:500; font-size:11px; min-width:18px; text-align:center; padding:0 5px; background:var(--color-accent); color:var(--color-bg);">{{ n.count }}</span></sc-if>
+              </button>
+            </sc-for>
+          </div>
+        </sc-for>
+      </aside>
+    </sc-if>
+
+    <main style="overflow-y:auto; min-width:0;">
+      <div style="padding:23px 25px 51px; max-width:1250px; display:flex; flex-direction:column; gap:23px;">
+
+        <div style="display:flex; flex-direction:column; gap:var(--space-1);">
+          <h6 style="margin:0; color:var(--color-accent-700);">{{ tabKicker }}</h6>
+          <h2 style="margin:0; font-size:29px;">{{ tabTitle }}</h2>
+          <p style="margin:2px 0 0; max-width:760px; font-size:13.5px; color:var(--color-neutral-800); text-wrap:pretty;">{{ tabDesc }}</p>
+        </div>
+
+        <sc-if value="{{ tabTach }}">
+          <div class="blueprint" style="padding:17px 19px; display:flex; flex-direction:column; gap:var(--space-4);">
+            <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+            <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:var(--space-3);">
+              <h4 style="margin:0; font-size:17.5px;">Strip preview</h4>
+              <span style="font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--color-accent-700);">{{ tachMeta }}</span>
+            </div>
+            <div style="background:#121110; border:1px solid var(--color-divider); padding:var(--space-6) var(--space-4); display:flex; flex-direction:column; gap:var(--space-3);">
+              <div style="display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr); gap:4px;">
+                <sc-for list="{{ leds }}" as="l" hint-placeholder-count="26">
+                  <div style="aspect-ratio:1 / 1; border-radius:50%; background:{{ l.bg }}; outline:1px solid #3a3a3a;"></div>
+                </sc-for>
+              </div>
+              <div style="display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr); gap:4px;">
+                <sc-for list="{{ leds }}" as="l" hint-placeholder-count="26">
+                  <div style="height:3px; background:{{ l.zoneBar }};"></div>
+                </sc-for>
+              </div>
+            </div>
+            <div style="display:flex; flex-wrap:wrap; gap:var(--space-3) var(--space-8); font-size:13px;">
+              <sc-for list="{{ zones }}" as="z">
+                <div style="display:flex; align-items:center; gap:var(--space-2);">
+                  <span style="width:10px; height:10px; border-radius:50%; background:{{ z.color }};"></span>
+                  <span style="font-weight:500;">{{ z.name }}</span>
+                  <span style="color:var(--color-neutral-700); font-variant-numeric:tabular-nums;">{{ z.range }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:var(--space-4); align-items:center;">
+              <span style="font-size:13px; color:var(--color-neutral-800);">Preview RPM</span>
+              <input type="range" min="0" max="{{ previewMax }}" step="50" value="{{ previewRpm }}" onChange="{{ setPreview }}" style="width:100%;">
+              <span style="font-family:var(--font-heading); font-size:24px; font-variant-numeric:tabular-nums; min-width:90px; text-align:right;">{{ previewRpm }}</span>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:var(--space-6); padding-top:var(--space-4); border-top:1px solid var(--color-divider);">
+              <sc-for list="{{ zoneSteppers }}" as="zs">
+                <div style="display:flex; flex-direction:column; gap:var(--space-2);">
+                  <span style="font-size:12px; color:var(--color-neutral-800); display:flex; gap:6px; align-items:center;"><sc-if value="{{ zs.dirty }}"><span style="width:6px; height:6px; background:var(--color-accent);"></span></sc-if>{{ zs.label }}</span>
+                  <div style="display:flex; align-items:center; gap:var(--space-2);">
+                    <button class="btn btn-secondary btn-icon" style="padding:0; width:32px; height:32px;" onClick="{{ zs.dec }}">−</button>
+                    <span style="font-family:var(--font-heading); font-size:22px; min-width:32px; text-align:center; font-variant-numeric:tabular-nums;">{{ zs.value }}</span>
+                    <button class="btn btn-secondary btn-icon" style="padding:0; width:32px; height:32px;" onClick="{{ zs.inc }}">+</button>
+                    <span style="font-size:12px; color:var(--color-neutral-700);">steps before final</span>
+                  </div>
+                </div>
+              </sc-for>
+              <div style="display:flex; align-items:flex-end; gap:var(--space-3);">
+                <button style="font-size:13.5px; padding:6px 11px;" class="btn btn-secondary" onClick="{{ fitZones }}">Fit zones to strip</button>
+              </div>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:var(--space-6); padding-top:var(--space-4); border-top:1px solid var(--color-divider);">
+              <sc-for list="{{ tachColors }}" as="tc">
+                <div style="display:flex; flex-direction:column; gap:var(--space-2);">
+                  <div style="display:flex; align-items:center; gap:var(--space-2);">
+                    <span style="width:28px; height:28px; border-radius:50%; background:{{ tc.display }}; outline:1px solid var(--color-divider); outline-offset:2px;"></span>
+                    <span style="font-weight:500; font-size:14px;">{{ tc.label }} color</span>
+                    <sc-if value="{{ tc.dirty }}"><span style="width:6px; height:6px; background:var(--color-accent);"></span></sc-if>
+                    <span style="margin-left:auto; font-size:12px; color:var(--color-neutral-700); font-variant-numeric:tabular-nums;">#{{ tc.hex }}</span>
+                  </div>
+                  <div style="display:grid; grid-template-columns:72px minmax(0,1fr) 40px; gap:4px var(--space-2); align-items:center; font-size:12px; color:var(--color-neutral-800);">
+                    <span>Hue</span><input type="range" min="0" max="359" value="{{ tc.hue }}" onChange="{{ tc.setHue }}" style="width:100%;"><span style="text-align:right;">{{ tc.hue }}°</span>
+                    <span>Brightness</span><input type="range" min="0" max="100" value="{{ tc.bright }}" onChange="{{ tc.setBright }}" style="width:100%;"><span style="text-align:right;">{{ tc.bright }}%</span>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-4); padding-top:var(--space-4); border-top:1px solid var(--color-divider);">
+              <button style="font-size:13.5px; padding:6px 11px;" class="btn btn-secondary" onClick="{{ toggleTachTest }}" disabled="{{ offline }}">{{ tachTestLabel }}</button>
+              <span style="font-size:13px; color:var(--color-neutral-700);">Test uses unsaved settings; leaving this tab restores normal output.</span>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ tabTest }}">
+          <div class="blueprint" style="padding:17px 19px; display:flex; flex-direction:column; gap:var(--space-4);">
+            <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+            <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:var(--space-3);">
+              <h4 style="margin:0; font-size:17.5px;">Signal Injection</h4>
+              <button style="font-size:13.5px; padding:6px 11px;" class="btn btn-secondary" onClick="{{ restoreSources }}" disabled="{{ offline }}">Restore sources now</button>
+            </div>
+            <div style="display:flex; flex-direction:column;">
+              <sc-for list="{{ testSignals }}" as="t" hint-placeholder-count="5">
+                <div style="display:grid; grid-template-columns:minmax(120px, 160px) minmax(120px, 1fr) 90px 44px auto; gap:var(--space-3); align-items:center; padding:6px 0; border-bottom:1px solid color-mix(in srgb, var(--color-text) 8%, transparent);">
+                  <span style="font-size:14px; font-weight:500;">{{ t.label }} <span style="font-weight:400; color:var(--color-neutral-700); font-size:12px;">{{ t.badge }}</span></span>
+                  <input type="range" min="{{ t.min }}" max="{{ t.max }}" value="{{ t.value }}" onChange="{{ t.onChange }}" style="width:100%;">
+                  <input class="input" style="min-height:33px; padding:5px 9px; font-size:13.5px; text-align:right; font-variant-numeric:tabular-nums;" value="{{ t.value }}" onChange="{{ t.onChange }}">
+                  <span style="font-size:12px; color:var(--color-neutral-700);">{{ t.unit }}</span>
+                  <button style="font-size:13.5px; padding:6px 11px;" class="btn btn-secondary" onClick="{{ t.send }}" disabled="{{ offline }}">Send</button>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 396px), 1fr)); gap:23px 18px; align-items:start;">
+          <sc-for list="{{ panels }}" as="p" hint-placeholder-count="2">
+            <div class="blueprint" style="grid-column:{{ p.col }}; padding:17px 19px; display:flex; flex-direction:column; gap:12px; min-width:0;">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:var(--space-3);">
+                <h4 style="margin:0; font-size:17.5px;">{{ p.title }}</h4>
+                <span style="font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--color-accent-700);">{{ p.tag }}</span>
+              </div>
+
+              <sc-if value="{{ p.hasBody }}">
+                <div style="display:flex; flex-wrap:wrap; gap:var(--space-6); align-items:flex-start;">
+                  <sc-if value="{{ p.hasDial }}">
+                    <svg viewBox="0 0 120 108" style="width:104px; flex:none;">
+                      <path d="{{ p.dialMax }}" style="fill:none; stroke:var(--color-neutral-300); stroke-width:1; stroke-dasharray:2 3;"></path>
+                      <path d="{{ p.dialArc }}" style="fill:none; stroke:var(--color-accent); stroke-width:3;"></path>
+                      <line x1="60" y1="60" x2="{{ p.nx }}" y2="{{ p.ny }}" style="stroke:var(--color-text); stroke-width:1.5;"></line>
+                      <circle cx="60" cy="60" r="3.5" style="fill:var(--color-text);"></circle>
+                    </svg>
+                  </sc-if>
+                  <div style="flex:1; min-width:min(100%, 280px); display:flex; flex-direction:column; gap:8px;">
+                    <sc-for list="{{ p.fields }}" as="f">
+                      <div style="display:grid; grid-template-columns:minmax(110px, 40%) minmax(0,1fr); gap:3px var(--space-3); align-items:center; opacity:{{ f.opacity }};">
+                        <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--color-neutral-800);" title="{{ f.tip }}">
+                          <sc-if value="{{ f.dirty }}"><span style="width:6px; height:6px; flex:none; background:var(--color-accent);"></span></sc-if>
+                          <span>{{ f.label }}</span>
+                        </label>
+                        <div style="display:flex; align-items:center; gap:var(--space-2); min-width:0;">
+                          <sc-if value="{{ f.isNum }}"><input class="input" style="min-height:33px; padding:5px 9px; font-size:13.5px; max-width:140px; text-align:right; font-variant-numeric:tabular-nums; border-color:{{ f.border }};" value="{{ f.value }}" disabled="{{ f.disabled }}" onChange="{{ f.onChange }}"></sc-if>
+                          <sc-if value="{{ f.isText }}"><input class="input" style="min-height:33px; padding:5px 9px; font-size:13.5px; border-color:{{ f.border }};" value="{{ f.value }}" disabled="{{ f.disabled }}" onChange="{{ f.onChange }}"></sc-if>
+                          <sc-if value="{{ f.isSelect }}">
+                            <select class="input" style="min-height:33px; padding:5px 9px; font-size:13.5px; max-width:300px; border-color:{{ f.border }};" value="{{ f.value }}" disabled="{{ f.disabled }}" onChange="{{ f.onChange }}">
+                              <sc-for list="{{ f.options }}" as="o"><option value="{{ o.value }}">{{ o.label }}</option></sc-for>
+                            </select>
+                          </sc-if>
+                          <sc-if value="{{ f.isRange }}">
+                            <input type="range" min="0" max="99" style="flex:1; max-width:200px;" value="{{ f.value }}" disabled="{{ f.disabled }}" onChange="{{ f.onChange }}">
+                            <span style="min-width:34px; text-align:right; font-size:13px; font-variant-numeric:tabular-nums;">{{ f.value }}%</span>
+                          </sc-if>
+                          <sc-if value="{{ f.isStatic }}"><span style="font-size:14px; font-weight:500;">{{ f.value }}</span></sc-if>
+                          <span style="font-size:12px; color:var(--color-neutral-700); white-space:nowrap;">{{ f.unit }}</span>
+                        </div>
+                        <sc-if value="{{ f.hasNote }}"><div style="grid-column:2; font-size:12px; line-height:1.4; color:var(--color-neutral-700); text-wrap:pretty;">{{ f.note }}</div></sc-if>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ p.hasTable }}">
+                <div style="overflow-x:auto;">
+                  <table class="table" style="font-size:13px;">
+                    <thead><tr><sc-for list="{{ p.head }}" as="h"><th style="white-space:nowrap;">{{ h }}</th></sc-for></tr></thead>
+                    <tbody>
+                      <sc-for list="{{ p.rows }}" as="r">
+                        <tr>
+                          <td style="white-space:nowrap; font-weight:500; padding-right:var(--space-4);">{{ r.label }}</td>
+                          <sc-for list="{{ r.cells }}" as="c">
+                            <td style="padding:3px 5px;">
+                              <sc-if value="{{ c.isInput }}"><input class="input" style="min-height:33px; padding:5px 9px; font-size:13.5px; min-width:64px; min-height:29px; padding:3px 6px; text-align:right; font-variant-numeric:tabular-nums; border-color:{{ c.border }};" value="{{ c.value }}" onChange="{{ c.onChange }}"></sc-if>
+                              <sc-if value="{{ c.isSelect }}">
+                                <select class="input" style="min-height:33px; padding:5px 9px; font-size:13.5px; min-width:200px; min-height:29px; padding:3px 6px; border-color:{{ c.border }};" value="{{ c.value }}" onChange="{{ c.onChange }}">
+                                  <sc-for list="{{ c.options }}" as="o"><option value="{{ o.value }}">{{ o.label }}</option></sc-for>
+                                </select>
+                              </sc-if>
+                              <sc-if value="{{ c.isText }}"><span style="display:block; text-align:{{ c.align }}; white-space:nowrap; font-variant-numeric:tabular-nums; color:var(--color-neutral-800);">{{ c.text }}</span></sc-if>
+                            </td>
+                          </sc-for>
+                        </tr>
+                      </sc-for>
+                    </tbody>
+                  </table>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ p.hasChart }}">
+                <svg viewBox="0 0 480 156" style="width:100%; max-width:620px; border:1px solid var(--color-divider);">
+                  <sc-for list="{{ p.grid }}" as="g">
+                    <line x1="44" x2="468" y1="{{ g.y }}" y2="{{ g.y }}" style="stroke:var(--color-neutral-300); stroke-width:1;"></line>
+                    <text x="38" y="{{ g.ty }}" text-anchor="end" style="font-size:10px; fill:var(--color-neutral-700); font-family:var(--font-body);">{{ g.label }}</text>
+                  </sc-for>
+                  <polyline points="{{ p.points }}" style="fill:none; stroke:var(--color-accent); stroke-width:2;"></polyline>
+                  <sc-for list="{{ p.dots }}" as="d">
+                    <circle cx="{{ d.x }}" cy="{{ d.y }}" r="3.5" style="fill:var(--color-bg); stroke:var(--color-accent-700); stroke-width:1.5;"></circle>
+                  </sc-for>
+                  <text x="44" y="150" style="font-size:10px; fill:var(--color-neutral-700); font-family:var(--font-body);">{{ p.xMin }}</text>
+                  <text x="468" y="150" text-anchor="end" style="font-size:10px; fill:var(--color-neutral-700); font-family:var(--font-body);">{{ p.xMax }}</text>
+                </svg>
+              </sc-if>
+
+              <sc-if value="{{ p.hasError }}">
+                <div style="display:flex; gap:var(--space-2); align-items:flex-start; padding:var(--space-2) var(--space-3); border:1px solid var(--color-text); font-size:13px; font-weight:500;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:none; margin-top:2px;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>
+                  <span>{{ p.error }}</span>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ p.hasProgress }}">
+                <div style="display:flex; align-items:center; gap:var(--space-3);">
+                  <div style="flex:1; height:6px; background:var(--color-neutral-200);"><div style="height:100%; width:{{ p.progress }}; background:var(--color-accent);"></div></div>
+                  <span style="font-size:12px; color:var(--color-neutral-700); min-width:36px; text-align:right;">{{ p.progress }}</span>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ p.hasActions }}">
+                <div style="display:flex; flex-wrap:wrap; gap:var(--space-3);">
+                  <sc-for list="{{ p.actions }}" as="a">
+                    <sc-if value="{{ a.primary }}"><button style="font-size:13.5px; padding:6px 11px;" class="btn btn-primary blueprint" onClick="{{ a.onClick }}" disabled="{{ a.disabled }}"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>{{ a.label }}</button></sc-if>
+                    <sc-if value="{{ a.secondary }}"><button style="font-size:13.5px; padding:6px 11px;" class="btn btn-secondary" onClick="{{ a.onClick }}" disabled="{{ a.disabled }}">{{ a.label }}</button></sc-if>
+                  </sc-for>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ p.hasLog }}">
+                <div style="border:1px solid var(--color-divider); padding:var(--space-3); max-height:200px; overflow-y:auto; display:flex; flex-direction:column; gap:2px; font-size:12.5px; line-height:1.5; font-variant-numeric:tabular-nums;">
+                  <sc-for list="{{ p.log }}" as="ln"><div style="color:{{ ln.color }};">{{ ln.text }}</div></sc-for>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+
+        <sc-if value="{{ tabDisplay }}">
+          <div style="display:flex; flex-direction:column; gap:var(--space-4);">
+            <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap:23px 18px; align-items:start;">
+              <sc-for list="{{ screenLists }}" as="sl" hint-placeholder-count="2">
+                <div class="blueprint" style="padding:17px 19px; display:flex; flex-direction:column; gap:var(--space-3);">
+                  <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+                  <div style="display:flex; justify-content:space-between; align-items:baseline; gap:var(--space-3);">
+                    <h4 style="margin:0; font-size:17.5px; display:flex; align-items:center; gap:6px;"><sc-if value="{{ sl.dirty }}"><span style="width:6px; height:6px; background:var(--color-accent);"></span></sc-if>{{ sl.title }}</h4>
+                    <span style="font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--color-accent-700);">{{ sl.count }}</span>
+                  </div>
+                  <div style="display:flex; flex-direction:column;">
+                    <sc-for list="{{ sl.rows }}" as="r">
+                      <div style="display:grid; grid-template-columns:22px 26px minmax(0,1fr) auto; align-items:center; gap:var(--space-2); padding:2px 0; border-bottom:1px solid color-mix(in srgb, var(--color-text) 8%, transparent); opacity:{{ r.opacity }};">
+                        <input type="checkbox" checked="{{ r.on }}" onChange="{{ r.toggle }}" style="width:16px; height:16px; margin:0; accent-color:var(--color-accent);">
+                        <span style="font-family:var(--font-heading); font-size:13px; color:var(--color-neutral-700);">{{ r.pos }}</span>
+                        <span style="font-size:13.5px;">{{ r.name }}</span>
+                        <div style="display:flex;">
+                          <button class="btn btn-ghost btn-icon" style="padding:0; width:28px; height:28px;" title="Move up" onClick="{{ r.up }}" disabled="{{ r.isFirst }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"></path></svg></button>
+                          <button class="btn btn-ghost btn-icon" style="padding:0; width:28px; height:28px;" title="Move down" onClick="{{ r.down }}" disabled="{{ r.isLast }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></button>
+                        </div>
+                      </div>
+                    </sc-for>
+                    <sc-if value="{{ sl.hasSettings }}">
+                      <div style="display:grid; grid-template-columns:22px 26px minmax(0,1fr) auto; align-items:center; gap:var(--space-2); padding:9px 0; color:var(--color-neutral-700);">
+                        <span></span><span style="font-family:var(--font-heading); font-size:13px;">—</span><span style="font-size:14px;">Settings</span><span style="font-size:12px;">always last</span>
+                      </div>
+                    </sc-if>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <p style="margin:0; font-size:13px; color:var(--color-neutral-700); max-width:640px;">Checked screens are reachable with the rotary encoder. Display 1 always ends with Settings; display 2 is chosen from the Settings menu.</p>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ tabSplash }}">
+          <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 460px), 1fr)); gap:23px 18px;">
+            <sc-for list="{{ splashSlots }}" as="sp" hint-placeholder-count="2">
+              <div class="blueprint" style="padding:17px 19px; display:flex; flex-direction:column; gap:var(--space-4);">
+                <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+                <div style="display:flex; justify-content:space-between; align-items:baseline; gap:var(--space-3);">
+                  <h4 style="margin:0; font-size:17.5px;">{{ sp.title }}</h4>
+                  <span style="font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--color-accent-700);">SSD1306 · 128×32</span>
+                </div>
+                <div style="aspect-ratio:4 / 1; background:#111111; border:6px solid #333333; display:grid; place-items:center; overflow:hidden;">
+                  <sc-if value="{{ sp.hasImage }}"><div style="width:100%; height:100%; background-image:{{ sp.bg }}; background-size:100% 100%; background-repeat:no-repeat; image-rendering:pixelated;"></div></sc-if>
+                  <sc-if value="{{ sp.empty }}"><span style="font-family:var(--font-heading); font-size:15px; letter-spacing:0.08em; text-transform:uppercase; color:var(--color-neutral-500);">Empty slot</span></sc-if>
+                </div>
+                <span style="font-size:12px; color:var(--color-neutral-700);">{{ sp.caption }}</span>
+                <div style="display:flex; align-items:center; gap:var(--space-3);">
+                  <div style="flex:1; height:6px; background:var(--color-neutral-200);"><div style="height:100%; width:{{ sp.progress }}; background:var(--color-accent);"></div></div>
+                  <span style="font-size:12px; color:var(--color-neutral-700); min-width:36px; text-align:right;">{{ sp.progress }}</span>
+                </div>
+                <div style="display:flex; flex-wrap:wrap; gap:var(--space-3);">
+                  <label style="font-size:13.5px; padding:6px 11px;" class="btn btn-secondary">Load image…<input type="file" accept="image/*" style="display:none;" onChange="{{ sp.load }}"></label>
+                  <button style="font-size:13.5px; padding:6px 11px;" class="btn btn-primary blueprint" onClick="{{ sp.upload }}" disabled="{{ sp.cantUpload }}"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>Upload to device</button>
+                  <button style="font-size:13.5px; padding:6px 11px;" class="btn btn-secondary" onClick="{{ sp.test }}" disabled="{{ offline }}">Test on device</button>
+                  <button style="font-size:13.5px; padding:6px 11px;" class="btn btn-ghost" onClick="{{ sp.clear }}" disabled="{{ sp.empty }}">Clear slot</button>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+      </div>
+    </main>
+  </div>
+
+  <footer style="display:flex; flex-wrap:wrap; gap:var(--space-6); align-items:center; padding:var(--space-2) var(--space-6); border-top:1px solid var(--color-divider); font-size:12px; color:var(--color-neutral-800);">
+    <span style="margin-right:auto;">{{ status }}</span>
+    <span style="color:var(--color-neutral-700);">{{ dirtySummary }}</span>
+    <span style="color:var(--color-neutral-700);">gauge-config-tool v0.1</span>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;'dark'|'light'&quot;},&quot;navStyle&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;sidebar&quot;,&quot;tabs&quot;],&quot;default&quot;:&quot;sidebar&quot;,&quot;tsType&quot;:&quot;'sidebar'|'tabs'&quot;},&quot;showHelp&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;connected&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  static THEMES = {
+    dark: { bg: '#1B1A17', surface: '#24221e', text: '#F0E3CA', accent: '#FF8303', divider: 'color-mix(in srgb, #F0E3CA 18%, transparent)', neutral100: '#24221e', neutral200: '#2d2a25', neutral300: '#3f3b33', neutral400: '#57524a', neutral500: '#756e62', neutral600: '#958d7e', neutral700: '#b6ad9c', neutral800: '#d4c9b4', neutral900: '#F0E3CA', accent100: '#2e2013', accent200: '#45290d', accent300: '#6b3f0b', accent400: '#A35709', accent500: '#FF8303', accent600: '#ff9a36', accent700: '#ffb366', accent800: '#ffcc99', accent900: '#ffe6cc', scheme: 'dark' },
+    light: { bg: '#F0E3CA', surface: '#e6d7b9', text: '#1B1A17', accent: '#FF8303', divider: 'color-mix(in srgb, #1B1A17 18%, transparent)', neutral100: '#f7efdf', neutral200: '#e6d8bd', neutral300: '#d4c5a8', neutral400: '#b8ab92', neutral500: '#988c76', neutral600: '#7a705d', neutral700: '#5d5546', neutral800: '#423c31', neutral900: '#2b2720', accent100: '#fbe3c2', accent200: '#ffd2a0', accent300: '#ffb86b', accent400: '#ff9e38', accent500: '#FF8303', accent600: '#e57400', accent700: '#A35709', accent800: '#7a4107', accent900: '#4d2904', scheme: 'light' },
+  };
+  static NAV = [
+    ['Device', [['connection', 'Connection']]],
+    ['Inputs', [['source', 'Signal Source'], ['speed', 'Speed/RPM'], ['sensors', 'Sensors']]],
+    ['Outputs', [['motors', 'Motor Config'], ['tach', 'LED Tach'], ['outputs', 'Outputs'], ['display', 'Display Settings'], ['faults', 'Fault Warnings'], ['splash', 'Splash Screens']]],
+    ['Bench', [['test', 'Test']]],
+  ];
+  static DESC = {
+    connection: 'Serial link to the gauge, and one-click firmware updates from a .hex file.',
+    source: 'Choose where each signal comes from. Settings that only apply to one source stay disabled until that source is selected.',
+    speed: 'Vehicle speed sensor, engine RPM pickup and the mechanical odometer.',
+    sensors: 'Thermistor and fuel sender curves, analog input types and filtering.',
+    motors: 'Function, sweep and dial range for each gauge motor, plus the Motor S speedometer.',
+    tach: 'LED count, RPM zones and colors for the shift light strip.',
+    outputs: 'Low side outputs on D12 and D13: on/off with hysteresis, or a PWM curve.',
+    display: 'Gauge units, the screen order for both OLEDs, the clock and the fuel tank.',
+    faults: 'Thresholds and delays for the warning flashes. A reading must stay past its threshold for the delay before the warning activates.',
+    splash: 'Two 128×32 images for the OLED displays. Images are converted to 1-bit before upload.',
+    test: "Inject signal values into the gauge. Sending a value temporarily switches that signal's source to Serial in the gauge's RAM. The original source is restored automatically when you leave this tab, disconnect, read, write or close the tool, and is never saved to EEPROM from here.",
+  };
+  static SRC = {
+    speed_source: ['Off', 'CAN', 'Hall sensor', 'GPS', 'Synthetic', 'Odometer test', 'Serial'],
+    rpm_source: ['Off', 'CAN', 'Coil', 'Synthetic', 'Serial'],
+    oil_prs_source: ['Off', 'CAN', 'AV1', 'AV2', 'AV3', 'Synthetic', 'Serial'],
+    fuel_prs_source: ['Off', 'CAN', 'AV1', 'AV2', 'AV3', 'Synthetic'],
+    coolant_src: ['Off', 'CAN', 'Thermistor', 'Synthetic', 'Serial'],
+    oil_temp_src: ['Off', 'CAN', 'Thermistor'],
+    map_source: ['Off', 'CAN', 'AV1', 'AV2', 'AV3', 'Synthetic'],
+    lambda_source: ['Off', 'CAN', 'AV1', 'AV2', 'AV3'],
+    fuel_lvl_src: ['Off', 'Analog sensor', 'Synthetic', 'Serial'],
+  };
+  static FN = ['Off', 'Fuel level', 'Coolant temp', 'RPM', 'Vehicle speed', 'Oil pressure', 'Fuel pressure', 'Oil temp', 'MAP', 'Lambda (x1000)'];
+  static FN_UNIT = ['', '%', '', 'RPM', '', '', '', '', '', 'λ×1000'];
+  static FN_KIND = [null, null, 'temp', null, 'speed', 'pressure', 'pressure', 'temp', 'pressure_abs', null];
+  static FN_RANGE = [[0, 0], [10, 100], [50, 115], [0, 8000], [0, 240], [0, 700], [0, 700], [0, 150], [0, 300], [700, 1300]];
+  static OUT_P = ['Fuel level', 'Coolant temp', 'RPM', 'Vehicle speed', 'Oil pressure', 'Fuel pressure', 'Oil temp', 'MAP', 'Lambda (x1000)', 'Battery voltage (x10)'];
+  static OUT_UNIT = ['%', '', 'RPM', '', '', '', '', '', 'λ×1000', 'V×10'];
+  static OUT_KIND = [null, 'temp', null, 'speed', 'pressure', 'pressure', 'temp', 'pressure_abs', null, null];
+  static THERM_T = ['GM CLT', 'Bosch NTC M12', 'Custom'];
+  static THERM_P = { 0: [[150, 48], [105, 154], [75, 395], [25, 2795], [-5, 12261], [-40, 100865]], 1: [[130, 89], [100, 187], [70, 436], [30, 1707], [-10, 9397], [-40, 45313]] };
+  static FUEL_T = ['Ford to 1986 - 73-10 Ohms', 'Ford 1987+ - 16-158 Ohms', 'GM to 1964 - 0-30 Ohms', 'GM 1965-1997 - 0-90 Ohms', 'GM 1998+ - 40-250 Ohms', 'Mopar to 1986 - 73-10 Ohms', 'Custom'];
+  static FUEL_P = { 0: [73, 10], 1: [16, 158], 2: [0, 30], 3: [0, 90], 4: [40, 250], 5: [73, 10] };
+  static AV_T = ['2 Bar Absolute Pressure (30 PSIA)', '3 Bar Absolute Pressure (43.5 PSIA)', '100 PSI Gauge Pressure', 'None (raw voltage)', 'Custom', 'Lambda'];
+  static AV_P = { 0: [0.5, 4.5, 0, 206.8], 1: [0.5, 4.5, 0, 300], 2: [0.5, 4.5, 101.3, 790.8], 5: [0, 5, 0.5, 1.52] };
+  static SCREENS = [[1, 'Oil Pressure'], [2, 'Coolant Temp'], [3, 'Fuel Level'], [4, 'Battery Voltage'], [5, 'Engine RPM'], [6, 'Vehicle Speed'], [7, 'Air/Fuel Ratio'], [8, 'Fuel Pressure'], [9, 'Boost (bar)'], [10, 'Boost (text)'], [11, 'Oil Temp'], [12, 'Fuel Composition'], [15, 'Trip Odometer'], [16, 'Clock'], [17, 'Falcon Script logo']];
+  static TEST = [
+    ['speed', 'Speed', 'speed', [0, 300], [0, 186], 'test_speed', 'speed_source'],
+    ['rpm', 'RPM', null, [0, 10000], [0, 10000], 'test_rpm', 'rpm_source'],
+    ['oil', 'Oil pressure', 'pressure', [0, 1000], [0, 145], 'test_oil_pressure', 'oil_prs_source'],
+    ['coolant', 'Coolant temp', 'temp', [-40, 150], [-40, 300], 'test_coolant_temp', 'coolant_src'],
+    ['fuel', 'Fuel level', null, [0, 100], [0, 100], 'test_fuel_level', 'fuel_lvl_src'],
+  ];
+
+  static initialValues() {
+    const v = {
+      port: 'COM3', baud: '115200', fwPath: 'gauge_V4.ino.hex',
+      can_protocol: '0', speed_source: '1', rpm_source: '1', oil_prs_source: '1', fuel_prs_source: '1', coolant_src: '1', oil_temp_src: '1', map_source: '1', lambda_source: '1', fuel_lvl_src: '1',
+      m1_func: '0', m1_angle: '58', m1_lo: '10', m1_hi: '100', m1_dir: '0',
+      m2_func: '1', m2_angle: '58', m2_lo: '10', m2_hi: '100', m2_dir: '0',
+      m3_func: '0', m3_angle: '58', m3_lo: '10', m3_hi: '100', m3_dir: '0',
+      m4_func: '2', m4_angle: '58', m4_lo: '122', m4_hi: '239', m4_dir: '0',
+      ms_sweep: '8064', ms_zero_delay: '20', ms_zero_factor: '0.25', motor_sweep_ms: '1000',
+      revs_per_km: '1625', teeth_per_rev: '8', hall_speed_min: '0.5', filter_hall: '75', speedo_max: '100', filter_gps: '0',
+      cyl_count: '8', rpm_debounce_us: '5000', engine_rpm_min: '100', filter_rpm: '30',
+      odo_steps: '2048', odo_motor_teeth: '16', odo_gear_teeth: '20',
+      therm_type: '0', therm_bias: '2490', filter_therm: '50',
+      fuel_type: '1', fuel_bias: '240', filter_fuel: '98', fuel_r_empty: '16', fuel_r_mid: '87', fuel_r_full: '158', fuel_mid_pct: '50',
+      filter_av1: '75', filter_av2: '25', filter_av3: '25', filter_vbatt: '88', vbatt_scaler: '0.040923',
+      av1_type: '0', av1_vlo: '0.5', av1_vhi: '4.5', av1_plo: '0', av1_phi: '30',
+      av2_type: '2', av2_vlo: '0.5', av2_vhi: '4.5', av2_plo: '14.7', av2_phi: '114.7',
+      av3_type: '2', av3_vlo: '0.5', av3_vhi: '4.5', av3_plo: '14.7', av3_phi: '114.7',
+      out1_mode: '1', out1_param: '6', out1_on_op: '0', out1_on_val: '248', out1_off_val: '239', out1_freq: '100',
+      out2_mode: '2', out2_param: '1', out2_on_op: '0', out2_on_val: '203', out2_off_val: '194', out2_freq: '100',
+      num_leds: '26', tach_max: '6000', tach_min: '3000', tach_flash: '6200', tach_sweep: '2', warn_leds: 6, shift_leds: 2,
+      tach_color_normal: '1E0F00', tach_color_warning: '500A00', tach_color_shift: '500000',
+      units: '1', clock_offset: '5', fuel_capacity: '16',
+      oil_warn: '8.7', coolant_warn: '230', batt_warn_v: '11.00', fuel_warn_pct: '5', engine_run_rpm: '400',
+      oil_delay: '2', coolant_delay: '2', batt_delay: '2', fuel_delay: '2',
+      test_speed: '0', test_rpm: '0', test_oil: '0', test_coolant: '68', test_fuel: '50', odo_revs: '1',
+    };
+    Component.THERM_P[0].forEach(([t, r], i) => { v['therm_t' + i] = String(Math.round(t * 9 / 5 + 32)); v['therm_r' + i] = String(r); });
+    [176, 185, 190, 196, 201, 207, 212, 221].forEach((x, i) => { v['out2_x' + i] = String(x); v['out1_x' + i] = String(x); });
+    [0, 20, 30, 45, 60, 75, 90, 100].forEach((d, i) => { v['out2_d' + i] = String(d); v['out1_d' + i] = String(d); });
+    return v;
+  }
+
+  state = {
+    tab: 'connection', theme: null, imperial: true, connected: null, dirty: {}, v: Component.initialValues(),
+    d1: { order: [5, 1, 11, 2, 3, 8, 12, 7, 4, 6, 15, 16, 9, 10, 17], on: [5, 1, 11, 2, 3, 8, 12, 7, 4, 6, 15, 16] },
+    d2: { order: [5, 1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 15, 16, 17], on: [5, 1, 2, 3, 4, 6] },
+    previewRpm: 5600, blink: true, tachTest: false, tachHue: {},
+    splash: { 1: null, 2: null }, splashProg: { 1: 0, 2: 0 },
+    fwProg: 0, fwLog: [{ t: 'Selected gauge_V4.ino.hex shipped alongside the tool.' }],
+    log: [{ t: '> ping' }, { t: '< ok' }],
+    status: 'Connected to COM3 · configuration read from device',
+  };
+
+  componentDidMount() { this.blinker = setInterval(() => this.setState(s => ({ blink: !s.blink })), 300); }
+  componentWillUnmount() { clearInterval(this.blinker); clearInterval(this.fwTimer); clearInterval(this.spTimer); }
+
+  static num(x) { const n = parseFloat(x); return isFinite(n) ? n : NaN; }
+  static trim(x, d = 1) { return isFinite(x) ? String(Math.round(x * 10 ** d) / 10 ** d) : ''; }
+  static conv(x, kind, toImp) {
+    if (kind === 'temp') return toImp ? x * 9 / 5 + 32 : (x - 32) * 5 / 9;
+    if (kind === 'speed') return toImp ? x / 1.609344 : x * 1.609344;
+    if (kind === 'pressure' || kind === 'pressure_abs') return toImp ? x * 0.1450377377 : x / 0.1450377377;
+    if (kind === 'volume') return toImp ? x / 3.785411784 : x * 3.785411784;
+    return x;
+  }
+  unitOf(kind, fallback = '') {
+    const imp = this.state.imperial;
+    const m = imp ? { temp: '°F', speed: 'mph', pressure: 'PSI', pressure_abs: 'PSI (abs)', volume: 'gal' } : { temp: '°C', speed: 'km/h', pressure: 'kPa', pressure_abs: 'kPa', volume: 'L' };
+    return kind ? m[kind] : fallback;
+  }
+  kindOf(key, v) {
+    let m = key.match(/^m(\d)_(lo|hi)$/);
+    if (m) return Component.FN_KIND[+v['m' + m[1] + '_func']] || null;
+    m = key.match(/^out(\d)_(on_val|off_val|x\d)$/);
+    if (m) return Component.OUT_KIND[+v['out' + m[1] + '_param']] || null;
+    m = key.match(/^av(\d)_p(lo|hi)$/);
+    if (m) return v['av' + m[1] + '_type'] === '5' ? null : 'pressure_abs';
+    if (/^therm_t\d$/.test(key)) return 'temp';
+    return { speedo_max: 'speed', oil_warn: 'pressure', coolant_warn: 'temp', fuel_capacity: 'volume', test_speed: 'speed', test_oil: 'pressure', test_coolant: 'temp' }[key] || null;
+  }
+  setUnits(imp) {
+    if (imp === this.state.imperial) return;
+    this.setState(s => {
+      const v = { ...s.v };
+      Object.keys(v).forEach(k => {
+        const kind = this.kindOf(k, s.v);
+        const n = Component.num(v[k]);
+        if (kind && isFinite(n)) v[k] = Component.trim(Component.conv(n, kind, imp), kind === 'temp' || kind === 'speed' ? 0 : 1);
+      });
+      return { v, imperial: imp, status: `Tool units set to ${imp ? "'Merican" : 'Metric'}. The firmware always stores metric.` };
+    });
+  }
+  set(tab, key, val, extra) {
+    this.setState(s => {
+      const v = { ...s.v, [key]: val, ...(extra || {}) };
+      const dirty = { ...s.dirty, [key]: tab };
+      Object.keys(extra || {}).forEach(k => { dirty[k] = tab; });
+      return { v, dirty };
+    });
+  }
+  log(lines) { this.setState(s => ({ log: [...s.log, ...lines.map(t => ({ t }))].slice(-60) })); }
+
+  static hsv(hex) {
+    const c = [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16) / 255);
+    const mx = Math.max(...c), mn = Math.min(...c), d = mx - mn;
+    let h = 0;
+    if (d) h = mx === c[0] ? ((c[1] - c[2]) / d) % 6 : mx === c[1] ? (c[2] - c[0]) / d + 2 : (c[0] - c[1]) / d + 4;
+    return [((h * 60) + 360) % 360, mx ? d / mx : 0, mx];
+  }
+  static rgb(h, s, v) {
+    const f = n => { const k = (n + h / 60) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); };
+    return [f(5), f(3), f(1)].map(x => Math.round(x * 255));
+  }
+  tachDisplay(hex, hueFallback) {
+    let [h, s, v] = Component.hsv(hex);
+    if (v === 0) { h = hueFallback || 0; s = 1; }
+    const [r, g, b] = Component.rgb(h, s, 0.6 + 0.4 * v);
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+
+  F(tab, key, label, o = {}) {
+    const s = this.state, v = s.v;
+    const reason = o.dep ? o.dep() : null;
+    const help = (this.props.showHelp ?? false) ? (o.tip || '') : '';
+    const type = o.type || 'num';
+    const value = o.value ?? v[key];
+    return {
+      key, label, value, unit: o.unit || '', tip: o.tip || '',
+      isNum: type === 'num', isText: type === 'text', isSelect: type === 'select', isRange: type === 'range', isStatic: type === 'static',
+      options: (o.options || []).map((l, i) => ({ label: l, value: o.values ? o.values[i] : String(i) })),
+      dirty: !!s.dirty[key], border: s.dirty[key] ? 'var(--color-accent)' : '',
+      disabled: !!reason, opacity: reason ? 0.5 : 1, note: reason || help, hasNote: !!(reason || help),
+      onChange: o.onChange || (e => this.set(tab, key, e.target.value)),
+    };
+  }
+  P(title, o = {}) {
+    return {
+      title, tag: o.tag || '', col: o.wide ? '1 / -1' : 'auto',
+      hasBody: !!((o.fields && o.fields.length) || o.dial), fields: o.fields || [],
+      hasDial: !!o.dial, ...(o.dial || {}),
+      hasTable: !!o.rows, head: o.head || [], rows: o.rows || [],
+      hasChart: !!o.chart, ...(o.chart || {}),
+      hasError: !!o.error, error: o.error || '',
+      hasProgress: o.progress != null, progress: (o.progress || 0) + '%',
+      hasActions: !!(o.actions && o.actions.length), actions: o.actions || [],
+      hasLog: !!o.log, log: (o.log || []).map(l => ({ text: l.t, color: l.t.startsWith('>') ? 'var(--color-accent-700)' : 'var(--color-text)' })),
+    };
+  }
+  A(label, onClick, primary, disabled) { return { label, onClick, primary: !!primary, secondary: !primary, disabled: !!disabled }; }
+  cIn(tab, key, onChange) { const d = this.state.dirty[key]; return { isInput: true, isSelect: false, isText: false, value: this.state.v[key], border: d ? 'var(--color-accent)' : '', onChange: onChange || (e => this.set(tab, key, e.target.value)) }; }
+  cTxt(text, align = 'right') { return { isInput: false, isSelect: false, isText: true, text: String(text), align }; }
+  cSel(tab, key, opts, onChange) { const d = this.state.dirty[key]; return { isInput: false, isSelect: true, isText: false, value: this.state.v[key], options: opts.map((l, i) => ({ label: l, value: String(i) })), border: d ? 'var(--color-accent)' : '', onChange: onChange || (e => this.set(tab, key, e.target.value)) }; }
+
+  dial(angle, ccw) {
+    const P = a => { const r = a * Math.PI / 180; return [60 + 44 * Math.sin(r), 60 - 44 * Math.cos(r)].map(n => n.toFixed(2)); };
+    const arc = a => { const [x1, y1] = P(-a / 2), [x2, y2] = P(a / 2); return `M ${x1} ${y1} A 44 44 0 ${a > 180 ? 1 : 0} 1 ${x2} ${y2}`; };
+    const a = Math.max(8, Math.min(315, angle || 0));
+    const [nx, ny] = P(ccw ? a / 2 : -a / 2);
+    return { dialMax: arc(315), dialArc: arc(a), nx, ny };
+  }
+
+  panelsFor(tab) {
+    const s = this.state, v = s.v, C = Component, F = this.F.bind(this), P = this.P.bind(this), A = this.A.bind(this);
+    const on = !(s.connected ?? (this.props.connected ?? true));
+    const offline = on;
+    const src = k => C.SRC[k][+v[k]];
+    const needs = (k, val, name) => () => v[k] === val ? null : `Used when ${name} is ${C.SRC[k][+val]}. Currently ${src(k)}.`;
+    const tip = this.props.showHelp ?? false;
+    switch (tab) {
+      case 'connection': return [
+        P('Serial Connection', {
+          tag: offline ? 'Disconnected' : 'Connected',
+          fields: [
+            F(tab, 'port', 'Port', { type: 'select', options: ['COM3 — Arduino Mega 2560', 'COM4 — USB Serial'], values: ['COM3', 'COM4'] }),
+            F(tab, 'baud', 'Baud', { type: 'select', options: ['9600', '57600', '115200'], values: ['9600', '57600', '115200'] }),
+            F(tab, 'status', 'Status', { type: 'static', value: offline ? 'Disconnected' : `Connected on ${v.port}` }),
+            F(tab, 'fw', 'Firmware', { type: 'static', value: offline ? '--' : 'Gauge V4 · config format 5' }),
+          ],
+          actions: [A('Refresh ports', () => this.setState({ status: 'Found 2 serial ports' })), A(offline ? 'Connect' : 'Disconnect', () => this.toggleConn(), true)],
+        }),
+        P('Firmware Update', {
+          tag: '.hex · no toolchain required',
+          fields: [F(tab, 'fwPath', 'Firmware file', { type: 'text', tip: 'The .hex firmware file supplied with your gauge.' })],
+          actions: [A('Browse…', () => this.setState({ status: 'Choose a .hex file' })), A('Update Firmware', () => this.fwUpdate(), true, offline || (s.fwProg > 0 && s.fwProg < 100))],
+          progress: s.fwProg, log: s.fwLog,
+        }),
+      ];
+      case 'source': {
+        const S = (k, l) => F(tab, k, l, { type: 'select', options: C.SRC[k], tip: tip ? `Select where the ${l.toLowerCase()} signal comes from.` : '' });
+        return [
+          P('CAN Bus', { fields: [F(tab, 'can_protocol', 'CAN protocol', { type: 'select', options: ['Haltech v2', 'Megasquirt', 'AiM', 'OBDII'], tip: 'Select the CAN protocol used by your vehicle.' })] }),
+          P('Speed Source', { fields: [S('speed_source', 'Speed source')] }),
+          P('RPM Source', { fields: [S('rpm_source', 'RPM source')] }),
+          P('Other Signal Sources', { fields: [S('oil_prs_source', 'Oil pressure'), S('fuel_prs_source', 'Fuel pressure'), S('coolant_src', 'Coolant temp'), S('oil_temp_src', 'Oil temp'), S('map_source', 'MAP / boost'), S('lambda_source', 'Lambda / AFR'), S('fuel_lvl_src', 'Fuel level')] }),
+        ];
+      }
+      case 'speed': {
+        const hall = needs('speed_source', '2', 'Speed source'), coil = needs('rpm_source', '2', 'RPM source');
+        return [
+          P('Speed & Hall Sensor', { fields: [
+            F(tab, 'revs_per_km', 'Revs per km', { dep: hall, tip: 'VSS shaft revolutions per km (100-10000).' }),
+            F(tab, 'teeth_per_rev', 'Teeth per rev', { dep: hall, tip: 'VSS teeth per shaft revolution (1-64).' }),
+            F(tab, 'hall_speed_min', 'Minimum speed cutoff', { unit: 'km/h', dep: hall, tip: 'Minimum speed cutoff in km/h (0-1).' }),
+            F(tab, 'filter_hall', 'Hall filter', { type: 'range', dep: hall, tip: 'Hall speed filtering: 0% off, 99% heavy.' }),
+            F(tab, 'speedo_max', 'Speedometer max', { unit: this.unitOf('speed'), dep: () => v.speed_source === '0' ? 'Speed source is Off.' : null, tip: 'Maximum speedometer reading in the selected unit.' }),
+            F(tab, 'filter_gps', 'GPS filter', { type: 'range', dep: needs('speed_source', '3', 'Speed source'), tip: 'GPS speed filtering: 0% off, 99% heavy.' }),
+          ] }),
+          P('Engine RPM Sensor', { fields: [
+            F(tab, 'cyl_count', 'Cylinder count', { dep: coil, tip: 'Engine cylinder count (2-16).' }),
+            F(tab, 'rpm_debounce_us', 'Debounce', { unit: 'µs', dep: coil, tip: 'RPM pulse debounce window µs (100-20000).' }),
+            F(tab, 'engine_rpm_min', 'Engine RPM min', { dep: coil, tip: 'Minimum displayed RPM (0-255).' }),
+            F(tab, 'filter_rpm', 'RPM filter', { type: 'range', dep: coil, tip: 'RPM filtering: 0% off, 99% heavy.' }),
+          ] }),
+          P('Mechanical odometer calibration', { fields: [
+            F(tab, 'odo_steps', 'Steps per revolution', { tip: 'Odometer motor steps per revolution (512-8192).' }),
+            F(tab, 'odo_motor_teeth', 'Motor gear teeth', { tip: 'Odometer motor gear tooth count (1-64).' }),
+            F(tab, 'odo_gear_teeth', 'Driven gear teeth', { tip: 'Odometer driven gear tooth count (1-64).' }),
+          ] }),
+        ];
+      }
+      case 'sensors': {
+        const bias = C.num(v.therm_bias), fbias = C.num(v.fuel_bias);
+        const mv = (r, b) => isFinite(r) && b > 0 ? Math.round(5000 * r / (r + b)) : '—';
+        const thermCustom = k => e => this.set(tab, k, e.target.value, v.therm_type === '2' ? {} : { therm_type: '2' });
+        const fuelCustom = k => e => this.set(tab, k, e.target.value, v.fuel_type === '6' ? {} : { fuel_type: '6' });
+        const avDep = n => () => ['oil_prs_source', 'fuel_prs_source', 'map_source', 'lambda_source'].some(k => v[k] === String(n + 1)) ? null : `Used when a signal source is AV${n}. None is currently.`;
+        const avRow = n => {
+          const p = 'av' + n + '_', custom = k => e => this.set(tab, p + k, e.target.value, v[p + 'type'] === '4' ? {} : { [p + 'type']: '4' });
+          return { label: 'AV' + n, cells: [
+            this.cSel(tab, p + 'type', C.AV_T, e => this.applyAv(n, e.target.value)),
+            this.cIn(tab, p + 'vlo', custom('vlo')), this.cIn(tab, p + 'vhi', custom('vhi')),
+            this.cIn(tab, p + 'plo', custom('plo')), this.cIn(tab, p + 'phi', custom('phi')),
+            this.cTxt(v[p + 'type'] === '5' ? 'Lambda' : this.unitOf('pressure_abs'), 'left'),
+          ] };
+        };
+        return [
+          P('Thermistor (coolant / oil temperature)', {
+            wide: true,
+            fields: [
+              F(tab, 'therm_type', 'Curve', { type: 'select', options: C.THERM_T, onChange: e => this.applyTherm(e.target.value), tip: 'Presets fill the table; editing the table switches to Custom.' }),
+              F(tab, 'therm_bias', 'Bias resistor', { unit: 'Ω', tip: 'Thermistor bias resistor to +5 V, in ohms.' }),
+              F(tab, 'filter_therm', 'Filter', { type: 'range', dep: () => (v.coolant_src === '2' || v.oil_temp_src === '2') ? null : 'Used when Coolant or Oil temp source is Thermistor.' }),
+            ],
+            head: ['', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6'],
+            rows: [
+              { label: `Temperature (${this.unitOf('temp')})`, cells: [0, 1, 2, 3, 4, 5].map(i => this.cIn(tab, 'therm_t' + i, thermCustom('therm_t' + i))) },
+              { label: 'Resistance (Ω)', cells: [0, 1, 2, 3, 4, 5].map(i => this.cIn(tab, 'therm_r' + i, thermCustom('therm_r' + i))) },
+              { label: 'Voltage (mV)', cells: [0, 1, 2, 3, 4, 5].map(i => this.cTxt(mv(C.num(v['therm_r' + i]), bias))) },
+            ],
+          }),
+          P('Fuel Level Sender', {
+            fields: [
+              F(tab, 'fuel_type', 'Sender', { type: 'select', options: C.FUEL_T, onChange: e => this.applyFuel(e.target.value) }),
+              F(tab, 'fuel_bias', 'Bias resistor', { unit: 'Ω', tip: 'Fuel sender bias resistor to +5 V, in ohms.' }),
+              F(tab, 'filter_fuel', 'Filter', { type: 'range', dep: needs('fuel_lvl_src', '1', 'Fuel level source') }),
+            ],
+            head: ['', 'Empty', 'Mid', 'Full'],
+            rows: [
+              { label: 'Level (%)', cells: [this.cTxt('0'), this.cIn(tab, 'fuel_mid_pct'), this.cTxt('100')] },
+              { label: 'Resistance (Ω)', cells: ['fuel_r_empty', 'fuel_r_mid', 'fuel_r_full'].map(k => this.cIn(tab, k, fuelCustom(k))) },
+              { label: 'Voltage (mV)', cells: ['fuel_r_empty', 'fuel_r_mid', 'fuel_r_full'].map(k => this.cTxt(mv(C.num(v[k]), fbias))) },
+            ],
+          }),
+          P('Analog Sensor Filters', { fields: [1, 2, 3].map(n => F(tab, 'filter_av' + n, 'AV' + n, { type: 'range', dep: avDep(n) })).concat([
+            F(tab, 'filter_vbatt', 'Battery filter', { type: 'range' }),
+            F(tab, 'vbatt_scaler', 'Battery scaler', { tip: 'Voltage divider scale factor for battery ADC (0.001-0.1).' }),
+          ]) }),
+          P('Analog Sensor Types and Calibration', {
+            wide: true, tag: '0.5–4.5 V presets',
+            head: ['', 'Type', 'Voltage low (V)', 'Voltage high (V)', 'Physical low', 'Physical high', ''],
+            rows: [1, 2, 3].map(avRow),
+          }),
+        ];
+      }
+      case 'motors': {
+        const motor = n => {
+          const p = 'm' + n + '_', fn = +v[p + 'func'], kind = C.FN_KIND[fn], unit = this.unitOf(kind, C.FN_UNIT[fn]);
+          const off = () => fn === 0 ? 'Function is Off: the needle parks at zero.' : null;
+          return P('Motor ' + n, {
+            tag: C.FN[fn],
+            dial: this.dial(C.num(v[p + 'angle']), v[p + 'dir'] === '1'),
+            fields: [
+              F(tab, p + 'func', 'Function', { type: 'select', options: C.FN, onChange: e => this.applyFn(n, e.target.value) }),
+              F(tab, p + 'angle', 'Sweep angle', { unit: '°', tip: 'Full sweep in degrees (8.3–315). Stored as motor steps: 12 per degree.' }),
+              F(tab, p + 'lo', 'Low', { unit, dep: off, tip: 'Signal value at the zero end of the dial.' }),
+              F(tab, p + 'hi', 'High', { unit, dep: off, tip: 'Signal value at the full end of the dial.' }),
+              F(tab, p + 'dir', 'Direction', { type: 'select', options: ['CW', 'CCW'], dep: off, tip: 'Direction the needle sweeps as the value rises.' }),
+            ],
+          });
+        };
+        return [1, 2, 3, 4].map(motor).concat([
+          P('Motor S (Speedometer)', { tag: 'NEMA14', fields: [F(tab, 'ms_sweep', 'Sweep steps', { tip: 'Motor S sweep steps (100-16000).' })] }),
+          P('Motor S - Zeroing', { fields: [F(tab, 'ms_zero_delay', 'Zero step delay', { unit: 'µs' }), F(tab, 'ms_zero_factor', 'Zero sweep fraction', { tip: 'Fraction of MS_SWEEP for Motor S zeroing (0.1-1.0).' })] }),
+          P('Startup sweep', { fields: [F(tab, 'motor_sweep_ms', 'Sweep time', { unit: 'ms', tip: 'Startup test sweep duration ms (100-5000).' })] }),
+        ]);
+      }
+      case 'tach': return [P('LED Tachometer', {
+        wide: true,
+        fields: [
+          F(tab, 'num_leds', 'LED count', { tip: 'Total LED strip count (1-64).' }),
+          F(tab, 'tach_min', 'Min display RPM', { tip: 'RPM at which first LED is active.' }),
+          F(tab, 'tach_max', 'Max RPM', { tip: 'RPM at which the last LED step illuminates (1000-15000).' }),
+          F(tab, 'tach_flash', 'Flash RPM', { tip: 'RPM at which illuminated shift-zone LEDs flash (0-15000).' }),
+          F(tab, 'tach_sweep', 'Sweep style', { type: 'select', options: ['Left to right', 'Right to left', 'Edge to center', 'Center to edge'], tip: "Sweep direction; LED 0 is on the driver's left." }),
+        ],
+      })];
+      case 'outputs': return [1, 2].map(n => {
+        const p = 'out' + n + '_', mode = v[p + 'mode'], pi = +v[p + 'param'], kind = C.OUT_KIND[pi], unit = this.unitOf(kind, C.OUT_UNIT[pi]);
+        const fields = [F(tab, p + 'mode', 'Mode', { type: 'select', options: ['Disabled', 'On/Off', 'PWM'], tip: 'Disabled holds it off; On/Off switches with hysteresis; PWM follows the curve.' })];
+        if (mode !== '0') fields.push(F(tab, p + 'param', 'Parameter', { type: 'select', options: C.OUT_P }));
+        const o = { wide: true, tag: n === 1 ? 'D12' : 'D13', fields };
+        if (mode === '1') {
+          o.head = ['', 'Comparison', 'Value', ''];
+          o.rows = [
+            { label: 'Turn ON when value', cells: [this.cSel(tab, p + 'on_op', ['>', '<']), this.cIn(tab, p + 'on_val'), this.cTxt(unit, 'left')] },
+            { label: 'Turn OFF when value', cells: [this.cTxt(v[p + 'on_op'] === '0' ? '<' : '>', 'center'), this.cIn(tab, p + 'off_val'), this.cTxt(unit, 'left')] },
+          ];
+          const onV = C.num(v[p + 'on_val']), offV = C.num(v[p + 'off_val']);
+          if (v[p + 'on_op'] === '0' && !(offV < onV)) o.error = `Turns on above ${onV} ${unit}, so the off value must be below ${onV} ${unit}.`;
+          if (v[p + 'on_op'] === '1' && !(offV > onV)) o.error = `Turns on below ${onV} ${unit}, so the off value must be above ${onV} ${unit}.`;
+        }
+        if (mode === '2') {
+          fields.push(F(tab, p + 'freq', 'Frequency', { unit: 'Hz · 20–500', tip: 'Shared with the other output when both are PWM.' }));
+          const xs = [0, 1, 2, 3, 4, 5, 6, 7].map(i => C.num(v[p + 'x' + i])), ds = [0, 1, 2, 3, 4, 5, 6, 7].map(i => C.num(v[p + 'd' + i]));
+          o.head = ['', '1', '2', '3', '4', '5', '6', '7', '8'];
+          o.rows = [
+            { label: `Value (${unit})`, cells: [0, 1, 2, 3, 4, 5, 6, 7].map(i => this.cIn(tab, p + 'x' + i)) },
+            { label: 'Duty (%)', cells: [0, 1, 2, 3, 4, 5, 6, 7].map(i => this.cIn(tab, p + 'd' + i)) },
+          ];
+          const lo = Math.min(...xs.filter(isFinite)), hi = Math.max(...xs.filter(isFinite)), span = (hi - lo) || 1;
+          const pts = xs.map((x, i) => [44 + (x - lo) / span * 424, 130 - Math.max(0, Math.min(100, ds[i])) / 100 * 120]).filter(([x, y]) => isFinite(x) && isFinite(y));
+          o.chart = {
+            grid: [0, 50, 100].map(d => ({ y: 130 - d * 1.2, ty: 133 - d * 1.2, label: d + '%' })),
+            points: pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' '),
+            dots: pts.map(([x, y]) => ({ x: x.toFixed(1), y: y.toFixed(1) })),
+            xMin: `${lo} ${unit}`, xMax: `${hi} ${unit}`,
+          };
+          const bad = xs.findIndex((x, i) => i > 0 && !(x > xs[i - 1]));
+          if (bad > 0) o.error = `Point ${bad + 1} value (${xs[bad]} ${unit}) must be greater than point ${bad} (${xs[bad - 1]} ${unit}).`;
+          const fq = C.num(v[p + 'freq']);
+          if (!(fq >= 20 && fq <= 500)) o.error = 'PWM frequency (Hz) must be from 20 to 500.';
+          if (v.out1_mode === '2' && v.out2_mode === '2' && v.out1_freq !== v.out2_freq) o.error = 'Both outputs are PWM and share one hardware timer, so they must use the same frequency.';
+        }
+        return P(`Output ${n} (${n === 1 ? 'D12' : 'D13'})`, { ...o, tag: ['Disabled', 'On/Off', 'PWM'][+mode] });
+      });
+      case 'display': return [
+        P('Units', { fields: [F(tab, 'units', 'Gauge unit system', { type: 'select', options: ['Metric', "'Merican"], tip: "Unit system shown on the gauge: Metric or 'Merican (imperial)." })] }),
+        P('Clock & Fuel', { fields: [F(tab, 'clock_offset', 'UTC offset', { unit: 'hours', tip: 'UTC offset hours (-12 to +12).' }), F(tab, 'fuel_capacity', 'Fuel tank capacity', { unit: this.unitOf('volume'), tip: 'Fuel tank capacity (1-200 gallons).' })] }),
+      ];
+      case 'faults': return [P('Fault Warning Thresholds', {
+        wide: true,
+        head: ['', 'Flash when', 'Threshold', '', 'Delay (s)'],
+        rows: [
+          ['Oil pressure', 'below', 'oil_warn', this.unitOf('pressure'), 'oil_delay'],
+          ['Engine temp', 'above', 'coolant_warn', this.unitOf('temp'), 'coolant_delay'],
+          ['Battery voltage', 'below', 'batt_warn_v', 'V', 'batt_delay'],
+          ['Low fuel', 'below', 'fuel_warn_pct', '%', 'fuel_delay'],
+        ].map(([l, w, k, u, d]) => ({ label: l, cells: [this.cTxt(w, 'left'), this.cIn(tab, k), this.cTxt(u, 'left'), this.cIn(tab, d)] })),
+        fields: [F(tab, 'engine_run_rpm', 'Engine running RPM', { tip: 'Min RPM to consider engine running for fault logic (0-2000).' })],
+      })];
+      case 'test': return [
+        P('Other Tests', {
+          fields: [F(tab, 'odo_revs', 'Odometer motor revs', { unit: '-100 to 100' })],
+          actions: [A('Ping', () => this.log(['> ping', '< ok']), false, offline), A('Version', () => this.log(['> version']), false, offline), A('Move odometer', () => this.log([`> odometer ${v.odo_revs} revs`]), false, offline), A('Splash slot 1', () => this.log(['> splash preview 1']), false, offline), A('Splash slot 2', () => this.log(['> splash preview 2']), false, offline)],
+        }),
+        P('Log', { log: s.log }),
+      ];
+      default: return [];
+    }
+  }
+
+  applyFn(n, val) {
+    const C = Component, [lo, hi] = C.FN_RANGE[+val], kind = C.FN_KIND[+val], c = x => kind ? C.trim(C.conv(x, kind, this.state.imperial), 0) : String(x);
+    this.set('motors', `m${n}_func`, val, +val ? { [`m${n}_lo`]: c(lo), [`m${n}_hi`]: c(hi) } : {});
+  }
+  applyTherm(val) {
+    const p = Component.THERM_P[val], extra = {};
+    if (p) p.forEach(([t, r], i) => { extra['therm_t' + i] = Component.trim(this.state.imperial ? t * 9 / 5 + 32 : t, 0); extra['therm_r' + i] = String(r); });
+    this.set('sensors', 'therm_type', val, extra);
+  }
+  applyFuel(val) {
+    const p = Component.FUEL_P[val];
+    this.set('sensors', 'fuel_type', val, p ? { fuel_r_empty: String(p[0]), fuel_r_full: String(p[1]), fuel_r_mid: String(Math.round((p[0] + p[1]) / 2)) } : {});
+  }
+  applyAv(n, val) {
+    const p = Component.AV_P[val], k = 'av' + n + '_';
+    const ph = x => val === '5' ? String(x) : Component.trim(this.state.imperial ? x * 0.1450377377 : x, 1);
+    this.set('sensors', k + 'type', val, p ? { [k + 'vlo']: String(p[0]), [k + 'vhi']: String(p[1]), [k + 'plo']: ph(p[2]), [k + 'phi']: ph(p[3]) } : {});
+  }
+  toggleConn() {
+    const now = !(this.state.connected ?? (this.props.connected ?? true));
+    this.setState({ connected: now, tachTest: false, status: now ? `Connected to ${this.state.v.port} · configuration read from device` : 'Disconnected' });
+  }
+  fwUpdate() {
+    clearInterval(this.fwTimer);
+    this.setState({ fwProg: 0, fwLog: [{ t: `> Updating from ${this.state.v.fwPath}` }, { t: 'Entering bootloader' }], status: 'Updating firmware…' });
+    this.fwTimer = setInterval(() => this.setState(s => {
+      const p = Math.min(100, s.fwProg + 4), log = [...s.fwLog];
+      if (s.fwProg < 8 && p >= 8) log.push({ t: 'Writing flash' });
+      if (s.fwProg < 72 && p >= 72) log.push({ t: 'Verifying' });
+      if (p === 100) { clearInterval(this.fwTimer); log.push({ t: 'Done. Waiting 3 s for the sketch to start.' }); }
+      return { fwProg: p, fwLog: log, status: p === 100 ? 'Firmware updated' : s.status };
+    }), 120);
+  }
+  loadSplash(slot, e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const img = new Image();
+    img.onload = () => {
+      const cv = document.createElement('canvas'); cv.width = 128; cv.height = 32;
+      const g = cv.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0, 0, 128, 32);
+      const sc = Math.min(128 / img.width, 32 / img.height), w = img.width * sc, h = img.height * sc;
+      g.drawImage(img, (128 - w) / 2, (32 - h) / 2, w, h);
+      const d = g.getImageData(0, 0, 128, 32);
+      for (let i = 0; i < d.data.length; i += 4) { const on = (d.data[i] * 0.3 + d.data[i + 1] * 0.59 + d.data[i + 2] * 0.11) > 110 ? 255 : 0; d.data[i] = d.data[i + 1] = d.data[i + 2] = on; d.data[i + 3] = 255; }
+      g.putImageData(d, 0, 0);
+      this.setState(s => ({ splash: { ...s.splash, [slot]: { src: cv.toDataURL(), name: file.name } }, splashProg: { ...s.splashProg, [slot]: 0 }, status: `Slot ${slot}: loaded ${file.name}` }));
+      URL.revokeObjectURL(img.src);
+    };
+    img.src = URL.createObjectURL(file);
+  }
+  uploadSplash(slot) {
+    clearInterval(this.spTimer);
+    this.spTimer = setInterval(() => this.setState(s => {
+      const p = Math.min(100, s.splashProg[slot] + 10);
+      if (p === 100) clearInterval(this.spTimer);
+      return { splashProg: { ...s.splashProg, [slot]: p }, status: p === 100 ? `Slot ${slot}: uploaded 512 bytes` : `Slot ${slot}: uploading…` };
+    }), 90);
+  }
+
+  renderVals() {
+    const s = this.state, v = s.v, C = Component;
+    const connected = s.connected ?? (this.props.connected ?? true), offline = !connected;
+    const sidebar = (this.props.navStyle ?? 'sidebar') === 'sidebar';
+    const counts = {};
+    Object.values(s.dirty).forEach(t => { counts[t] = (counts[t] || 0) + 1; });
+    const dirtyCount = Object.keys(s.dirty).length;
+    const item = ([id, label]) => {
+      const active = s.tab === id;
+      return {
+        label, hasCount: !!counts[id], count: counts[id] || 0,
+        bg: active ? 'var(--color-accent-100)' : 'transparent', bar: active ? 'var(--color-accent)' : 'transparent',
+        color: active ? 'var(--color-text)' : 'var(--color-neutral-700)',
+        go: () => this.setState(st => ({ tab: id, tachTest: id === 'tach' ? st.tachTest : false })),
+      };
+    };
+    const flat = C.NAV.flatMap(([, items]) => items);
+    const idx = flat.findIndex(([id]) => id === s.tab);
+    const group = C.NAV.find(([, items]) => items.some(([id]) => id === s.tab))[0];
+    const tabId = s.tab;
+
+    const n = Math.max(1, Math.min(64, parseInt(v.num_leds) || 1)), sweep = +v.tach_sweep;
+    const steps = sweep < 2 ? n : Math.ceil(n / 2);
+    const tmin = C.num(v.tach_min) || 0, tmax = C.num(v.tach_max) || 0, flash = C.num(v.tach_flash) || Infinity;
+    const stepOf = i => { if (sweep === 0) return i; if (sweep === 1) return n - 1 - i; const e = Math.min(i, n - 1 - i); return sweep === 2 ? e : steps - 1 - e; };
+    const stepRpm = st => steps <= 1 ? tmin : tmin + Math.floor((st * (tmax - tmin) + steps - 2) / (steps - 1));
+    const zoneOf = st => st >= steps - 1 - v.shift_leds ? 'shift' : st >= steps - 1 - v.warn_leds ? 'warning' : 'normal';
+    const disp = z => this.tachDisplay(v['tach_color_' + z], s.tachHue[z]);
+    const leds = Array.from({ length: n }, (_, i) => {
+      const st = stepOf(i), z = zoneOf(st), lit = s.previewRpm >= stepRpm(st) && !(z === 'shift' && s.previewRpm >= flash && !s.blink);
+      return { bg: lit ? disp(z) : '#2e2e2e', zoneBar: disp(z) };
+    });
+    const firstOf = z => { for (let st = 0; st < steps; st++) if (zoneOf(st) === z) return st; return -1; };
+    const lastOf = z => { for (let st = steps - 1; st >= 0; st--) if (zoneOf(st) === z) return st; return -1; };
+    const zones = [['normal', 'Normal'], ['warning', 'Warning'], ['shift', 'Shift']].map(([z, name]) => {
+      const a = firstOf(z), b = lastOf(z);
+      return { name, color: disp(z), range: a < 0 ? 'none' : `${stepRpm(a)}–${stepRpm(b)} rpm` };
+    }).concat([{ name: 'Flash', color: disp('shift'), range: `≥ ${v.tach_flash} rpm` }]);
+    const clampZ = x => Math.max(0, Math.min(steps - 1, x));
+    const step = (k, d) => () => this.set('tach', k, clampZ(v[k] + d));
+    const tachColors = [['normal', 'Normal'], ['warning', 'Warning'], ['shift', 'Shift']].map(([z, label]) => {
+      const key = 'tach_color_' + z, [h, , b] = C.hsv(v[key]), hue = Math.round(b === 0 ? (s.tachHue[z] || 0) : h);
+      const mk = (hh, bb) => C.rgb(hh, 1, bb / 100).map(x => x.toString(16).padStart(2, '0')).join('').toUpperCase();
+      return {
+        label, hex: v[key], display: disp(z), hue, bright: Math.round(b * 100), dirty: !!s.dirty[key],
+        setHue: e => { const hh = +e.target.value; this.setState(st => ({ tachHue: { ...st.tachHue, [z]: hh } })); this.set('tach', key, mk(hh, Math.round(b * 100))); },
+        setBright: e => this.set('tach', key, mk(hue, +e.target.value)),
+      };
+    });
+
+    const screenList = (k, title) => {
+      const L = s[k], move = (i, d) => () => this.setState(st => { const o = [...st[k].order]; [o[i], o[i + d]] = [o[i + d], o[i]]; return { [k]: { ...st[k], order: o }, dirty: { ...st.dirty, [k]: 'display' } }; });
+      const names = Object.fromEntries(C.SCREENS);
+      return {
+        title, dirty: !!s.dirty[k], count: `${L.on.length} enabled`, hasSettings: k === 'd1',
+        rows: L.order.map((id, i) => {
+          const isOn = L.on.includes(id);
+          return {
+            name: names[id], on: isOn, opacity: isOn ? 1 : 0.55, pos: isOn ? String(L.order.filter(x => L.on.includes(x)).indexOf(id) + 1).padStart(2, '0') : '',
+            isFirst: i === 0, isLast: i === L.order.length - 1, up: move(i, -1), down: move(i, 1),
+            toggle: () => this.setState(st => {
+              const cur = st[k].on;
+              if (cur.includes(id) && cur.length === 1) return null;
+              return { [k]: { ...st[k], on: cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id] }, dirty: { ...st.dirty, [k]: 'display' } };
+            }),
+          };
+        }),
+      };
+    };
+
+    const testSignals = C.TEST.map(([key, label, kind, mr, ir, method, srcKey]) => {
+      const k = 'test_' + key, [mn, mx] = s.imperial ? ir : mr, unit = kind ? this.unitOf(kind) : (key === 'rpm' ? 'rpm' : '%');
+      return {
+        label, badge: `source: ${C.SRC[srcKey][+v[srcKey]]}`, min: mn, max: mx, value: v[k], unit,
+        onChange: e => this.setState(st => ({ v: { ...st.v, [k]: e.target.value } })),
+        send: () => this.log([`> ${method} ${v[k]} ${unit}`, `${label} source set to Serial in RAM`]),
+      };
+    });
+
+    const splashSlots = [1, 2].map(slot => {
+      const sp = s.splash[slot];
+      return {
+        title: `Splash Slot ${slot}`, hasImage: !!sp, empty: !sp, bg: sp ? `url(${sp.src})` : 'none',
+        caption: sp ? `${sp.name} · converted to 1-bit, 128×32` : 'PNG, BMP, JPG or GIF. Scaled to fit and converted to 1-bit.',
+        progress: s.splashProg[slot] + '%', cantUpload: !sp || offline,
+        load: e => this.loadSplash(slot, e), upload: () => this.uploadSplash(slot),
+        test: () => this.setState({ status: `Slot ${slot}: showing on device` }),
+        clear: () => this.setState(st => ({ splash: { ...st.splash, [slot]: null }, splashProg: { ...st.splashProg, [slot]: 0 }, status: `Slot ${slot}: cleared` })),
+      };
+    });
+
+    const stamp = () => { const d = new Date(), p = x => String(x).padStart(2, '0'); return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`; };
+
+    const theme = s.theme ?? (this.props.theme ?? 'dark');
+    return {
+      th: C.THEMES[theme], isDark: theme === 'dark', isLight: theme === 'light',
+      setDark: () => this.setState({ theme: 'dark', status: 'Theme set to Dark' }), setLight: () => this.setState({ theme: 'light', status: 'Theme set to Light' }),
+      connDot: connected ? 'var(--color-accent)' : 'transparent',
+      connText: connected ? `Connected · ${v.port} · ${v.baud}` : 'Disconnected',
+      offline,
+      isMetric: !s.imperial, isImperial: s.imperial,
+      setMetric: () => this.setUnits(false), setImperial: () => this.setUnits(true),
+      hasDirty: dirtyCount > 0, dirtyCount,
+      dirtySummary: dirtyCount ? `${dirtyCount} unsaved change${dirtyCount > 1 ? 's' : ''}` : 'No unsaved changes',
+      readDevice: () => this.setState({ dirty: {}, v: C.initialValues(), imperial: true, status: `Read configuration from ${v.port}` }),
+      writeDevice: () => this.setState({ dirty: {}, status: dirtyCount ? `Wrote ${dirtyCount} change${dirtyCount > 1 ? 's' : ''} to the device` : 'Nothing to write' }),
+      saveFile: () => this.setState({ status: `Saved gauge_config_${stamp()}.txt` }),
+      loadFile: () => this.setState({ status: 'Choose a gauge_config_*.txt file' }),
+      isSidebar: sidebar, isTabs: !sidebar, cols: sidebar ? '200px minmax(0,1fr)' : 'minmax(0,1fr)',
+      nav: C.NAV.map(([g, items]) => ({ group: g, items: items.map(item) })),
+      flatNav: flat.map(item),
+      tabKicker: `${String(idx + 1).padStart(2, '0')} / ${group}`, tabTitle: flat[idx][1], tabDesc: C.DESC[tabId],
+      tabTach: tabId === 'tach', tabTest: tabId === 'test', tabDisplay: tabId === 'display', tabSplash: tabId === 'splash',
+      panels: this.panelsFor(tabId),
+      tachMeta: `${n} LEDs · ${['Left to right', 'Right to left', 'Edge to center', 'Center to edge'][sweep]} · ${steps} steps`,
+      leds, zones, previewRpm: s.previewRpm, previewMax: Math.max(tmax, C.num(v.tach_flash) || 0) + 1000,
+      setPreview: e => this.setState({ previewRpm: +e.target.value }),
+      zoneSteppers: [
+        { label: 'Warning zone', value: v.warn_leds, dirty: !!s.dirty.warn_leds, dec: step('warn_leds', -1), inc: step('warn_leds', 1) },
+        { label: 'Shift zone', value: v.shift_leds, dirty: !!s.dirty.shift_leds, dec: step('shift_leds', -1), inc: step('shift_leds', 1) },
+      ],
+      fitZones: () => { const sh = clampZ(v.shift_leds); this.set('tach', 'shift_leds', sh, { warn_leds: clampZ(Math.max(v.warn_leds, sh)) }); },
+      tachColors,
+      tachTestLabel: s.tachTest ? 'Test strip: On' : 'Test strip: Off',
+      toggleTachTest: () => this.setState(st => ({ tachTest: !st.tachTest, status: !st.tachTest ? 'Tach test running on device' : 'Tach test stopped' })),
+      testSignals,
+      restoreSources: () => this.log(['> restore sources', 'Original sources restored']),
+      screenLists: [screenList('d1', 'Display 1 screens'), screenList('d2', 'Display 2 screens')],
+      splashSlots,
+      status: s.status,
+    };
+  }
+}
+</script>
+</body>
+</html>
