@@ -6,7 +6,7 @@ import { api, openModal, closeModal, alertBox, confirmBox, failed, requireConnec
 export const TAB_TITLES = {
   connection: 'Connection', source: 'Signal Source', speed: 'Speed/RPM', sensors: 'Sensors',
   motors: 'Motor Config', tach: 'LED Tach', outputs: 'Outputs', display: 'Display Settings',
-  faults: 'Fault Warnings', splash: 'Splash Screens', test: 'Test',
+  faults: 'Fault Warnings', splash: 'Splash Screens', test: 'Bench testing', logging: 'Logging',
 };
 
 const UNIT_NAMES = { metric: 'Metric', imperial: "'Merican" };
@@ -33,7 +33,7 @@ export function setUnits(units) {
   S.bad = {};  // half-typed text was in the old units; show the stored values again
   S.test.texts = {};
   api.set_pref('units', units);
-  S.status = `Tool units set to ${UNIT_NAMES[units]}. The firmware always stores metric.`;
+  S.status = `Config Tool units set to ${UNIT_NAMES[units]}. The firmware always stores metric.`;
   requestRender();
 }
 
@@ -107,6 +107,94 @@ export async function toggleTachTest() {
   requestRender();
 }
 
+// ---- Logging tab ------------------------------------------------------------------------
+
+export const LOG_WINDOW_MS = 20000;
+let logTimer = null;
+
+function stopLogUi() {
+  clearInterval(logTimer);
+  logTimer = null;
+  S.log.live = false;
+  S.log.recording = false;
+}
+
+function setLive() {
+  // A stopped trace stays up for inspection until the next run starts.
+  if (!S.log.live) S.log.samples = [];
+  S.log.live = true;
+  S.log.lastAt = Date.now();
+  // Repaint while live so a stalled stream shows as "no data" even with no samples arriving.
+  if (!logTimer) logTimer = setInterval(() => { if (S.tab === 'logging') requestRender(); }, 500);
+}
+
+const savedText = (res) => (res.path ? `Saved ${res.rows} rows to ${res.path}` : 'Recording stopped');
+
+export async function startLogging() {
+  if (S.log.live || !requireConnection()) return;
+  const res = await api.log_start();
+  if (failed(res, 'Logging error')) { requestRender(); return; }
+  setLive();
+  S.status = 'Logging live data';
+  requestRender();
+}
+
+export async function stopLogging() {
+  if (!S.log.live) return;
+  const wasRecording = S.log.recording;
+  stopLogUi();
+  requestRender();
+  const res = await api.log_stop();
+  if (failed(res, 'Logging error')) return;
+  S.status = wasRecording ? savedText(res) : 'Logging stopped';
+  requestRender();
+}
+
+export async function startRecording() {
+  if (S.log.recording || (!S.log.live && !requireConnection())) return;
+  const res = await api.log_record_start(imperial());
+  if (failed(res, 'Recording error') || res.cancelled) { requestRender(); return; }
+  setLive();
+  S.log.recording = true;
+  S.log.name = res.name;
+  S.log.rows = 0;
+  S.status = `Recording to ${res.path}`;
+  requestRender();
+}
+
+export async function stopRecording() {
+  if (!S.log.recording) return;
+  S.log.recording = false;
+  requestRender();
+  const res = await api.log_record_stop();
+  if (!failed(res, 'Recording error')) S.status = savedText(res);
+  requestRender();
+}
+
+/** One sample pushed from Python: {t: gauge millis, v: metric values, rows: CSV rows so far}. */
+export function onLogSample(evt) {
+  if (!S.log.live) return;  // a line that was in flight when logging stopped
+  const samples = S.log.samples;
+  // The gauge restarted (millis went back): start the traces over.
+  if (samples.length && evt.t < samples[samples.length - 1].t) samples.length = 0;
+  samples.push({ t: evt.t, v: evt.v });
+  const cutoff = evt.t - LOG_WINDOW_MS - 500;
+  while (samples.length && samples[0].t < cutoff) samples.shift();
+  S.log.lastAt = Date.now();
+  if (S.log.recording) S.log.rows = evt.rows;
+  if (S.tab === 'logging') requestRender();
+}
+
+/** The reader stopped on its own (port lost or the CSV could not be written). */
+export function onLogError(evt) {
+  stopLogUi();
+  S.status = evt.text;
+  const saved = evt.path ? `\n\n${evt.rows} rows were saved to ${evt.path}.` : '';
+  alertBox('Logging stopped', `${evt.text}${saved}`);
+  api.log_stop();  // stop the gauge's stream if it is still reachable
+  requestRender();
+}
+
 // ---- connection -----------------------------------------------------------------------
 
 export async function refreshPorts() {
@@ -126,6 +214,7 @@ function markConnected(version) {
 export function markDisconnected(state = 'Disconnected') {
   stopTachUi();
   stopOdoUi();
+  stopLogUi();
   S.conn.connected = false;
   S.conn.version = '';
   S.conn.state = state;
@@ -283,6 +372,7 @@ export function goTab(tab) {
   S.tab = tab;
   if (leaving === 'tach') stopTachTest();
   if (leaving === 'test') leaveTest();
+  if (leaving === 'logging') stopLogging();
   requestRender();
   const scroller = document.getElementById('page-scroll');
   if (scroller) scroller.scrollTop = 0;

@@ -13,6 +13,7 @@
 #include "menu.h"
 #include "tach_settings.h"
 #include "outputs.h"
+#include "splash.h"
 #include <EEPROM.h>
 #include <string.h>
 #include <stdlib.h>
@@ -62,6 +63,108 @@ bool loadTachSettings(void) {
     TACH_WARNING_COLOR = hasColors ? ((uint32_t)colors.colors[3] << 16 | (uint32_t)colors.colors[4] << 8 | colors.colors[5]) : 0x500A00;
     TACH_SHIFT_COLOR = hasColors ? ((uint32_t)colors.colors[6] << 16 | (uint32_t)colors.colors[7] << 8 | colors.colors[8]) : 0x500000;
     return true;
+}
+
+// ---------------------------------------------------------------------------
+// Calibration block (EEPROM 1536+)
+//   [0..1] magic 'G','C'  [2] version  [3..4] data length  [5..] data  [+2] Fletcher-16
+// Every parameter settable over serial that is not stored elsewhere (display state,
+// odometer and tach have their own records) is serialized in CAL_FIELDS order.
+// The list is APPEND-ONLY: a shorter block written by older firmware still loads its
+// fields and leaves newer ones at their defaults.
+// ---------------------------------------------------------------------------
+static const uint16_t CAL_EEPROM_ADDRESS = 1536;
+static const uint8_t  CAL_HEADER_SIZE    = 5;
+static const uint8_t  CAL_VERSION        = 1;
+static const uint16_t CAL_MAX_DATA       = 4096 - CAL_EEPROM_ADDRESS - CAL_HEADER_SIZE - 2;
+
+struct CalField { void *ptr; uint8_t size; };
+#define CAL(v)        { (void *)&(v), sizeof(v) }
+#define CAL_ARR(v, n) { (void *)(v), (uint8_t)(sizeof((v)[0]) * (n)) }
+static const CalField CAL_FIELDS[] PROGMEM = {
+    CAL(M1_SWEEP), CAL(M2_SWEEP), CAL(M3_SWEEP), CAL(M4_SWEEP), CAL(MS_SWEEP),
+    CAL(M1_FUNCTION), CAL(M2_FUNCTION), CAL(M3_FUNCTION), CAL(M4_FUNCTION),
+    CAL(M1_MIN), CAL(M1_MAX), CAL(M2_MIN), CAL(M2_MAX),
+    CAL(M3_MIN), CAL(M3_MAX), CAL(M4_MIN), CAL(M4_MAX),
+    CAL(MS_ZERO_STEP_DELAY_US), CAL(MS_ZERO_SWEEP_FACTOR), CAL(MOTOR_SWEEP_TIME_MS),
+    CAL(FILTER_VBATT), CAL(VBATT_SCALER), CAL(FILTER_FUEL), CAL(FILTER_THERM),
+    CAL(FILTER_AV1), CAL(FILTER_AV2), CAL(FILTER_AV3),
+    CAL(AV1_TYPE), CAL(AV2_TYPE), CAL(AV3_TYPE),
+    CAL(AV_ADC_LO), CAL(AV_ADC_HI), CAL(AV_PHYS_LO), CAL(AV_PHYS_HI),
+    CAL(REVS_PER_KM), CAL(TEETH_PER_REV), CAL(FILTER_HALL_SPEED), CAL(FILTER_GPS), CAL(HALL_SPEED_MIN),
+    CAL(CYL_COUNT), CAL(FILTER_ENGINE_RPM), CAL(RPM_DEBOUNCE_MICROS), CAL(ENGINE_RPM_MIN),
+    CAL(SPEEDO_MAX), CAL(MS_FUNCTION), CAL(MS_RPM_MAX),
+    CAL(ODO_STEPS), CAL(ODO_MOTOR_TEETH), CAL(ODO_GEAR_TEETH),
+    CAL(SPEED_SOURCE), CAL(RPM_SOURCE), CAL(OIL_PRS_SOURCE), CAL(FUEL_PRS_SOURCE),
+    CAL(COOLANT_TEMP_SOURCE), CAL(OIL_TEMP_SOURCE), CAL(MAP_SOURCE), CAL(LAMBDA_SOURCE), CAL(FUEL_LVL_SOURCE),
+    CAL(OIL_PRS_WARN_THRESHOLD), CAL(COOLANT_TEMP_WARN_THRESHOLD), CAL(BATT_VOLT_WARN_THRESHOLD),
+    CAL(ENGINE_RUNNING_RPM_MIN), CAL(FUEL_LVL_WARN_THRESHOLD_PCT),
+    CAL(OIL_PRS_WARN_DEBOUNCE_MS), CAL(COOLANT_TEMP_WARN_DEBOUNCE_MS),
+    CAL(BATT_VOLT_WARN_DEBOUNCE_MS), CAL(FUEL_LVL_WARN_DEBOUNCE_MS),
+    CAL(fuelCapacity), CAL(CAN_PROTOCOL),
+    CAL(THERM_TYPE), CAL(THERM_BIAS_OHMS), CAL(THERM_R_OHMS),
+    CAL_ARR(thermTable_x, 6), CAL_ARR(thermTable_l, 6),
+    CAL(FUEL_SENDER_TYPE), CAL(FUEL_BIAS_OHMS), CAL(FUEL_R_EMPTY_OHMS), CAL(FUEL_R_MID_OHMS),
+    CAL(FUEL_R_FULL_OHMS), CAL(FUEL_MID_PCT), CAL(FUEL_V_EMPTY_MV), CAL(FUEL_V_MID_MV), CAL(FUEL_V_FULL_MV),
+    CAL(LOW_SIDE_OUT),
+    CAL(SPLASH1_IMG), CAL(SPLASH2_IMG),
+};
+#undef CAL
+#undef CAL_ARR
+static const uint8_t CAL_FIELD_COUNT = sizeof(CAL_FIELDS) / sizeof(CAL_FIELDS[0]);
+
+struct Fletcher16 {
+    uint16_t a = 0, b = 0;
+    void add(uint8_t v) { a = (a + v) % 255; b = (b + a) % 255; }
+    uint16_t value() const { return (b << 8) | a; }
+};
+
+static CalField calField(uint8_t i) {
+    CalField f;
+    memcpy_P(&f, &CAL_FIELDS[i], sizeof(f));
+    return f;
+}
+
+void saveCalibration(void) {
+    uint16_t addr = CAL_EEPROM_ADDRESS + CAL_HEADER_SIZE;
+    Fletcher16 sum;
+    for (uint8_t i = 0; i < CAL_FIELD_COUNT; i++) {
+        CalField f = calField(i);
+        const uint8_t *p = (const uint8_t *)f.ptr;
+        for (uint8_t j = 0; j < f.size; j++, addr++) {
+            EEPROM.update(addr, p[j]);
+            sum.add(p[j]);
+        }
+    }
+    uint16_t len = addr - (CAL_EEPROM_ADDRESS + CAL_HEADER_SIZE);
+    EEPROM.put(addr, sum.value());
+    EEPROM.update(CAL_EEPROM_ADDRESS,     'G');
+    EEPROM.update(CAL_EEPROM_ADDRESS + 1, 'C');
+    EEPROM.update(CAL_EEPROM_ADDRESS + 2, CAL_VERSION);
+    EEPROM.put(CAL_EEPROM_ADDRESS + 3, len);
+}
+
+CalLoadResult loadCalibration(void) {
+    if (EEPROM.read(CAL_EEPROM_ADDRESS) != 'G' || EEPROM.read(CAL_EEPROM_ADDRESS + 1) != 'C') return CAL_EMPTY;
+    uint16_t len;
+    EEPROM.get(CAL_EEPROM_ADDRESS + 3, len);
+    if (EEPROM.read(CAL_EEPROM_ADDRESS + 2) != CAL_VERSION || len == 0 || len > CAL_MAX_DATA) return CAL_INVALID;
+    const uint16_t data = CAL_EEPROM_ADDRESS + CAL_HEADER_SIZE;
+    Fletcher16 sum;
+    for (uint16_t k = 0; k < len; k++) sum.add(EEPROM.read(data + k));
+    uint16_t stored;
+    EEPROM.get(data + len, stored);
+    if (stored != sum.value()) return CAL_INVALID;
+    // Copy whole fields only; fields beyond the stored length keep their current values.
+    uint16_t off = 0;
+    for (uint8_t i = 0; i < CAL_FIELD_COUNT; i++) {
+        CalField f = calField(i);
+        if (off + f.size > len) break;
+        uint8_t *p = (uint8_t *)f.ptr;
+        for (uint8_t j = 0; j < f.size; j++) p[j] = EEPROM.read(data + off + j);
+        off += f.size;
+    }
+    return CAL_OK;
 }
 
 // ---------------------------------------------------------------------------
@@ -446,6 +549,8 @@ void handleGet(const char *param) {
     if (strcmp_P(param, PSTR("engine_rpm_min"))  == 0) { printUint8Param ("engine_rpm_min",  ENGINE_RPM_MIN);             return; }
     // Speedometer
     if (strcmp_P(param, PSTR("speedo_max"))      == 0) { printUint16Param("speedo_max",      SPEEDO_MAX);                 return; }
+    if (strcmp_P(param, PSTR("ms_func"))         == 0) { printUint8Param ("ms_func",         MS_FUNCTION);                return; }
+    if (strcmp_P(param, PSTR("ms_rpm_max"))      == 0) { printUint16Param("ms_rpm_max",      MS_RPM_MAX);                 return; }
     // LED tachometer
     if (strcmp_P(param, PSTR("num_leds"))        == 0) { printUint8Param ("num_leds",        NUM_LEDS);                   return; }
     if (strcmp_P(param, PSTR("warn_leds"))       == 0) { printUint8Param ("warn_leds",       WARN_LEDS);                  return; }
@@ -486,6 +591,8 @@ void handleGet(const char *param) {
     if (strcmp_P(param, PSTR("fuel_capacity"))   == 0) { printFloatParam ("fuel_capacity",   fuelCapacity, 2);            return; }
     if (strcmp_P(param, PSTR("can_protocol"))    == 0) { printUint8Param ("can_protocol",    CAN_PROTOCOL);               return; }
     if (strcmp_P(param, PSTR("units"))           == 0) { printUint8Param ("units",           units);                      return; }
+    if (strcmp_P(param, PSTR("splash1_img"))     == 0) { printUint8Param ("splash1_img",     SPLASH1_IMG);                return; }
+    if (strcmp_P(param, PSTR("splash2_img"))     == 0) { printUint8Param ("splash2_img",     SPLASH2_IMG);                return; }
 
     SERIAL_PRINTLN_F("err: unknown");
 }
@@ -695,6 +802,16 @@ void handleSet(const char *param, const char *value) {
         if (v < 1000 || v > 30000) { SERIAL_PRINTLN_F("err: range"); return; }
         SPEEDO_MAX = v; SERIAL_PRINTLN_F("ok"); return;
     }
+    if (strcmp_P(param, PSTR("ms_func")) == 0) {
+        uint8_t v = (uint8_t)atoi(value);
+        if (v >= MS_FUNC_COUNT) { SERIAL_PRINTLN_F("err: range"); return; }
+        MS_FUNCTION = v; SERIAL_PRINTLN_F("ok"); return;
+    }
+    if (strcmp_P(param, PSTR("ms_rpm_max")) == 0) {
+        long v = atol(value);
+        if (v < 1000L || v > 20000L) { SERIAL_PRINTLN_F("err: range"); return; }
+        MS_RPM_MAX = (uint16_t)v; SERIAL_PRINTLN_F("ok"); return;
+    }
     // ---- LED tachometer ----
     if (strcmp_P(param, PSTR("num_leds")) == 0) {
         long v = atol(value);
@@ -860,6 +977,12 @@ void handleSet(const char *param, const char *value) {
         if (v > 1) { SERIAL_PRINTLN_F("err: range"); return; }
         units = v; SERIAL_PRINTLN_F("ok"); return;
     }
+    if (strcmp_P(param, PSTR("splash1_img")) == 0 || strcmp_P(param, PSTR("splash2_img")) == 0) {
+        int v = atoi(value);
+        if (v < 0 || v > 255 || !splashIdValid((uint8_t)v)) { SERIAL_PRINTLN_F("err: range"); return; }
+        if (param[6] == '1') SPLASH1_IMG = (uint8_t)v; else SPLASH2_IMG = (uint8_t)v;
+        SERIAL_PRINTLN_F("ok"); return;
+    }
 
     SERIAL_PRINTLN_F("err: unknown");
 }
@@ -899,10 +1022,7 @@ void handleSave(void) {
     TachFlashRecord flash = {1, TACH_FLASH, 0};
     flash.checksum = tachChecksum(flash);
     EEPROM.put(TACH_FLASH_EEPROM_ADDRESS, flash);
-    // Other calibration parameters (M*_SWEEP, FILTER_*, etc.) live in RAM and are
-    // applied immediately on set.  EEPROM persistence for calibration parameters
-    // is deferred to a future version; the PC tool re-sends them after each power
-    // cycle or the user saves a .txt config file and re-applies it.
+    saveCalibration();  // All remaining calibration parameters
     SERIAL_PRINTLN_F("ok");
 }
 
@@ -920,6 +1040,10 @@ void handleLoad(void) {
     EEPROM.get(odoAddress, odo);
     EEPROM.get(odoTripAddress, odoTrip);
     EEPROM.get(fuelSensorRawAddress, fuelSensorRaw);
+    if (loadCalibration() == CAL_INVALID) {
+        SERIAL_PRINTLN_F("err: invalid calibration in EEPROM");
+        return;
+    }
     if (!loadTachSettings()) {
         SERIAL_PRINTLN_F("err: invalid tach settings in EEPROM");
         return;
@@ -980,6 +1104,8 @@ void handleDump(void) {
     printUint8Param ("engine_rpm_min",  ENGINE_RPM_MIN);
     // Speedometer
     printUint16Param("speedo_max",      SPEEDO_MAX);
+    printUint8Param ("ms_func",         MS_FUNCTION);
+    printUint16Param("ms_rpm_max",      MS_RPM_MAX);
     // LED tachometer
     printUint8Param ("num_leds",        NUM_LEDS);
     printUint8Param ("warn_leds",       WARN_LEDS);
@@ -1020,6 +1146,8 @@ void handleDump(void) {
     printFloatParam ("fuel_capacity",   fuelCapacity, 2);
     printUint8Param ("can_protocol",    CAN_PROTOCOL);
     printUint8Param ("units",           units);
+    printUint8Param ("splash1_img",     SPLASH1_IMG);
+    printUint8Param ("splash2_img",     SPLASH2_IMG);
     printScreenListParam("disp1_order", disp1List, disp1Count);
     printScreenListParam("disp2_order", disp2List, disp2Count);
     SERIAL_PRINTLN_F("end");
@@ -1073,6 +1201,8 @@ static void applyDefaults(void) {
     RPM_DEBOUNCE_MICROS         = 5000;
     ENGINE_RPM_MIN              = 100;
     SPEEDO_MAX                  = 100 * 100;
+    MS_FUNCTION                 = MS_FUNC_SPEED;
+    MS_RPM_MAX                  = 8000;
     NUM_LEDS                    = 27;
     WARN_LEDS                   = 6;
     SHIFT_LEDS                  = 2;
@@ -1108,14 +1238,59 @@ static void applyDefaults(void) {
     fuelCapacity                = 16.0f;
     CAN_PROTOCOL                = 0;
     units                       = 0;
+    SPLASH1_IMG                 = SPLASH1_DEFAULT;
+    SPLASH2_IMG                 = SPLASH2_DEFAULT;
     setDefaultScreenLists();
     sanitizeScreenSelections();
+}
+
+// ---------------------------------------------------------------------------
+// Data logging stream ("log start" / "log stop")
+// ---------------------------------------------------------------------------
+static bool serialLogActive = false;
+static unsigned long serialLogTimer = 0;
+
+static void printLogField(long value) {
+    Serial.write(',');
+    Serial.print(value);
+}
+
+void serialLogUpdate(void) {
+    if (!serialLogActive) return;
+    unsigned long now = millis();
+    if (now - serialLogTimer < SERIAL_LOG_INTERVAL_MS) return;
+    // Hold a steady cadence, but don't burst to catch up after a long stall.
+    serialLogTimer += SERIAL_LOG_INTERVAL_MS;
+    if (now - serialLogTimer >= SERIAL_LOG_INTERVAL_MS) serialLogTimer = now;
+    // Scaled integers: a short line (fits the 64-byte TX buffer) and no slow float printing.
+    Serial.print(F("L,"));
+    Serial.print(now);
+    printLogField(spd);
+    printLogField(RPM);
+    printLogField(lround(oilPrs * 10.0f));
+    printLogField(lround(fuelPrs * 10.0f));
+    printLogField(lround(afr * 1000.0f));
+    printLogField(lround(coolantTemp * 10.0f));
+    printLogField(lround(boostPrs * 10.0f));
+    printLogField(lround(vBatt * 100.0f));
+    Serial.println();
 }
 
 // ---------------------------------------------------------------------------
 // dispatchConfigCommand - entry point called from processSerialCommands()
 // ---------------------------------------------------------------------------
 void dispatchConfigCommand(const char *cmd) {
+    if (strcmp_P(cmd, PSTR("log start")) == 0) {
+        SERIAL_PRINTLN_F("ok");
+        serialLogActive = true;
+        serialLogTimer = millis() - SERIAL_LOG_INTERVAL_MS;  // first line on the next pass
+        return;
+    }
+    if (strcmp_P(cmd, PSTR("log stop")) == 0) {
+        serialLogActive = false;
+        SERIAL_PRINTLN_F("ok");
+        return;
+    }
     if (strcmp_P(cmd, PSTR("tachtest off")) == 0) {
         stopTachPreview();
         SERIAL_PRINTLN_F("ok");

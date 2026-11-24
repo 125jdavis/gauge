@@ -150,20 +150,54 @@ class GaugeSerial:
     # Low-level I/O
     # ------------------------------------------------------------------
 
+    # Data-logging lines ("log start") are pushed by the gauge, never replies to a command.
+    LOG_PREFIX = "L,"
+    LOG_READ_TIMEOUT = 0.25  # seconds per readline while logging
+
+    def _readline(self) -> str:
+        """Next stripped reply line, skipping data-logging lines ('' on timeout)."""
+        assert self._ser is not None
+        deadline = time.monotonic() + (getattr(self._ser, "timeout", None) or self.DEFAULT_TIMEOUT)
+        while True:
+            line = self._ser.readline().decode("ascii", errors="replace").strip()
+            if not line.startswith(self.LOG_PREFIX) or time.monotonic() > deadline:
+                return "" if line.startswith(self.LOG_PREFIX) else line
+
     def _send(self, line: str) -> str:
         """Send *line* (without newline) and return the stripped response."""
         if not self.is_connected:
             raise NotConnectedError("Not connected to Arduino")
         assert self._ser is not None
         self._ser.write((line + "\n").encode("ascii"))
-        response = self._ser.readline().decode("ascii", errors="replace").strip()
-        return response
+        return self._readline()
 
     def _expect_ok(self, line: str) -> None:
         """Send *line* and raise SerialError if response is not 'ok'."""
         resp = self._send(line)
         if resp != "ok":
             raise SerialError(f"Command '{line}' failed: {resp}")
+
+    # The AVR can drop received bytes while an interrupt-blocking task runs (the LED strip
+    # update), truncating or merging a command line. get/set are idempotent, so retry them.
+    RETRIES = 2
+    RESYNC_WAIT = 0.25  # seconds to let a stray reply arrive before discarding it
+
+    def _resync(self) -> None:
+        """End any partial line in the firmware's buffer and discard replies still in flight."""
+        assert self._ser is not None
+        self._ser.write(b"\n")
+        time.sleep(self.RESYNC_WAIT)
+        self._ser.reset_input_buffer()
+
+    def _send_retry(self, line: str, accept: "Callable[[str], bool]") -> str:
+        """Send *line*, resyncing and resending while *accept* rejects the response."""
+        resp = self._send(line)
+        for _ in range(self.RETRIES):
+            if accept(resp):
+                break
+            self._resync()
+            resp = self._send(line)
+        return resp
 
     # ------------------------------------------------------------------
     # Protocol commands
@@ -185,7 +219,7 @@ class GaugeSerial:
 
         Raises SerialError if Arduino responds with 'err: …'.
         """
-        resp = self._send(f"get {param}")
+        resp = self._send_retry(f"get {param}", lambda r: r.split(" ", 1)[0] == param)
         if resp.startswith("err:"):
             raise SerialError(f"get {param}: {resp}")
         # Response format: "<param> <value>"
@@ -200,7 +234,10 @@ class GaugeSerial:
         Changes are not persisted until :meth:`save` is called.
         Raises SerialError on failure.
         """
-        self._expect_ok(f"set {param} {value}")
+        line = f"set {param} {value}"
+        resp = self._send_retry(line, lambda r: r == "ok")
+        if resp != "ok":
+            raise SerialError(f"Command '{line}' failed: {resp}")
 
     def save(self) -> None:
         """Flush all RAM parameters to EEPROM."""
@@ -230,7 +267,7 @@ class GaugeSerial:
         self._ser.write(b"dump\n")
         params: Dict[str, str] = {}
         while True:
-            line = self._ser.readline().decode("ascii", errors="replace").strip()
+            line = self._readline()
             if line == "end":
                 break
             if not line:
@@ -279,6 +316,41 @@ class GaugeSerial:
         self._expect_ok("odo stop")
 
     # ------------------------------------------------------------------
+    # Data logging stream
+    # ------------------------------------------------------------------
+
+    def log_start(self) -> None:
+        """Ask the gauge to stream a data line every 100 ms (read with read_log_line)."""
+        resp = self._send_retry("log start", lambda r: r in ("ok", "err: unknown"))
+        if resp == "err: unknown":
+            raise SerialError("This gauge firmware does not support data logging. "
+                              "Update the firmware on the Connection tab.")
+        if resp != "ok":
+            raise SerialError(f"log start failed: {resp or 'no response'}")
+        assert self._ser is not None
+        self._ser.timeout = self.LOG_READ_TIMEOUT
+
+    def read_log_line(self) -> str:
+        """One stripped line from the stream ('' after LOG_READ_TIMEOUT with no data)."""
+        if not self.is_connected:
+            raise NotConnectedError("Not connected to Arduino")
+        assert self._ser is not None
+        return self._ser.readline().decode("ascii", errors="replace").strip()
+
+    def log_stop(self) -> None:
+        """Stop the stream. Retried, since a dropped byte would leave it running."""
+        if not self.is_connected:
+            return
+        assert self._ser is not None
+        self._ser.timeout = self.DEFAULT_TIMEOUT
+        resp = self._send_retry("log stop", lambda r: r == "ok")
+        if resp != "ok":
+            raise SerialError(f"log stop failed: {resp or 'no response'}")
+        # Let a line already in flight arrive, then drop it.
+        time.sleep(0.05)
+        self._ser.reset_input_buffer()
+
+    # ------------------------------------------------------------------
     # Splash screen upload
     # ------------------------------------------------------------------
 
@@ -299,9 +371,13 @@ class GaugeSerial:
         self._expect_ok(f"splash end {crc32_value:08x}")
 
     def splash_test(self, slot: int) -> None:
-        """Ask Arduino to display the uploaded splash immediately."""
+        """Show the uploaded image in *slot* on the matching display for a few seconds."""
         self._expect_ok(f"splash test {slot}")
 
+    def splash_show(self, display: int, image_id: int) -> None:
+        """Show splash image *image_id* (built-in or custom slot ID) on *display* for a few seconds."""
+        self._expect_ok(f"splash show {display} {image_id}")
+
     def splash_clear(self, slot: int) -> None:
-        """Erase the splash slot (revert to built-in default)."""
+        """Mark the splash slot empty; displays using it fall back to their default image."""
         self._expect_ok(f"splash clear {slot}")

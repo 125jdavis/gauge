@@ -1,11 +1,14 @@
 /*
  * ========================================
- * CUSTOM SPLASH SCREEN SUPPORT
+ * SPLASH SCREEN SUPPORT
  * ========================================
  */
 
 #include "splash.h"
 #include "globals.h"
+#include "config_hardware.h"
+#include "config_calibration.h"
+#include "image_data.h"
 #include <EEPROM.h>
 #include <string.h>
 #include <stdlib.h>
@@ -13,38 +16,104 @@
 // ---------------------------------------------------------------------------
 // CRC-32 (ISO 3309 / Ethernet poly 0xEDB88320)
 // ---------------------------------------------------------------------------
+static uint32_t crc32Update(uint32_t crc, uint8_t b) {
+    crc ^= b;
+    for (uint8_t j = 0; j < 8; j++) {
+        crc = (crc >> 1) ^ (0xEDB88320UL & (uint32_t)(-(int32_t)(crc & 1)));
+    }
+    return crc;
+}
+
 uint32_t crc32(const uint8_t *data, size_t len) {
     uint32_t crc = 0xFFFFFFFF;
-    for (size_t i = 0; i < len; i++) {
-        crc ^= data[i];
-        for (uint8_t j = 0; j < 8; j++) {
-            crc = (crc >> 1) ^ (0xEDB88320UL & (uint32_t)(-(int32_t)(crc & 1)));
-        }
-    }
+    for (size_t i = 0; i < len; i++) crc = crc32Update(crc, data[i]);
     return ~crc;
+}
+
+static uint16_t slotAddress(uint8_t slot) {
+    return (slot == 1) ? customSplash1Address : customSplash2Address;
+}
+
+static uint16_t slotFlagAddress(uint8_t slot) {
+    return (slot == 1) ? splashValidFlag1Address : splashValidFlag2Address;
 }
 
 // ---------------------------------------------------------------------------
 // isSplashValid
 // ---------------------------------------------------------------------------
 bool isSplashValid(uint8_t slot) {
-    uint16_t flagAddr = (slot == 1) ? splashValidFlag1Address : splashValidFlag2Address;
-    return EEPROM.read(flagAddr) == 0xA5;
+    return EEPROM.read(slotFlagAddress(slot)) == 0xA5;
 }
 
 // ---------------------------------------------------------------------------
-// dispCustomSplash
+// dispCustomSplash - drawBitmap layout (16 bytes per row, MSB = left pixel),
+// read straight from EEPROM so no 512-byte RAM buffer is needed.
 // ---------------------------------------------------------------------------
 void dispCustomSplash(Adafruit_SSD1306 *display, uint8_t slot) {
     if (!display) return;
-    uint16_t addr = (slot == 1) ? customSplash1Address : customSplash2Address;
-    uint8_t buf[512];
-    for (int i = 0; i < 512; i++) {
-        buf[i] = EEPROM.read(addr + i);
-    }
+    uint16_t addr = slotAddress(slot);
     display->clearDisplay();
-    display->drawBitmap(0, 0, buf, 128, 32, WHITE);
+    for (uint8_t y = 0; y < SCREEN_H; y++) {
+        for (uint8_t xb = 0; xb < SCREEN_W / 8; xb++) {
+            uint8_t b = EEPROM.read(addr++);
+            for (uint8_t bit = 0; bit < 8; bit++) {
+                if (b & (0x80 >> bit)) display->drawPixel(xb * 8 + bit, y, WHITE);
+            }
+        }
+    }
     display->display();
+}
+
+// ---------------------------------------------------------------------------
+// Splash selection
+// ---------------------------------------------------------------------------
+bool splashIdValid(uint8_t id) {
+    return id < SPLASH_IMAGE_COUNT || id == SPLASH_CUSTOM_1 || id == SPLASH_CUSTOM_2;
+}
+
+void drawSplash(Adafruit_SSD1306 *display, uint8_t id, uint8_t fallback) {
+    if (!display) return;
+    if (id == SPLASH_CUSTOM_1 || id == SPLASH_CUSTOM_2) {
+        uint8_t slot = id - SPLASH_CUSTOM_1 + 1;
+        if (isSplashValid(slot)) {
+            dispCustomSplash(display, slot);
+            return;
+        }
+        id = fallback;
+    }
+    if (id >= SPLASH_IMAGE_COUNT) id = fallback;
+    const unsigned char *img = (const unsigned char *)pgm_read_ptr(&SPLASH_IMAGES[id]);
+    display->clearDisplay();
+    display->drawBitmap(0, 0, img, SCREEN_W, SCREEN_H, WHITE);
+    display->display();
+}
+
+void showSplashScreens(void) {
+    drawSplash(&display1, SPLASH1_IMG, SPLASH1_DEFAULT);
+    drawSplash(&display2, SPLASH2_IMG, SPLASH2_DEFAULT);
+}
+
+// ---------------------------------------------------------------------------
+// Preview hold for "splash test" / "splash show"
+// ---------------------------------------------------------------------------
+static bool previewHold = false;
+static unsigned long previewStart = 0;
+
+static void startPreview(void) {
+    previewHold = true;
+    previewStart = millis();
+}
+
+bool splashPreviewActive(void) {
+    if (!previewHold) return false;
+    if (millis() - previewStart < SPLASH_PREVIEW_MS) return true;
+    previewHold = false;
+    // Force both displays to fully redraw their normal screens.
+    dispArray1_prev[0] = 255;
+    dispArray2_prev = 255;
+    staticContentDrawn1 = false;
+    staticContentDrawn2 = false;
+    return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -89,6 +158,9 @@ void processSplashCommand(const char *cmd) {
             Serial.println(F("err: busy"));
             return;
         }
+        // The slot is invalid until "end" verifies the new image, so a failed or
+        // abandoned upload falls back to the built-in default image.
+        EEPROM.update(slotFlagAddress(slot), 0x00);
         uploadState.active        = true;
         uploadState.slot          = slot;
         uploadState.bytesReceived = 0;
@@ -114,7 +186,7 @@ void processSplashCommand(const char *cmd) {
             uploadState.active = false;
             return;
         }
-        uint16_t base = (uploadState.slot == 1) ? customSplash1Address : customSplash2Address;
+        uint16_t base = slotAddress(uploadState.slot);
         for (uint8_t i = 0; i < chunkBytes; i++) {
             bool valid = true;
             uint8_t b = hexByte(hex[i * 2], hex[i * 2 + 1], valid);
@@ -144,18 +216,17 @@ void processSplashCommand(const char *cmd) {
         // Parse expected CRC32
         uint32_t expectedCRC = (uint32_t)strtoul(cmd + 4, nullptr, 16);
         // Read back from EEPROM and verify
-        uint16_t base = (uploadState.slot == 1) ? customSplash1Address : customSplash2Address;
-        uint8_t buf[512];
-        for (int i = 0; i < 512; i++) buf[i] = EEPROM.read(base + i);
-        uint32_t actualCRC = crc32(buf, 512);
+        uint16_t base = slotAddress(uploadState.slot);
+        uint32_t crc = 0xFFFFFFFF;
+        for (int i = 0; i < 512; i++) crc = crc32Update(crc, EEPROM.read(base + i));
+        uint32_t actualCRC = ~crc;
         uploadState.active = false;
         if (actualCRC != expectedCRC) {
             Serial.println(F("err: crc"));
             return;
         }
         // Mark slot as valid
-        uint16_t flagAddr = (uploadState.slot == 1) ? splashValidFlag1Address : splashValidFlag2Address;
-        EEPROM.update(flagAddr, 0xA5);
+        EEPROM.update(slotFlagAddress(uploadState.slot), 0xA5);
         Serial.println(F("ok"));
         return;
     }
@@ -171,7 +242,24 @@ void processSplashCommand(const char *cmd) {
             Serial.println(F("err: unknown"));
             return;
         }
-        dispCustomSplash(&display1, slot);
+        dispCustomSplash(slot == 1 ? &display1 : &display2, slot);
+        startPreview();
+        Serial.println(F("ok"));
+        return;
+    }
+
+    // "show <display> <id>" - preview any splash image ID on display 1 or 2
+    if (strncmp_P(cmd, PSTR("show "), 5) == 0) {
+        char *rest;
+        long disp = strtol(cmd + 5, &rest, 10);
+        long id = strtol(rest, nullptr, 10);
+        if ((disp != 1 && disp != 2) || id < 0 || id > 255 || !splashIdValid((uint8_t)id)) {
+            Serial.println(F("err: range"));
+            return;
+        }
+        drawSplash(disp == 1 ? &display1 : &display2, (uint8_t)id,
+                   disp == 1 ? SPLASH1_DEFAULT : SPLASH2_DEFAULT);
+        startPreview();
         Serial.println(F("ok"));
         return;
     }
@@ -183,8 +271,7 @@ void processSplashCommand(const char *cmd) {
             Serial.println(F("err: range"));
             return;
         }
-        uint16_t flagAddr = (slot == 1) ? splashValidFlag1Address : splashValidFlag2Address;
-        EEPROM.update(flagAddr, 0x00);
+        EEPROM.update(slotFlagAddress(slot), 0x00);
         uploadState.active = false;
         Serial.println(F("ok"));
         return;

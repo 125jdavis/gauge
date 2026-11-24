@@ -1,4 +1,4 @@
-// 11 / Bench: signal injection and other device tests.
+// 11 / Tests: bench testing — signal injection and other device tests.
 
 import { html, on, panel, fields, field, textInput, button, actions, range, logView } from '../ui.js';
 import { S, imperial, requestRender, sourceLabel } from '../state.js';

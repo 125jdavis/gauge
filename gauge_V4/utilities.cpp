@@ -39,12 +39,7 @@ void shutdown (void){
   FastLED.show();
 
   // Display shutdown screens.
-  display1.clearDisplay();
-  display1.drawBitmap(0, 0, IMG_FALCON_SCRIPT, SCREEN_W, SCREEN_H, 1);
-  display1.display();
-  display2.clearDisplay();
-  display2.drawBitmap(0, 0, IMG_302_CID, SCREEN_W, SCREEN_H, 1);
-  display2.display();
+  showSplashScreens();
 
   // Return gauge needles to zero position with synchronized timed stepping.
   // motorZeroTimed() disables the Timer3 ISR so the 10 kHz interrupt cannot
@@ -786,10 +781,22 @@ float mapFloat(float x, float in_min, float in_max, float out_min, float out_max
  *   ping / version / get / set / save / load / dump / reset
  *   splash begin / data / end / test / clear
  */
+static unsigned long lastSerialRxMs = 0;
+
+/**
+ * serialRecentlyActive - True while serial bytes have arrived within SERIAL_QUIET_MS
+ *
+ * Used to hold interrupt-blocking work (FastLED.show) while a command stream is incoming.
+ */
+bool serialRecentlyActive(void) {
+    return millis() - lastSerialRxMs < SERIAL_QUIET_MS;
+}
+
 void processSerialCommands(void) {
     static char buf[64];
     static uint8_t bufLen = 0;
 
+    if (Serial.available()) lastSerialRxMs = millis();
     while (Serial.available()) {
         char c = (char)Serial.read();
         if (c == '\n' || c == '\r') {

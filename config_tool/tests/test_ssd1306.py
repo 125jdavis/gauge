@@ -69,21 +69,52 @@ class TestSSD1306Converter:
     # Single-pixel round-trip
     # ------------------------------------------------------------------
 
+    # drawBitmap layout: 16 bytes per row, MSB = leftmost pixel (matches image_data.cpp)
+
     def test_top_left_pixel_set(self) -> None:
-        """Setting top-left pixel should set bit 0 of byte 0."""
+        """Top-left pixel is the MSB of byte 0 and nothing else."""
         img = Image.new("1", (128, 32), color=0)
         img.putpixel((0, 0), 1)
         data = self.conv.convert_pil(img)
-        # Page 0, column 0 → byte index 0; row 0 → bit 0
-        assert data[0] & 0x01 != 0, "bit 0 of byte 0 should be set for top-left pixel"
+        assert data[0] == 0x80
+        assert sum(data) == 0x80
+
+    def test_top_right_pixel_set(self) -> None:
+        """Top-right pixel is the LSB of byte 15 (end of row 0)."""
+        img = Image.new("1", (128, 32), color=0)
+        img.putpixel((127, 0), 1)
+        data = self.conv.convert_pil(img)
+        assert data[15] == 0x01
+        assert sum(data) == 0x01
 
     def test_bottom_left_pixel_set(self) -> None:
-        """Setting bottom-left pixel should set bit 7 of byte 3*128 = byte 384."""
+        """Bottom-left pixel is the MSB of byte 31*16 = 496."""
         img = Image.new("1", (128, 32), color=0)
         img.putpixel((0, 31), 1)
         data = self.conv.convert_pil(img)
-        # Page 3, column 0 → byte index 384; row 31 = page 3 bit 7
-        assert data[384] & 0x80 != 0, "bit 7 of byte 384 should be set for bottom-left pixel"
+        assert data[496] == 0x80
+        assert sum(data) == 0x80
+
+    def test_second_row_pixel(self) -> None:
+        """Pixel (9, 1) is byte 16 + 1, bit 0x40."""
+        img = Image.new("1", (128, 32), color=0)
+        img.putpixel((9, 1), 1)
+        data = self.conv.convert_pil(img)
+        assert data[17] == 0x40
+        assert sum(data) == 0x40
+
+    def test_wide_image_is_scaled_to_fit_not_stretched(self) -> None:
+        """A 256x32 white image fits as 128x16, centred with black bands above and below."""
+        img = Image.new("L", (256, 32), color=255)
+        data = self.conv.convert_pil(img)
+        assert data[0:16] == bytes(16)                # row 0 black
+        assert data[16 * 16:17 * 16] == b"\xff" * 16  # row 16 lit
+        assert data[31 * 16:] == bytes(16)            # row 31 black
+
+    def test_transparent_area_is_black(self) -> None:
+        """Fully transparent pixels must not light up, whatever their colour."""
+        img = Image.new("RGBA", (128, 32), color=(255, 255, 255, 0))
+        assert self.conv.convert_pil(img) == bytes(512)
 
     # ------------------------------------------------------------------
     # Round-trip: convert_pil -> preview

@@ -36,6 +36,14 @@ def main() -> None:
     mimetypes.add_type("text/javascript", ".js")
     mimetypes.add_type("text/css", ".css")
     mimetypes.add_type("font/woff2", ".woff2")
+    if sys.platform == "win32":
+        # Give the process its own taskbar identity; otherwise, run from source, Windows
+        # groups the window under python.exe and shows the Python icon in the taskbar.
+        try:
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("GaugeV4.ConfigTool")
+        except (AttributeError, OSError):
+            pass
     api = Api()
     window = webview.create_window(
         WINDOW_TITLE,
@@ -49,7 +57,11 @@ def main() -> None:
     window.events.closing += api._on_closing  # restore test sources, stop tach test, disconnect
     # The page uses ES modules, which WebView2 refuses to load from file:// URLs,
     # so serve web/ from pywebview's built-in local HTTP server.
-    webview.start(http_server=True, debug="--debug" in sys.argv)
+    # gauge.ico holds a simplified 16-24 px design (title bar) and the full gauge at
+    # 32 px and up (taskbar, Alt-Tab); Windows picks the frame for each. See make_icon.py.
+    icon = resource("gauge.ico")
+    webview.start(http_server=True, debug="--debug" in sys.argv,
+                  icon=icon if os.path.isfile(icon) else None)
 
 
 if __name__ == "__main__":

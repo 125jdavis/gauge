@@ -15,7 +15,7 @@
 7. [Motor Assignment System](#7-motor-assignment-system)
 8. [Filter System](#8-filter-system)
 9. [Display Screen Configuration](#9-display-screen-configuration)
-10. [Custom Splash Screen Feature](#10-custom-splash-screen-feature)
+10. [Splash Screen Feature](#10-splash-screen-feature-v13)
 11. [Arduino Implementation Guide](#11-arduino-implementation-guide)
 12. [Python Application Specification](#12-python-application-specification)
 13. [Firmware Upload Procedure](#13-firmware-upload-procedure)
@@ -101,7 +101,10 @@ The Arduino Mega 2560 provides **4096 bytes** of EEPROM. The current firmware us
 | 511 | 1 | *(reserved)* | Padding |
 | **512–1023** | **512** | Splash 1 | Custom splash image 1 (128×32 = 512 bytes) |
 | **1024–1535** | **512** | Splash 2 | Custom splash image 2 (128×32 = 512 bytes) |
-| 1536–4095 | 2560 | *(free)* | Available for future parameters |
+| 1536–1540 | 5 | Calibration header | Magic `'G','C'`, version (1), data length (uint16) |
+| 1541– | *length* | Calibration data | All other serial-settable parameters, packed in `CAL_FIELDS` order (`serial_config.cpp`; append-only), written by `save`, restored at boot and by `load` |
+| *after data* | 2 | Calibration checksum | Fletcher-16 over the data bytes; on mismatch the firmware keeps compiled defaults |
+| …–4095 | — | *(free)* | Available for future parameters |
 
 ### SRAM Analysis
 
@@ -178,6 +181,23 @@ The Arduino Mega 2560 has **256 KB** of flash. All `PROGMEM` bitmaps, lookup tab
 | `ping` | `pong` | Check connectivity |
 | `version` | `version <major>.<minor>` | Firmware version string |
 
+#### Data Logging Stream
+
+| Command | Response | Description |
+|---------|----------|-------------|
+| `log start` | `ok`, then a data line every 100 ms | Start streaming live values (10 Hz) |
+| `log stop` | `ok` | Stop the stream (the tool retries until acknowledged) |
+
+Data lines start with `L,` so the tool can tell them from command replies, which it
+reads past any data lines still in flight. Values are scaled integers in metric units:
+
+```
+L,<millis>,<speed km/h×100>,<rpm>,<oil kPa×10>,<fuel kPa×10>,<lambda×1000>,<coolant °C×10>,<MAP kPa abs×10>,<battery V×100>
+```
+
+A line is about 50 bytes, so it fits the AVR's 64-byte transmit buffer and adds no
+noticeable blocking to the main loop. Firmware without logging answers `err: unknown`.
+
 #### Splash Screen Upload (v1.2)
 
 | Command | Response | Description |
@@ -185,8 +205,9 @@ The Arduino Mega 2560 has **256 KB** of flash. All `PROGMEM` bitmaps, lookup tab
 | `splash begin <id>` | `ready` | Start upload for splash slot 1 or 2 |
 | `splash data <hex32>` | `ok` or `err` | Send 16 bytes as 32 hex chars |
 | `splash end <crc32>` | `ok` or `err: crc` | Finalize and verify with CRC32 |
-| `splash test <id>` | `ok` | Display uploaded splash immediately |
-| `splash clear <id>` | `ok` | Erase splash slot (restore default) |
+| `splash test <slot>` | `ok` | Show uploaded slot N on display N for 3 s |
+| `splash show <disp> <id>` | `ok` | Show splash image ID on display 1 or 2 for 3 s |
+| `splash clear <id>` | `ok` | Mark slot empty (displays using it fall back to their default) |
 
 ### Parameter Names
 
@@ -220,6 +241,8 @@ The Arduino Mega 2560 has **256 KB** of flash. All `PROGMEM` bitmaps, lookup tab
 | `rpm_debounce_us` | uint16 | 100–20000 | RPM pulse debounce window (µs) |
 | `engine_rpm_min` | uint8 | 0–255 | Min reportable RPM |
 | `speedo_max` | uint16 | 1000–30000 | Max speedometer (mph×100); GUI accepts km/h or mph |
+| `ms_func` | uint8 | 0–1 | Motor S signal: 0 = vehicle speed (0 to `speedo_max`), 1 = engine RPM (0 to `ms_rpm_max`) |
+| `ms_rpm_max` | uint16 | 1000–20000 | Motor S full-scale RPM when `ms_func` is 1 |
 | `num_leds` | uint8 | 1–64 | LED strip length |
 | `warn_leds` | uint8 | 0–63 | Steps from the final step to the warning-zone start |
 | `shift_leds` | uint8 | 0–63 | Steps from the final step to the shift-zone start |
@@ -872,7 +895,31 @@ Force-update is triggered by setting `dispArray1_prev[0] = 255` (an invalid scre
 
 ---
 
-## 10. Custom Splash Screen Feature (v1.2)
+## 10. Splash Screen Feature (v1.3)
+
+Each OLED shows a splash image at power-up and shutdown. The image is chosen per display by the
+`splash1_img` / `splash2_img` parameters (uint8, saved in the calibration block):
+
+| ID | Image |
+|----|-------|
+| 0 | Falcon script (display 1 default) |
+| 1 | 144 Cubic Inches |
+| 2 | 170 Cubic Inches |
+| 3 | 200 Cubic Inches |
+| 4 | 260 Cubic Inches |
+| 5 | 260 V emblem |
+| 6 | 289 Cubic Inches |
+| 7 | 289 V emblem |
+| 8 | 302 Cubic Inches (display 2 default) |
+| 9 | 302 V emblem |
+| 10 | 2300 Turbo |
+| 200 | Uploaded image, slot 1 |
+| 201 | Uploaded image, slot 2 |
+
+Built-in IDs index `SPLASH_IMAGES` in `image_data.cpp` and are **append-only**. The config tool
+lists them in `gui_model.SPLASH_BUILTIN_OPTIONS` and shows previews from `web/splash/<id>.png`;
+`tests/test_splash.py` checks all three agree. A custom ID whose slot holds no valid image draws
+that display's default instead, so emptying a slot never leaves a display blank.
 
 ### EEPROM Storage Allocation
 
@@ -880,69 +927,27 @@ Force-update is triggered by setting `dispArray1_prev[0] = 255` (an invalid scre
 |------|--------------|------|-------|
 | Custom Splash 1 | 512 | 512 bytes | User image |
 | Custom Splash 2 | 1024 | 512 bytes | User image |
-| Slot validity flag 1 | 509 | 1 byte | 0xA5 = valid, else use default |
-| Slot validity flag 2 | 510 | 1 byte | 0xA5 = valid, else use default |
+| Slot validity flag 1 | 509 | 1 byte | 0xA5 = valid, anything else = empty |
+| Slot validity flag 2 | 510 | 1 byte | 0xA5 = valid, anything else = empty |
 
-### SSD1306 Bitmap Format
+### Bitmap Format
 
-The SSD1306 uses **vertical byte addressing** for its 128×32 display:
-- 128 columns × 4 pages (each page = 8 pixel rows)
-- Total: 512 bytes
-- Byte at `[page * 128 + col]` controls 8 vertical pixels in that column
+Images use the Adafruit GFX `drawBitmap()` layout, the same as the built-in images:
+- 32 rows × 16 bytes = 512 bytes, row 0 first
+- Byte at `row * 16 + col / 8` holds 8 horizontal pixels; MSB = leftmost pixel
+- 1 = lit
 
-```
-Byte layout (one column):
-Bit 7 = row 7 (bottom of page)
-Bit 6 = row 6
-...
-Bit 0 = row 0 (top of page)
+### Image Conversion (`ssd1306_converter.py`)
 
-Memory address: page × 128 + column
-Pages: 0 (rows 0–7), 1 (rows 8–15), 2 (rows 16–23), 3 (rows 24–31)
-```
-
-### Image Conversion Process (PIL/Pillow)
-
-```python
-from PIL import Image
-import struct, zlib
-
-class SSD1306Converter:
-    """Convert any image to 128×32 SSD1306-format bytes."""
-
-    def convert(self, path: str) -> bytes:
-        img = Image.open(path).convert("1")          # Force monochrome
-        img = img.resize((128, 32), Image.LANCZOS)   # Resize to display
-        buf = bytearray(512)
-        for page in range(4):
-            for col in range(128):
-                byte = 0
-                for bit in range(8):
-                    row = page * 8 + bit
-                    px = img.getpixel((col, row))
-                    if px:
-                        byte |= (1 << bit)
-                buf[page * 128 + col] = byte
-        return bytes(buf)
-
-    def preview(self, data: bytes) -> Image.Image:
-        """Reconstruct PIL image from SSD1306 bytes for GUI preview."""
-        img = Image.new("1", (128, 32))
-        for page in range(4):
-            for col in range(128):
-                byte = data[page * 128 + col]
-                for bit in range(8):
-                    row = page * 8 + bit
-                    img.putpixel((col, row), (byte >> bit) & 1)
-        return img
-```
+The image is scaled to fit 128×32 with its aspect ratio kept (centred on black; transparent areas
+count as black), then thresholded at grey level 128 and packed as above.
 
 ### Upload Protocol
 
-1. PC sends `splash begin <id>` → Arduino allocates write buffer, responds `ready`.
-2. PC sends image in 32-byte chunks using `splash data <hex64>` (64 hex chars = 32 bytes). Arduino writes each chunk to EEPROM and responds `ok`.
+1. PC sends `splash begin <slot>`. Arduino clears the slot's validity flag and responds `ready`.
+2. PC sends the image in 32-byte chunks using `splash data <hex64>` (64 hex chars = 32 bytes). Arduino writes each chunk to EEPROM and responds `ok`.
 3. PC sends `splash end <crc32_hex>` with CRC32 of the full 512 bytes. Arduino verifies and responds `ok` or `err: crc`.
-4. On `ok`, Arduino sets the slot validity flag (0xA5).
+4. On `ok`, Arduino sets the slot validity flag (0xA5). A failed or abandoned upload leaves the slot empty.
 
 ### CRC32 Implementation
 
@@ -956,51 +961,17 @@ def crc32_hex(data: bytes) -> str:
     return f"{crc32_of(data):08x}"
 ```
 
-Arduino-side:
-```cpp
-uint32_t crc32(const uint8_t *data, size_t len) {
-    uint32_t crc = 0xFFFFFFFF;
-    for (size_t i = 0; i < len; i++) {
-        crc ^= data[i];
-        for (uint8_t j = 0; j < 8; j++) {
-            crc = (crc >> 1) ^ (0xEDB88320 & -(crc & 1));
-        }
-    }
-    return ~crc;
-}
-```
+The Arduino computes the same CRC-32 (polynomial 0xEDB88320) while reading the slot back from EEPROM.
 
-### Arduino Splash Display Functions
+### Arduino Splash Functions (`splash.h`)
 
-```cpp
-/**
- * dispCustomSplash - Display a user-uploaded splash from EEPROM
- *
- * @param display  - Pointer to Adafruit_SSD1306 instance
- * @param slot     - 1 or 2
- */
-void dispCustomSplash(Adafruit_SSD1306 *display, uint8_t slot) {
-    uint16_t addr = (slot == 1) ? 512 : 1024;
-    uint8_t buf[512];
-    for (int i = 0; i < 512; i++) {
-        buf[i] = EEPROM.read(addr + i);
-    }
-    display->clearDisplay();
-    display->drawBitmap(0, 0, buf, 128, 32, WHITE);
-    display->display();
-}
-
-/**
- * isSplashValid - Check if a splash slot contains a valid image
- *
- * @param slot  - 1 or 2
- * @return true if slot has been uploaded
- */
-bool isSplashValid(uint8_t slot) {
-    uint16_t flagAddr = (slot == 1) ? 509 : 510;
-    return EEPROM.read(flagAddr) == 0xA5;
-}
-```
+| Function | Purpose |
+|----------|---------|
+| `showSplashScreens()` | Draw `SPLASH1_IMG` / `SPLASH2_IMG` on both displays (boot and shutdown) |
+| `drawSplash(display, id, fallback)` | Draw one splash ID, falling back for an empty slot or unknown ID |
+| `dispCustomSplash(display, slot)` | Draw an uploaded image straight from EEPROM |
+| `isSplashValid(slot)` | Slot flag == 0xA5 |
+| `splashPreviewActive()` | Holds both displays during a `test`/`show` preview, then forces a redraw |
 
 ### Python Serial Uploader
 
@@ -1077,7 +1048,7 @@ gauge_V4/
 | File | Change |
 |------|--------|
 | `utilities.cpp` → `processSerialCommands()` | Extend to dispatch to `serial_config.cpp` handlers |
-| `utilities.cpp` → `startup()` | Call `dispCustomSplash()` if slot is valid |
+| `gauge_V4.ino` → `setup()`, `utilities.cpp` → `shutdown()` | Call `showSplashScreens()` |
 | `globals.cpp` | Add EEPROM addresses for splash slots and validity flags |
 | `config_calibration.h/.cpp` | Add enable flags, ordering arrays (v1.1) |
 
@@ -1246,8 +1217,8 @@ kPa↔PSI; AV pressure as PSI absolute) and always stored in firmware metric uni
 units on entry. Toggling never changes stored values. Saved in config files as `tool_units`.
 
 Firmware updates the outputs every 50 ms (`LSO_UPDATE_RATE`) using Timer1 fast PWM mode 15 at F_CPU/64,
-and turns both off at shutdown. Like other calibration parameters they are RAM-only until EEPROM
-persistence is added; the tool re-sends them.
+and turns both off at shutdown. Like other calibration parameters they are written to the EEPROM
+calibration block by `save` and restored at boot.
 
 #### Tab 6 — LED Tachometer
 
@@ -1314,16 +1285,20 @@ firmware supporting `tachtest`; update the firmware before using this feature.
 | Engine running RPM min | Spinbox |
 | Low fuel threshold | Spinbox (%) |
 
-#### Tab 9 — Splash Screens (v1.2)
+#### Tab 9 — Splash Screens (v1.3)
 
 | Widget | Description |
 |--------|-------------|
-| Slot 1 preview | 128×32 Canvas showing current uploaded image |
-| Slot 1 load button | Opens file dialog (PNG/BMP/JPG) |
-| Slot 1 upload button | Runs conversion + serial upload |
-| Slot 1 test button | Sends `splash test 1` |
-| Slot 1 clear button | Sends `splash clear 1` |
-| (Repeat for Slot 2) | |
+One panel per display. Display N's custom image uses upload slot N.
+
+| Widget | Description |
+|--------|-------------|
+| Preview | Selected built-in image, or the custom image loaded this session (after 1-bit conversion) |
+| Splash image | Dropdown: built-in images + "Custom image"; sets `splash1_img` / `splash2_img`, written with Write to device |
+| Load image… | Custom only. Opens file dialog (PNG/BMP/JPG/GIF) |
+| Upload to device | Custom only. Runs conversion + serial upload to slot N (stored immediately) |
+| Remove from device | Custom only. Sends `splash clear <N>` |
+| Show on device | Sends `splash show <disp> <id>` |
 
 ### Validation Rules
 
@@ -1336,6 +1311,7 @@ firmware supporting `tachtest`; update the firmware before using this feature.
 | Num LEDs | Must be ≤ 64 (MAX_LEDS) |
 | WARN_LEDS + SHIFT_LEDS | Must be < NUM_LEDS/2 |
 | Splash image | Must be exactly 512 bytes after conversion |
+| `splash1_img` / `splash2_img` | Built-in ID (0–10) or 200/201 |
 | Output on/off thresholds | Off value strictly below on value for `>`, strictly above for `<` |
 | Output PWM curve | Frequency 20–500 Hz; values strictly ascending; duty 0–100 %; equal frequency when both outputs are PWM |
 
@@ -1385,6 +1361,23 @@ fuel_capacity=16
 fuel_capacity_units=gal
 # ... (one key=value per line; lines starting with # are comments)
 ```
+
+#### Tests group — Bench testing and Logging
+
+The sidebar's **Tests** group holds **Bench testing** (signal injection and device tests)
+and **Logging**:
+
+- **Start live view** sends `log start`; a reader thread in `api.py` parses each `L,` line
+  (`datalog.py`) and pushes it to the page.
+- **Four trace windows** each show a 20 s rolling trace of one signal chosen from: vehicle
+  speed, engine RPM, oil pressure, fuel pressure, lambda, coolant temp, MAP and battery
+  voltage. The Y axis fits the visible data (with a minimum span per signal); gaps in the
+  stream break the line; hovering shows the nearest sample's value and age.
+- **Record to CSV…** asks for a file and writes every sample (all eight signals) in the tool
+  units selected when recording started. Time is seconds from the gauge's `millis()`, so it
+  is unaffected by PC delays.
+- While logging, other gauge commands are refused with "Stop logging first". Leaving the
+  tab, disconnecting, updating firmware or closing the tool stops logging.
 
 ---
 
@@ -1538,9 +1531,14 @@ split evenly between the write and verify passes.
 
 ### Packaging
 
-`python build_exe.py` produces `dist/GaugeConfig.exe` (PyInstaller, `--onefile
---windowed`) plus an empty `dist/firmware/` folder, and stages any exported
-`.hex` from `gauge_V4/build/` into it. pyserial's platform-specific
+`python build_exe.py` first compiles the firmware with `build_firmware.py`
+(`arduino-cli compile --fqbn arduino:avr:mega:cpu=atmega2560 --export-binaries`,
+writing to `gauge_V4/build/arduino.avr.mega/`, the same place as the IDE's
+"Export Compiled Binary"), and stops if that fails. It then produces
+`dist/GaugeConfig.exe` (PyInstaller, `--onefile --windowed`, icon `gauge.ico`)
+plus a `dist/firmware/` folder, and stages the `.hex` from `gauge_V4/build/`
+into it. `--skip-firmware` skips the compile and ships whatever `.hex` is
+already there. `build_firmware.py` can also be run on its own. pyserial's platform-specific
 `list_ports_*` backends are named as hidden imports, because they are reached
 through conditional imports the dependency scan does not follow.
 

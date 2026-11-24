@@ -9,8 +9,12 @@ window uses the Edge WebView2 runtime that ships with the OS. Alongside it the s
 ``dist/firmware/`` folder; drop the ``.hex`` you built for a customer in there
 and the tool pre-selects it on startup.
 
-Run with:  python build_exe.py
-Requires:  pip install pyinstaller
+Before packaging, it compiles the firmware (build_firmware.py) so the .hex shipped
+in ``dist/firmware/`` always matches the source in ``gauge_V4/``.
+
+Run with:  python build_exe.py                  # compile firmware, then build the .exe
+           python build_exe.py --skip-firmware  # ship the .hex already in gauge_V4/build/
+Requires:  pip install pyinstaller, and arduino-cli (unless --skip-firmware)
 """
 
 from __future__ import annotations
@@ -19,6 +23,8 @@ import os
 import shutil
 import subprocess
 import sys
+
+import build_firmware
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP_NAME = "GaugeConfig"
@@ -37,12 +43,21 @@ HIDDEN_IMPORTS = [
 ]
 
 
-def build() -> int:
+def build(skip_firmware: bool = False) -> int:
     try:
         import PyInstaller  # noqa: F401
     except ImportError:
         print("PyInstaller is not installed.\n  pip install pyinstaller", file=sys.stderr)
         return 1
+
+    if skip_firmware:
+        print("Skipping firmware compile; shipping the .hex already in gauge_V4/build/.")
+    else:
+        status = build_firmware.build()
+        if status != 0:
+            print("Stopping: fix the firmware build, or run with --skip-firmware to ship "
+                  "the existing .hex.", file=sys.stderr)
+            return status
 
     cmd = [
         sys.executable, "-m", "PyInstaller",
@@ -54,6 +69,9 @@ def build() -> int:
         "--distpath", DIST_DIR,
         "--workpath", os.path.join(HERE, "build_pyinstaller"),
         "--specpath", os.path.join(HERE, "build_pyinstaller"),
+        # Name the source folder explicitly: when the build is started with a lowercase drive
+        # letter (e.g. from VS Code), PyInstaller can miss it and leave out api/gui_model.
+        "--paths", HERE,
     ]
     for module in HIDDEN_IMPORTS:
         cmd += ["--hidden-import", module]
@@ -61,7 +79,12 @@ def build() -> int:
     cmd += ["--add-data", f"{WEB_DIR}{os.pathsep}web"]
     icon = os.path.join(HERE, "gauge.ico")
     if os.path.isfile(icon):
-        cmd += ["--icon", icon]
+        # --icon sets the .exe's icon in Explorer; the bundled copy is what app.py
+        # hands the window for its title bar and taskbar button.
+        cmd += ["--icon", icon, "--add-data", f"{icon}{os.pathsep}."]
+    else:
+        print("gauge.ico not found - run make_icon.py first. Building without an icon.",
+              file=sys.stderr)
     cmd.append(ENTRY_POINT)
 
     print("> " + " ".join(cmd))
@@ -98,4 +121,4 @@ def _stage_firmware(firmware_dir: str) -> list:
 
 
 if __name__ == "__main__":
-    raise SystemExit(build())
+    raise SystemExit(build(skip_firmware="--skip-firmware" in sys.argv))

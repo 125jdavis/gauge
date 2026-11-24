@@ -48,13 +48,34 @@ export const LITERS_PER_GALLON = 3.785411784;
 const IMPERIAL_UNIT_LABELS = { temp: '°F', speed: 'mph', pressure: 'PSI', pressure_abs: 'PSI (abs)' };
 const METRIC_UNIT_LABELS = { temp: '°C', speed: 'km/h', pressure: 'kPa', pressure_abs: 'kPa' };
 
+// Scaled kinds: the firmware stores lambda x1000 and volts x10; the tool shows real values in both systems.
+const SCALED = { lambda: { div: 1000, dp: 3, label: 'λ' }, volts: { div: 10, dp: 1, label: 'V' } };
+
+/** Relabel the x1000 / x10 parameters from get_static() and give them scaled kinds. Indices are unchanged. */
+export function normalizeScaledParams(st) {
+  const scaledKind = (label) => (/lambda/i.test(label) ? 'lambda' : /volt/i.test(label) ? 'volts' : null);
+  const clean = (label) => label.replace(/\s*\((x|×)\s*\d+\)\s*$/i, '');
+  st.outputParams.forEach((label, i) => {
+    const kind = scaledKind(label);
+    if (!kind) return;
+    st.outputKinds[i] = kind;
+    st.outputUnits[i] = SCALED[kind].label;
+    st.outputParams[i] = clean(label);
+  });
+  st.motorFunctions = st.motorFunctions.map(clean);
+}
+
 export function unitLabel(kind, imperial, metricLabel = '') {
   if (kind == null) return metricLabel;
+  if (SCALED[kind]) return SCALED[kind].label;
   return (imperial ? IMPERIAL_UNIT_LABELS : METRIC_UNIT_LABELS)[kind];
 }
 
 /** Stored metric integer -> text in the selected system (non-numbers pass through). */
 export function rawToDisplay(text, kind, imperial) {
+  if (SCALED[kind]) {
+    try { return trimNumber(pyInt(text) / SCALED[kind].div, SCALED[kind].dp); } catch { return text; }
+  }
   if (!imperial || kind == null) return text;
   let raw;
   try { raw = pyInt(text); } catch { return text; }
@@ -68,6 +89,11 @@ export function rawToDisplay(text, kind, imperial) {
 /** Text in the selected system -> stored metric integer. Throws Error. */
 export function displayToRaw(text, kind, imperial) {
   const s = String(text).trim();
+  if (SCALED[kind]) {
+    const value = pyFloat(s);
+    if (!Number.isFinite(value)) fail('not a number');
+    return pyRound(value * SCALED[kind].div);
+  }
   if (!imperial || kind == null) return pyInt(s);
   const value = pyFloat(s);
   if (!Number.isFinite(value)) fail('not a number');
@@ -119,13 +145,28 @@ export function gaugeRangeFromDevice(min, max) {
 
 // ---- analog inputs ------------------------------------------------------------------
 
+export const AV_TYPE_100PSI_G = 2;
 export const AV_TYPE_LAMBDA = 5;
-const PHYS_UNIT_SCALE = { kPa: 10, Lambda: 1000, 'PSI (abs)': 10 / PSI_PER_KPA };
+/** Sensor types whose calibration is shown and entered as gauge pressure (gui_model.AV_GAUGE_TYPES) */
+export const AV_GAUGE_TYPES = [AV_TYPE_100PSI_G];
+/** Types that keep their type when a calibration point is edited (gui_model.AV_UNIT_TYPES) */
+export const AV_UNIT_TYPES = [AV_TYPE_LAMBDA, ...AV_GAUGE_TYPES];
+const PHYS_UNIT_SCALE = {
+  kPa: 10, Lambda: 1000, 'PSI (abs)': 10 / PSI_PER_KPA,
+  'kPa (gauge)': 10, 'PSI (gauge)': 10 / PSI_PER_KPA,
+};
+// Gauge units are entered relative to atmosphere (101.3 kPa); stored raw = phys * scale + offset
+const PHYS_UNIT_OFFSET = { 'kPa (gauge)': 1013, 'PSI (gauge)': 1013 };
 
 export function avPhysicalUnit(avType, imperial) {
   if (avType === AV_TYPE_LAMBDA) return 'Lambda';
+  if (AV_GAUGE_TYPES.includes(avType)) return imperial ? 'PSI (gauge)' : 'kPa (gauge)';
   return imperial ? 'PSI (abs)' : 'kPa';
 }
+
+/** gui_model.av_physical_text: PSI shown to 0.01, the stored resolution */
+export const avPhysicalText = (raw, unit) =>
+  trimNumber(rawToPhysical(raw, unit), unit.startsWith('PSI') ? 2 : 3);
 
 export function voltsToAdc(text) {
   const volts = num(text, 'Voltage must be a number from 0 to 5 V.');
@@ -137,12 +178,13 @@ export const adcToVolts = (adc) => adc * 5 / 1023;
 
 export function physicalToRaw(text, unit) {
   const phys = num(text, `Physical value must be a number in ${unit}.`);
-  const raw = Number.isFinite(phys) ? pyRound(phys * PHYS_UNIT_SCALE[unit]) : 32768;
+  const offset = PHYS_UNIT_OFFSET[unit] ?? 0;
+  const raw = Number.isFinite(phys) ? pyRound(phys * PHYS_UNIT_SCALE[unit] + offset) : 32768;
   if (!(raw >= -32768 && raw <= 32767)) fail(`Physical value is out of range for ${unit}.`);
   return raw;
 }
 
-export const rawToPhysical = (raw, unit) => raw / PHYS_UNIT_SCALE[unit];
+export const rawToPhysical = (raw, unit) => (raw - (PHYS_UNIT_OFFSET[unit] ?? 0)) / PHYS_UNIT_SCALE[unit];
 
 // ---- sensor curves -------------------------------------------------------------------
 

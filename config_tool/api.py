@@ -19,9 +19,11 @@ Names starting with an underscore are not exposed to JavaScript.
 from __future__ import annotations
 
 import base64
+import datetime
 import functools
 import io
 import json
+import math
 import os
 import threading
 import time
@@ -30,6 +32,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 import webview
 
+import datalog
 import gui_model as m
 from config_file import ConfigFile
 
@@ -68,9 +71,20 @@ except ImportError:
 PREFS_PATH = Path.home() / ".gauge_config_tool.json"
 DEFAULT_PREFS = {"theme": "dark", "units": "imperial"}
 PREF_CHOICES = {"theme": ("dark", "light"), "units": m.UNIT_SYSTEMS}
+# Free-form numeric tool preferences; absent means the UI uses its own default.
+NUMERIC_PREFS = ("ms_steps_per_deg",)
+
+
+def _positive_number(value: Any) -> Optional[float]:
+    """A finite number above 0, or None (bools and other types are rejected)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    value = float(value)
+    return value if math.isfinite(value) and value > 0 else None
 CONFIG_FILE_TYPES = ("Config files (*.txt)", "All files (*.*)")
 IMAGE_FILE_TYPES = ("Image files (*.png;*.bmp;*.jpg;*.jpeg;*.gif)", "All files (*.*)")
 FIRMWARE_FILE_TYPES = ("Firmware (*.hex)", "All files (*.*)")
+LOG_FILE_TYPES = ("CSV files (*.csv)", "All files (*.*)")
 
 
 class UserError(Exception):
@@ -110,6 +124,12 @@ class Api:
         self._tach_test_on = False
         self._connect_cancel: Optional[threading.Event] = None
         self._fw_busy = False
+        # Logging tab: the stream reader thread and the CSV it may be writing.
+        self._log_stop_evt: Optional[threading.Event] = None
+        self._log_thread: Optional[threading.Thread] = None
+        self._log_file_lock = threading.Lock()
+        self._log_recorder: Optional[datalog.CsvRecorder] = None
+        self._log_path = ""
 
     # ------------------------------------------------------------------ plumbing
     def _attach(self, window: webview.Window) -> None:
@@ -128,6 +148,8 @@ class Api:
             raise UserError("Error", "pyserial is not installed.\nRun: pip install pyserial")
         if not self._serial.is_connected:
             raise UserError("Not connected", "Connect to the Arduino first.")
+        if self._log_stop_evt is not None:
+            raise UserError("Logging", "Stop logging on the Logging tab first.")
 
     def _file_dialog(self, kind: str, **kwargs: Any) -> Optional[str]:
         assert self._window is not None
@@ -140,6 +162,7 @@ class Api:
     def _on_closing(self) -> None:
         """Window closing: restore Test-tab sources, stop the tach test, drop the port."""
         try:
+            self._stop_logging(quiet=True)
             self._stop_tach_test()
             self._restore_sources()
         finally:
@@ -158,11 +181,17 @@ class Api:
             for key, choices in PREF_CHOICES.items():
                 if stored.get(key) in choices:
                     prefs[key] = stored[key]
+            for key in NUMERIC_PREFS:
+                number = _positive_number(stored.get(key))
+                if number is not None:
+                    prefs[key] = number
         return prefs
 
     def set_pref(self, key: str, value: Any) -> Dict[str, Any]:
         prefs = self.get_prefs()
-        if key in PREF_CHOICES and value in PREF_CHOICES[key]:
+        if key in NUMERIC_PREFS:
+            value = _positive_number(value)
+        if (key in PREF_CHOICES and value in PREF_CHOICES[key]) or (key in NUMERIC_PREFS and value is not None):
             prefs[key] = value
             try:
                 PREFS_PATH.write_text(json.dumps(prefs), encoding="utf-8")
@@ -201,6 +230,9 @@ class Api:
             "avTypes": m.AV_TYPE_OPTIONS, "avPresets": m.AV_PRESETS,
             "avTypeNone": m.AV_TYPE_NONE, "avTypeCustom": m.AV_TYPE_CUSTOM, "avTypeLambda": m.AV_TYPE_LAMBDA,
             "canProtocols": m.CAN_PROTOCOL_OPTIONS,
+            "splashImages": m.SPLASH_BUILTIN_OPTIONS,
+            "splashCustomIds": m.SPLASH_CUSTOM_IDS,
+            "splashDefaults": m.SPLASH_DEFAULTS,
             "tachSweeps": m.TACH_SWEEP_OPTIONS,
             "tachColors": m.TACH_COLORS,
             "unitSystemOptions": m.UNIT_SYSTEM_OPTIONS,
@@ -208,6 +240,8 @@ class Api:
             "warnDebounceParams": m.WARN_DEBOUNCE_PARAMS,
             "warnDebounceMaxS": m.WARN_DEBOUNCE_MAX_S,
             "testSignals": m.TEST_SIGNALS,
+            # [key, name, metric unit, imperial unit, kind, min span, [decimals metric, imperial]]
+            "logSignals": [[s[0], s[1], s[2], s[3], s[5], s[6], list(s[7])] for s in datalog.LOG_SIGNALS],
             "features": {
                 "serial": HAS_SERIAL, "pil": HAS_PIL,
                 "uploader": HAS_UPLOADER, "firmware": HAS_FIRMWARE,
@@ -268,6 +302,7 @@ class Api:
 
     @_bridge("Error")
     def disconnect(self) -> Dict[str, Any]:
+        self._stop_logging(quiet=True)
         self._stop_tach_test()
         self._restore_sources()
         with self._lock:
@@ -438,6 +473,7 @@ class Api:
         try:
             was_connected = self._connected()
             if was_connected:
+                self._stop_logging(quiet=True)
                 self._stop_tach_test()
                 self._restore_sources()
                 with self._lock:
@@ -527,6 +563,14 @@ class Api:
         self._require_connection()
         with self._lock:
             self._serial.splash_test(int(slot))
+        return {}
+
+    @_bridge("Error")
+    def splash_show(self, display: int, image_id: int) -> Dict[str, Any]:
+        """Preview splash image *image_id* (built-in or custom slot ID) on display 1 or 2."""
+        self._require_connection()
+        with self._lock:
+            self._serial.splash_show(int(display), int(image_id))
         return {}
 
     @_bridge("Error")
@@ -666,3 +710,119 @@ class Api:
         log: List[str] = []
         self._test_run(f"splash test {slot}", lambda: self._serial.splash_test(int(slot)), log)
         return {"log": log}
+
+    # ------------------------------------------------------------------ Logging tab
+    def _log_worker(self, stop: threading.Event) -> None:
+        """Read the gauge's data lines until *stop*; push each sample to the page and the CSV."""
+        error = ""
+        while not stop.is_set():
+            try:
+                with self._lock:
+                    line = self._serial.read_log_line()
+            except Exception as exc:
+                error = f"Lost the gauge while logging: {exc or type(exc).__name__}"
+                break
+            sample = datalog.parse_line(line)
+            if sample is None or stop.is_set():
+                continue
+            ms, values = sample
+            rows = 0
+            with self._log_file_lock:
+                if self._log_recorder is not None:
+                    try:
+                        self._log_recorder.write(ms, values)
+                        rows = self._log_recorder.rows
+                    except (OSError, ValueError) as exc:
+                        error = f"Could not write {self._log_path}: {exc}"
+                        break
+            self._emit("logSample", t=ms, v=values, rows=rows)
+        if error and self._log_stop_evt is stop:
+            # Logging ends here; the user can start again (or reconnect) from the page.
+            self._log_stop_evt = None
+            self._log_thread = None
+            result = self._close_recorder()
+            self._emit("logError", text=error, rows=result["rows"], path=result["path"])
+
+    def _close_recorder(self) -> Dict[str, Any]:
+        with self._log_file_lock:
+            recorder, self._log_recorder = self._log_recorder, None
+            path, self._log_path = self._log_path, ""
+        if recorder is None:
+            return {"rows": 0, "path": ""}
+        try:
+            recorder.close()
+        except OSError:
+            pass
+        return {"rows": recorder.rows, "path": path, "name": os.path.basename(path)}
+
+    def _start_logging(self) -> None:
+        if self._log_stop_evt is not None:
+            return
+        self._require_connection()
+        with self._lock:
+            self._serial.log_start()
+        stop = threading.Event()
+        self._log_stop_evt = stop
+        self._log_thread = threading.Thread(target=self._log_worker, args=(stop,), daemon=True)
+        self._log_thread.start()
+
+    def _stop_logging(self, quiet: bool = False) -> Dict[str, Any]:
+        """Stop the reader thread, then the gauge's stream. Returns the closed CSV's rows and path.
+
+        The stream is stopped even when the reader already ended on an error. *quiet*
+        ignores a failed "log stop" (disconnecting resets the gauge anyway).
+        """
+        stop, thread = self._log_stop_evt, self._log_thread
+        self._log_stop_evt = None
+        self._log_thread = None
+        if stop is not None:
+            stop.set()
+        if thread is not None:
+            thread.join(timeout=2.0)
+        result = self._close_recorder()
+        if self._connected():
+            try:
+                with self._lock:
+                    self._serial.log_stop()
+            except Exception:
+                if not quiet:
+                    raise
+        return result
+
+    @_bridge("Logging error")
+    def log_start(self) -> Dict[str, Any]:
+        self._start_logging()
+        return {}
+
+    @_bridge("Logging error")
+    def log_stop(self) -> Dict[str, Any]:
+        return self._stop_logging()
+
+    @_bridge("Recording error")
+    def log_record_start(self, imperial: bool = False) -> Dict[str, Any]:
+        """Ask for a CSV file and record every sample to it (starts the stream if needed)."""
+        if self._log_recorder is not None:
+            return {"path": self._log_path, "name": os.path.basename(self._log_path)}
+        if self._log_stop_evt is None:
+            self._require_connection()
+        name = datetime.datetime.now().strftime("gauge_log_%Y%m%d_%H%M%S.csv")
+        path = self._file_dialog("save", save_filename=name, file_types=LOG_FILE_TYPES)
+        if not path:
+            return {"cancelled": True}
+        if not os.path.splitext(path)[1]:
+            path += ".csv"
+        # utf-8-sig so spreadsheet apps read the degree and lambda signs
+        stream = open(path, "w", newline="", encoding="utf-8-sig")
+        with self._log_file_lock:
+            self._log_recorder = datalog.CsvRecorder(stream, bool(imperial))
+            self._log_path = path
+        try:
+            self._start_logging()
+        except Exception:
+            self._close_recorder()
+            raise
+        return {"path": path, "name": os.path.basename(path)}
+
+    @_bridge("Recording error")
+    def log_record_stop(self) -> Dict[str, Any]:
+        return self._close_recorder()

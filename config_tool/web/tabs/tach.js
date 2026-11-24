@@ -45,11 +45,11 @@ function settingsPanel() {
     wide: true,
     body: fields([
       paramField('LED count', 'num_leds', { note: '', onCommit: fitZones }),
+      selectField('Sweep style', 'tach_sweep', S.st.tachSweeps, { note: '', onPick: (v) => { setVal('tach_sweep', v); fitZones(); } }),
       paramField('Min display RPM', 'tach_min', { note: '' }),
       paramField('Max RPM', 'tach_max', { note: '' }),
       paramField('Flash RPM', 'tach_flash', { note: '' }),
-      selectField('Sweep style', 'tach_sweep', S.st.tachSweeps, { note: '', onPick: (v) => { setVal('tach_sweep', v); fitZones(); } }),
-    ]),
+    ], 'cols'),
   });
 }
 

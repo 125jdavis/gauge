@@ -131,6 +131,7 @@ constexpr unsigned int CHECK_GPS_RATE = 1;        // Check for GPS data every 1m
 constexpr unsigned int ANGLE_UPDATE_RATE = 150;    // Update motor angles every 150ms (~7Hz)
 constexpr unsigned int LSO_UPDATE_RATE = 50;      // Update low side outputs every 50ms (20Hz)
 constexpr unsigned int SPLASH_TIME = 1500;        // Duration of startup splash screens (milliseconds)
+constexpr unsigned int SPLASH_PREVIEW_MS = 3000;  // How long "splash test/show" holds an image on screen
 constexpr unsigned int HALL_UPDATE_RATE = 20;     // Recalculate Hall sensor speed every 20ms (50Hz)
 constexpr unsigned int ENGINE_RPM_UPDATE_RATE = 20; // Check engine RPM timeout every 20ms (50Hz)
 constexpr unsigned int FAULT_FLASH_INTERVAL_MS = 500; // Fault flash toggle interval: invert display every 500ms

@@ -1528,7 +1528,7 @@ class GaugeConfigApp:
             var.set(_trim_number(adc_to_volts(raw), 2))
         else:
             unit = self._av_unit(av_index)
-            var.set(_trim_number(raw_to_physical(raw, unit)))
+            var.set(av_physical_text(raw, unit))
 
     def _refresh_av_calibration(self) -> None:
         if not self._av_entries:
@@ -1578,7 +1578,7 @@ class GaugeConfigApp:
             return
         self._vars[param].set(str(raw))
         self._mark_parameter_dirty(param)
-        if self._av_type(av_index) != AV_TYPE_LAMBDA:
+        if self._av_type(av_index) not in AV_UNIT_TYPES:
             self._vars[f"av{av_index + 1}_type"].set(str(AV_TYPE_CUSTOM))
 
     def _safe_int(self, param: str) -> Optional[int]:

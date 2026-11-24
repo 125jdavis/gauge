@@ -3,6 +3,7 @@
 import { html, on, attr, button, icon, morph, resetHandlers, dispatch, progress } from './ui.js';
 import { S, setRenderer, requestRender, visibleDirtyParams, tabOf } from './state.js';
 import { api, pywebviewReady, closeModal } from './bridge.js';
+import { normalizeScaledParams } from './units.js';
 import {
   TAB_TITLES, applyTheme, setTheme, setUnits, goTab, refreshPorts,
   readDevice, writeDevice, loadFile, saveFile,
@@ -18,12 +19,14 @@ import * as display from './tabs/display.js';
 import * as faults from './tabs/faults.js';
 import * as splash from './tabs/splash.js';
 import * as test from './tabs/test.js';
+import * as logging from './tabs/logging.js';
+import { onLogSample, onLogError } from './actions.js';
 
 const NAV = [
   ['Device', ['connection']],
   ['Inputs', ['source', 'speed', 'sensors']],
   ['Outputs', ['motors', 'tach', 'outputs', 'display', 'faults', 'splash']],
-  ['Bench', ['test']],
+  ['Tests', ['test', 'logging']],
 ];
 
 const DESC = {
@@ -31,16 +34,17 @@ const DESC = {
   source: 'Choose where each signal comes from. Settings that only apply to one source stay disabled until that source is selected.',
   speed: 'Vehicle speed sensor, engine RPM pickup and the mechanical odometer.',
   sensors: 'Thermistor and fuel sender curves, analog input types and filtering.',
-  motors: 'Function, sweep and dial range for each gauge motor, including the Motor S speedometer.',
+  motors: 'Function, sweep and dial range for each gauge motor, including ultra-high resolution NEMA 14 Motor S.',
   tach: 'LED count, RPM zones and colors for the shift light strip.',
   outputs: 'Low side outputs on D12 and D13: on/off with hysteresis, or a PWM curve.',
   display: 'Gauge units, the screen order for both OLEDs, the clock and the fuel tank.',
   faults: 'Thresholds and delays for the warning flashes. A reading must stay past its threshold for the delay before the warning activates.',
-  splash: 'Two 128×32 images for the OLED displays. Images are converted to 1-bit before upload.',
+  splash: 'Choose the power-up and shutdown image for each OLED, then Write to device. Pick a built-in image, or choose Custom image to upload your own. Custom images are converted to 1-bit and saved on the gauge as soon as the upload finishes.',
   test: "Inject signal values into the gauge. Sending a value temporarily switches that signal's source to Serial in the gauge's RAM. The original source is restored automatically when you leave this tab, disconnect, read, write or close the tool, and is never saved to EEPROM from here.",
+  logging: 'Live values at 10 samples per second; each window shows the last 20 seconds. A CSV recording holds all eight signals in the units selected when it started. Leaving this tab stops logging. OBDII signals update about 2.5 times per second.',
 };
 
-const TABS = { connection, source, speed, sensors, motors, tach, outputs, display, faults, splash, test };
+const TABS = { connection, source, speed, sensors, motors, tach, outputs, display, faults, splash, test, logging };
 const FLAT = NAV.flatMap(([group, ids]) => ids.map((id) => ({ id, group })));
 
 // ---- shell ------------------------------------------------------------------------
@@ -55,8 +59,6 @@ function header(dirtyCount) {
   return html`
     <div class="app-title"><b>Gauge V4</b><span>Configuration Tool</span></div>
     <div class="conn${conn.connected ? ' is-on' : ''}">${conn.connected ? `Connected · ${conn.port} · ${conn.baud}` : 'Disconnected'}</div>
-    <div class="ctl"><span class="label">Theme</span>${seg('tool-theme', S.prefs.theme, [['dark', 'Dark'], ['light', 'Light']], setTheme)}</div>
-    <div class="ctl"><span class="label">Tool units</span>${seg('tool-units', S.prefs.units, [['metric', 'Metric'], ['imperial', "'Merican"]], setUnits)}</div>
     <div class="actions">
       ${button('Load from file…', { kind: 'ghost', iconName: 'folder-open', h: on({ click: () => loadFile() }) })}
       ${button('Save to file…', { kind: 'ghost', iconName: 'save', h: on({ click: () => saveFile() }) })}
@@ -66,6 +68,13 @@ function header(dirtyCount) {
         ${icon('upload')}Write to device${dirtyCount ? html`<span class="count">${dirtyCount}</span>` : ''}
       </button>
     </div>`;
+}
+
+function prefs() {
+  return html`<div class="sidebar-prefs">
+    <div class="ctl"><span class="label">Theme</span>${seg('tool-theme', S.prefs.theme, [['dark', 'Dark'], ['light', 'Light']], setTheme)}</div>
+    <div class="ctl"><span class="label">Config Tool units</span>${seg('tool-units', S.prefs.units, [['metric', 'Metric'], ['imperial', "'Merican"]], setUnits)}</div>
+  </div>`;
 }
 
 function sidebar(counts) {
@@ -124,8 +133,10 @@ function renderNow() {
   const counts = {};
   dirty.forEach((p) => { const t = tabOf(p); counts[t] = (counts[t] || 0) + 1; });
   morph(document.getElementById('header'), header(dirty.length));
-  morph(document.getElementById('sidebar'), html`${sidebar(counts)}`);
-  morph(document.getElementById('page'), html`${pageHead()}${TABS[S.tab].render()}`);
+  morph(document.getElementById('sidebar'), html`${sidebar(counts)}${prefs()}`);
+  const page = document.getElementById('page');
+  page.classList.toggle('fill', S.tab === 'logging');  // fills the window height instead of scrolling
+  morph(page, html`${pageHead()}${TABS[S.tab].render()}`);
   morph(document.getElementById('footer'), footer(dirty.length));
   const modalRoot = document.getElementById('modal');
   const hadModal = !!modalRoot.firstElementChild;
@@ -138,6 +149,7 @@ function renderNow() {
   }
   document.getElementById('page-scroll').inert = !!S.modal;
   if (hadModal && !S.modal) document.body.focus();
+  if (TABS[S.tab].afterRender) TABS[S.tab].afterRender();
   // Keep logs scrolled to the newest line.
   document.querySelectorAll('.log').forEach((el) => {
     if (logLengths.get(el) !== el.childElementCount) {
@@ -157,7 +169,9 @@ setRenderer(render);
 
 // ---- events ---------------------------------------------------------------------------
 
-['input', 'change', 'click', 'keydown'].forEach((type) => document.addEventListener(type, dispatch));
+['input', 'change', 'click', 'keydown', 'pointermove'].forEach((type) => document.addEventListener(type, dispatch));
+// pointerleave does not bubble, so catch it on the way down.
+document.addEventListener('pointerleave', dispatch, true);
 
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape' || !S.modal) return;
@@ -185,6 +199,12 @@ window.onGaugeEvent = (evt) => {
     case 'disconnected':
       connection.onFirmwareDisconnect();
       break;
+    case 'logSample':
+      onLogSample(evt);  // renders itself only when the Logging tab is showing
+      return;
+    case 'logError':
+      onLogError(evt);
+      return;
     default:
       return;
   }
@@ -203,6 +223,7 @@ async function start() {
   await pywebviewReady();
   const [st, prefs] = await Promise.all([api.get_static(), api.get_prefs()]);
   S.st = st;
+  normalizeScaledParams(S.st);
   S.prefs = { ...S.prefs, ...prefs };
   S.raw = { ...st.tachColors };
   applyTheme(S.prefs.theme);

@@ -4,7 +4,7 @@ import { html, on, panel, fields, select, textInput, errorBox } from '../ui.js';
 import { S, val, setVal, bind, paramField, selectField, filterField, imperial, requestRender, isDirty, intOr } from '../state.js';
 import {
   rawToDisplay, displayToRaw, unitLabel, previewMillivolts, pyRound, pyInt,
-  voltsToAdc, adcToVolts, physicalToRaw, rawToPhysical, avPhysicalUnit, trimNumber,
+  voltsToAdc, adcToVolts, physicalToRaw, avPhysicalUnit, avPhysicalText, AV_UNIT_TYPES, trimNumber,
 } from '../units.js';
 
 const range6 = [0, 1, 2, 3, 4, 5];
@@ -52,19 +52,18 @@ function thermistor() {
     title: 'Thermistor (coolant / oil temperature)',
     wide: true,
     body: [
-      fields([
+      html`<div class="panel-row">${fields([
         selectField('Curve', 'therm_type', S.st.thermTypes, { note: '', onPick: applyThermPreset }),
         paramField('Bias resistor', 'therm_bias', { unit: 'Ω' }),
         filterField('Filter', 'filter_therm'),
-      ]),
-      html`<div class="table-wrap"><table class="table">
+      ])}<div class="table-wrap"><table class="table grid">
         <thead><tr><th></th>${range6.map((i) => html`<th>P${i + 1}</th>`)}</tr></thead>
         <tbody>
           <tr><td class="row-head">Temperature (${unitLabel('temp', imp)})</td>${range6.map((i) => cell(`therm_t${i}`, tempOpts(i)))}</tr>
           <tr><td class="row-head">Resistance (Ω)</td>${range6.map((i) => cell(`therm_r${i}`, { after: custom, label: `Point ${i + 1} resistance` }))}</tr>
           <tr><td class="row-head">Voltage (mV)</td>${range6.map((i) => calc(previewMillivolts(val(`therm_r${i}`), val('therm_bias'))))}</tr>
         </tbody>
-      </table></div>`,
+      </table></div></div>`,
       panelErrors(params),
     ],
   });
@@ -120,7 +119,7 @@ function avRow(n) {
   const type = intOr(`${p}type`);
   const unit = avPhysicalUnit(type, imperial());
   const disabled = type === S.st.avTypeNone;
-  const toCustom = () => { if (type !== S.st.avTypeLambda) setVal(`${p}type`, String(S.st.avTypeCustom)); };
+  const toCustom = () => { if (!AV_UNIT_TYPES.includes(type)) setVal(`${p}type`, String(S.st.avTypeCustom)); };
   const volts = (field, other) => ({
     disabled,
     label: `AV${n} ${field === 'adc_lo' ? 'voltage low' : 'voltage high'}`,
@@ -135,7 +134,7 @@ function avRow(n) {
   const phys = (field) => ({
     disabled,
     label: `AV${n} ${field === 'phys_lo' ? 'physical low' : 'physical high'}`,
-    fmt: (raw) => { try { return trimNumber(rawToPhysical(pyInt(raw), unit)); } catch { return ''; } },
+    fmt: (raw) => { try { return avPhysicalText(pyInt(raw), unit); } catch { return ''; } },
     parse: (t) => physicalToRaw(t, unit),
     after: toCustom,
   });
@@ -181,8 +180,8 @@ export function render() {
         filterField('AV1', 'filter_av1'),
         filterField('AV2', 'filter_av2'),
         filterField('AV3', 'filter_av3'),
-        filterField('Battery filter', 'filter_vbatt'),
-        paramField('Battery scaler', 'vbatt_scaler'),
+        filterField('Voltage filter', 'filter_vbatt'),
+        paramField('Voltage scaler', 'vbatt_scaler'),
       ]),
     })}
     ${analogCalibration()}

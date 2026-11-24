@@ -145,7 +145,7 @@ function outputPanel(n) {
   const body = [fields(list)];
   if (mode === MODE_ON_OFF) body.push(onOffTable(n, kind, unit));
   if (mode === MODE_PWM) {
-    body.push(html`<div class="table-wrap"><table class="table">
+    body.push(html`<div class="table-wrap"><table class="table grid">
       <thead><tr><th></th>${points().map((i) => html`<th>${i + 1}</th>`)}</tr></thead>
       <tbody>
         <tr><td class="row-head">${unit ? `Value (${unit})` : 'Value'}</td>${points().map((i) => valueCell(`${p}x${i}`, kind, `Point ${i + 1} value`))}</tr>

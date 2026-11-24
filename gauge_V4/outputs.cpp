@@ -216,6 +216,7 @@ int speedometerAngleHall(int sweep) {
  * speedometerAngleS - Calculate speedometer needle angle for motorS (integer math)
  * 
  * Converts vehicle speed to motor angle using integer math for efficiency.
+ * When MS_FUNCTION is MS_FUNC_RPM, shows engine RPM (0 to MS_RPM_MAX) instead.
  * Uses the generic 'spd' variable which is selected based on SPEED_SOURCE.
  * 
  * @param sweep - Maximum motor steps for full gauge sweep
@@ -228,6 +229,12 @@ int speedometerAngleHall(int sweep) {
  * Using integer math: (spd * 62137) / 100000 ≈ spd * 0.621371
  */
 int speedometerAngleS(int sweep) {
+  if (MS_FUNCTION == MS_FUNC_RPM) {
+    // Engine RPM, 0 to MS_RPM_MAX, mapped to steps 1..sweep-1 (same range as the speed path)
+    long rpm = constrain((long)RPM, 0L, (long)MS_RPM_MAX);
+    int angle = (int)((rpm * (long)(sweep - 2)) / (long)MS_RPM_MAX) + 1;
+    return constrain(angle, 1, sweep - 1);
+  }
   // Convert km/h*100 to mph*100 using integer math
   // spd is in km/h * 100, multiply by 62137 then divide by 100000
   // This gives mph * 100

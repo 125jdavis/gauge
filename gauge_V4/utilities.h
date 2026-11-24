@@ -173,4 +173,8 @@ float mapFloat(float x, float in_min, float in_max, float out_min, float out_max
  */
 void processSerialCommands(void);
 
+// Milliseconds after the last received serial byte during which serialRecentlyActive() is true.
+#define SERIAL_QUIET_MS 250
+bool serialRecentlyActive(void);
+
 #endif // UTILITIES_H

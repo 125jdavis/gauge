@@ -190,6 +190,11 @@ void setup() {
   pinMode(PWR_PIN, OUTPUT);
   digitalWrite(PWR_PIN, HIGH);
 
+  // Restore saved calibration before anything (outputs, motor sweep, CAN filters) uses it
+  if (loadCalibration() == CAL_INVALID) {
+    Serial.println(F("Warning: invalid calibration in EEPROM; using defaults"));
+  }
+
   // Low side outputs held off until the main loop applies their configuration
   initLowSideOutputs();
 
@@ -213,8 +218,7 @@ void setup() {
   // begin(vccstate, i2caddr, reset, periphBegin)
   display1.begin(SSD1306_SWITCHCAPVCC, 0, true, true);
   display2.begin(SSD1306_SWITCHCAPVCC, 0, true, true);
-  dispFalconScript(&display1);
-  disp302CID(&display2);
+  showSplashScreens();  // Configured splash image (built-in or uploaded) on each display
   
   // ===== STEPPER MOTOR INITIALIZATION =====
   pinMode(MOTOR_RST, OUTPUT);
@@ -348,6 +352,10 @@ void loop() {
   // Parse serial input for manual signal injection (spd, rpm, odo motor commands)
   processSerialCommands();
 
+  // ===== DATA LOGGING STREAM =====
+  // Sends one line of live values every 100 ms while the config tool is logging
+  serialLogUpdate();
+
   // ===== SIGNAL SELECTION UPDATE =====
   // Process sensor readings and synthetic signal generators
   // Runs at 100Hz for responsive synthetic signals
@@ -407,7 +415,9 @@ void loop() {
   }
 
   // ===== LED TACHOMETER UPDATE =====
-  if (millis() - timerTachUpdate > TACH_UPDATE_RATE) {
+  // FastLED.show() disables interrupts for the whole LED frame (~30 us per LED), long enough
+  // to drop incoming serial bytes, so hold the strip while the config tool is talking.
+  if (millis() - timerTachUpdate > TACH_UPDATE_RATE && !serialRecentlyActive()) {
     ledShiftLight(RPM);
     timerTachUpdate = millis();
   }
@@ -419,11 +429,13 @@ void loop() {
   
   // Check for user input requiring immediate display update
   bool needsImmediateUpdate = (button == 1) || encoderMoved;
-  
+  // A splash preview from the config tool holds both displays for a few seconds.
+  bool holdDisplays = splashPreviewActive();
+
   // Display 1 update - Variable refresh rate based on content type
   // Update immediately on user input, or at scheduled interval
   unsigned int disp1Interval = getDisplayUpdateInterval(dispArray1[0], 1);
-  if (needsImmediateUpdate || (millis() - timerDisp1Update > disp1Interval)) {
+  if (!holdDisplays && (needsImmediateUpdate || (millis() - timerDisp1Update > disp1Interval))) {
     // Force a full redraw when the user scrolled to a new screen, so the display
     // function always sees modeChanged=true and clears leftover content.
     if (encoderMoved) {
@@ -440,7 +452,7 @@ void loop() {
   bool disp2SelectionChanged = (dispArray2[0] != dispArray2_prev);
   bool needsDisp2Update = disp2SelectionChanged || needsImmediateUpdate;
   unsigned int disp2Interval = getDisplayUpdateInterval(dispArray2[0], 2);
-  if (needsDisp2Update || (millis() - timerDisp2Update > disp2Interval)) {
+  if (!holdDisplays && (needsDisp2Update || (millis() - timerDisp2Update > disp2Interval))) {
     // Force a full redraw when the Display 2 selection changed, so the display
     // function always sees modeChanged=true and clears leftover content.
     if (disp2SelectionChanged) {

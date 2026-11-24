@@ -77,6 +77,8 @@ uint8_t ENGINE_RPM_MIN = 100;       // Minimum reportable RPM
 
 // ===== SPEEDOMETER CALIBRATION =====
 uint16_t SPEEDO_MAX = 100 * 100;    // Maximum speedometer reading
+uint8_t  MS_FUNCTION = MS_FUNC_SPEED;  // Motor S signal: MS_FUNC_SPEED (0) or MS_FUNC_RPM (1)
+uint16_t MS_RPM_MAX = 8000;         // Motor S full-scale RPM when MS_FUNCTION == MS_FUNC_RPM
 
 // ===== LED TACHOMETER CONFIGURATION =====
 uint8_t NUM_LEDS = 26;              // Total number of LEDs
@@ -156,3 +158,7 @@ uint16_t FUEL_V_FULL_MV = 870;
 
 // Low side outputs: both start disabled (see LSO_DEFAULT_CONFIG)
 LowSideOutputConfig LOW_SIDE_OUT[LSO_COUNT] = { LSO_DEFAULT_CONFIG, LSO_DEFAULT_CONFIG };
+
+// Splash screens: Falcon script on display 1, 302 CID on display 2
+uint8_t SPLASH1_IMG = SPLASH1_DEFAULT;
+uint8_t SPLASH2_IMG = SPLASH2_DEFAULT;

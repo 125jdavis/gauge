@@ -38,6 +38,9 @@ def test_validate_config_accepts_a_good_config_and_computes_curve_voltages():
     ({"out1_mode": "1", "out1_param": "1", "out1_on_op": "0", "out1_on_val": "10", "out1_off_val": "20"},
      "Invalid output configuration"),
     ({"oil_warn_ms": "90000"}, "Invalid warning delay"),
+    ({"ms_func": "2"}, "Invalid Motor S setting"),
+    ({"ms_rpm_max": "500"}, "Invalid Motor S setting"),
+    ({"ms_rpm_max": "25000"}, "Invalid Motor S setting"),
 ])
 def test_validate_config_reports_each_check(change, title):
     with pytest.raises(m.ConfigInvalid) as exc:
@@ -145,3 +148,23 @@ def test_read_device_rejects_old_filter_format(bridge):
     bridge._serial.params["filter_format"] = "6"
     res = bridge.read_device()
     assert not res["ok"] and "older filter format" in res["error"]
+
+def test_write_device_round_trips_motor_s_settings(bridge):
+    values = {**bridge._serial.params, "ms_sweep": "8533", "ms_func": "1", "ms_rpm_max": "9000"}
+    res = bridge.write_device(values, ["ms_sweep", "ms_func", "ms_rpm_max"], False)
+    assert res["ok"], res
+    assert res["written"] == ["ms_sweep", "ms_func", "ms_rpm_max"]
+    assert {k: bridge._serial.params[k] for k in ("ms_sweep", "ms_func", "ms_rpm_max")} == {
+        "ms_sweep": "8533", "ms_func": "1", "ms_rpm_max": "9000"}
+
+
+def test_ms_steps_per_deg_pref_persists_and_rejects_bad_values(bridge, tmp_path, monkeypatch):
+    import api
+    monkeypatch.setattr(api, "PREFS_PATH", tmp_path / "prefs.json")
+    assert "ms_steps_per_deg" not in bridge.get_prefs()
+    bridge.set_pref("theme", "light")
+    assert bridge.set_pref("ms_steps_per_deg", 35.56)["ms_steps_per_deg"] == 35.56
+    for bad in (0, -1, "71", True, float("nan")):
+        bridge.set_pref("ms_steps_per_deg", bad)
+    prefs = bridge.get_prefs()
+    assert prefs["ms_steps_per_deg"] == 35.56 and prefs["theme"] == "light"

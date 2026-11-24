@@ -73,8 +73,9 @@ function screenList(title, param, settingsLast) {
 export function render() {
   const units = imperial() ? 'gal' : 'L';
   return html`
-    <div class="panel-grid">
-      ${panel({ title: 'Units', body: fields([selectField('Gauge unit system', 'units', S.st.unitSystemOptions, { note: '' })]) })}
+    <div class="panel-grid three">
+      <div class="stack">
+      ${panel({ title: 'Display units', body: fields([selectField('Gauge unit system', 'units', S.st.unitSystemOptions, { note: '' })]) })}
       ${panel({
         title: 'Clock & Fuel',
         body: fields([
@@ -86,10 +87,9 @@ export function render() {
           }),
         ]),
       })}
-    </div>
-    <div class="panel-grid narrow">
+      <p class="panel-text">Checked screens are reachable with the rotary encoder. Display 1 always ends with Settings; display 2 is chosen from the Settings menu.</p>
+      </div>
       ${screenList('Display 1 screens', 'disp1_order', true)}
       ${screenList('Display 2 screens', 'disp2_order', false)}
-    </div>
-    <p class="panel-text">Checked screens are reachable with the rotary encoder. Display 1 always ends with Settings; display 2 is chosen from the Settings menu.</p>`;
+    </div>`;
 }

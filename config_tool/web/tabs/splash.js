@@ -1,8 +1,46 @@
-// 10 / Outputs: two 128x32 images for the OLED displays.
+// 10 / Outputs: splash image for each OLED. Each display picks a built-in image or its own
+// custom image, uploaded to the matching slot (display 1 = slot 1, display 2 = slot 2).
 
-import { html, on, panel, button, actions, progress } from '../ui.js';
-import { S, requestRender } from '../state.js';
+import { html, on, panel, button, actions, progress, field, fields, select } from '../ui.js';
+import { S, requestRender, val, setVal, isDirty } from '../state.js';
 import { api, failed, confirmBox, requireConnection } from '../bridge.js';
+
+const imageParam = (display) => `splash${display}_img`;
+const customId = (slot) => S.st.splashCustomIds[slot - 1];
+const slotOf = (id) => S.st.splashCustomIds.indexOf(Number(id)) + 1;  // 0 = built-in
+
+function imageChoices(display, id) {
+  const choices = [
+    ...S.st.splashImages.map((name, i) => [String(i), name]),
+    [String(customId(display)), 'Custom image'],
+  ];
+  // A config may point this display at the other slot; keep it selectable instead of "Unsupported".
+  const other = slotOf(id);
+  if (other && other !== display) choices.push([String(id), `Custom image (slot ${other})`]);
+  return choices;
+}
+
+function oled(src, alt, emptyText) {
+  return html`<div class="oled">${src ? html`<img src="${src}" alt="${alt}">` : html`<span class="empty">${emptyText}</span>`}</div>`;
+}
+
+function preview(id) {
+  if (id === '') return oled('', '', 'Not read');
+  const slot = slotOf(id);
+  if (!slot) return oled(`splash/${Number(id)}.png`, S.st.splashImages[Number(id)] ?? '', 'Unknown image');
+  return oled(S.splash[slot].png, `Custom image, slot ${slot}`, 'Custom image');
+}
+
+// ---- actions ---------------------------------------------------------------------------
+
+async function showOnDevice(display) {
+  if (!requireConnection()) return;
+  const id = val(imageParam(display));
+  if (id === '') return;
+  if (failed(await api.splash_show(display, Number(id)))) return;
+  S.status = `Display ${display}: showing splash preview.`;
+  requestRender();
+}
 
 async function load(slot) {
   const res = await api.splash_load(slot);
@@ -24,43 +62,70 @@ async function upload(slot) {
   requestRender();
 }
 
-async function test(slot) {
-  if (!requireConnection()) return;
-  if (failed(await api.splash_test(slot))) return;
-  S.status = `Slot ${slot}: test command sent.`;
-  requestRender();
-}
-
 async function clear(slot) {
   if (!requireConnection()) return;
-  if (!(await confirmBox('Confirm', `Clear Slot ${slot}? This cannot be undone.`, 'Clear slot'))) return;
+  const msg = `Remove the custom image stored in slot ${slot}? A display set to it goes back to its default image.`;
+  if (!(await confirmBox('Confirm', msg, 'Remove image'))) return;
   if (failed(await api.splash_clear(slot))) return;
   S.splash[slot] = { png: '', name: '', pct: 0 };
-  S.status = `Slot ${slot}: cleared.`;
+  S.status = `Slot ${slot}: custom image removed.`;
   requestRender();
 }
 
-function slotPanel(slot) {
+// ---- panel -----------------------------------------------------------------------------
+
+function customControls(slot) {
   const sp = S.splash[slot];
   const offline = !S.conn.connected;
+  const caption = sp.png
+    ? `${sp.name} · converted to 1-bit, 128×32`
+    : 'PNG, BMP, JPG or GIF. Scaled to fit and converted to 1-bit. Upload saves it on the gauge right away.';
+  return [
+    html`<span class="splash-caption">${caption}</span>`,
+    progress(sp.pct),
+    actions([
+      button('Load image…', { h: on({ click: () => load(slot) }) }),
+      button('Upload to device', { kind: 'primary', h: on({ click: () => upload(slot) }), disabled: !sp.png || offline }),
+      button('Remove from device', { kind: 'ghost', h: on({ click: () => clear(slot) }), disabled: offline }),
+    ]),
+  ];
+}
+
+function displayPanel(display) {
+  const p = imageParam(display);
+  const id = val(p);
+  const slot = slotOf(id);
+  const offline = !S.conn.connected;
+  const h = on({ change: (_e, el) => { setVal(p, el.value); requestRender(); } });
+  const note = slot
+    ? `If slot ${slot} holds no uploaded image, the gauge shows its default image.`
+    : '';
   return panel({
-    title: `Splash Slot ${slot}`,
-    tag: 'SSD1306 · 128×32',
+    title: `Display ${display}`,
+    tag: 'Power-up & shutdown · 128×32',
     cls: 'spaced',
+    dirty: isDirty(p),
     body: [
-      html`<div class="oled">${sp.png ? html`<img src="${sp.png}" alt="Slot ${slot} preview">` : html`<span class="empty">Empty slot</span>`}</div>`,
-      html`<span class="splash-caption">${sp.png ? `${sp.name} · converted to 1-bit, 128×32` : 'PNG, BMP, JPG or GIF. Scaled to fit and converted to 1-bit.'}</span>`,
-      progress(sp.pct),
+      preview(id),
+      fields([field({
+        label: 'Splash image',
+        note,
+        dirty: isDirty(p),
+        tip: S.st.tooltips[p] || '',
+        control: select({ value: id, options: imageChoices(display, id), h, dirty: isDirty(p) }),
+      })]),
+      slot ? customControls(slot) : '',
       actions([
-        button('Load image…', { h: on({ click: () => load(slot) }) }),
-        button('Upload to device', { kind: 'primary', h: on({ click: () => upload(slot) }), disabled: !sp.png || offline }),
-        button('Test on device', { h: on({ click: () => test(slot) }), disabled: offline }),
-        button('Clear slot', { kind: 'ghost', h: on({ click: () => clear(slot) }), disabled: offline }),
+        button('Show on device', {
+          h: on({ click: () => showOnDevice(display) }),
+          disabled: offline || id === '',
+          title: 'Show the selected image on the gauge for a few seconds',
+        }),
       ]),
     ],
   });
 }
 
 export function render() {
-  return html`<div class="panel-grid roomy">${slotPanel(1)}${slotPanel(2)}</div>`;
+  return html`<div class="panel-grid roomy">${displayPanel(1)}${displayPanel(2)}</div>`;
 }

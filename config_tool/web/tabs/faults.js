@@ -7,9 +7,9 @@ import {
   debounceMsToSeconds, debounceSecondsToMs,
 } from '../units.js';
 
-function cell(p, opts, label) {
+function cell(p, opts, label, unit = '') {
   const b = bind(p, opts);
-  return html`<td title="${S.st.tooltips[p] || ''}">${textInput({ value: b.value, h: b.h, dirty: b.dirty, cls: 'compact', label })}</td>`;
+  return html`<td title="${S.st.tooltips[p] || ''}"><div class="cell">${textInput({ value: b.value, h: b.h, dirty: b.dirty, cls: 'compact', label })}${unit ? html`<span class="unit">${unit}</span>` : ''}</div></td>`;
 }
 
 export function render() {
@@ -34,14 +34,13 @@ export function render() {
     title: 'Fault Warning Thresholds',
     wide: true,
     body: [
-      html`<div class="table-wrap"><table class="table">
-        <thead><tr><th></th><th>Flash when</th><th>Threshold</th><th></th><th>Delay (s)</th></tr></thead>
+      html`<div class="table-wrap"><table class="table fit">
+        <thead><tr><th></th><th>Flash when</th><th>Threshold</th><th>Delay</th></tr></thead>
         <tbody>${rows.map(([label, when, p, unit, d, opts]) => html`<tr>
           <td class="row-head">${label}</td>
           <td class="calc left">${when}</td>
-          ${cell(p, opts, `${label} threshold`)}
-          <td class="calc left">${unit}</td>
-          ${cell(d, delay, `${label} delay`)}
+          ${cell(p, opts, `${label} threshold`, unit)}
+          ${cell(d, delay, `${label} delay`, 's')}
         </tr>`)}</tbody>
       </table></div>`,
       fields([paramField('Engine running RPM', 'engine_run_rpm', { note: '' })]),

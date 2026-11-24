@@ -122,6 +122,11 @@ extern uint8_t ENGINE_RPM_MIN;
 
 // ===== SPEEDOMETER CALIBRATION =====
 extern uint16_t SPEEDO_MAX;    // Maximum speedometer reading: 100 mph * 100 (stored as integer for precision)
+#define MS_FUNC_SPEED 0       // Motor S shows vehicle speed, 0 to SPEEDO_MAX
+#define MS_FUNC_RPM   1       // Motor S shows engine RPM, 0 to MS_RPM_MAX
+#define MS_FUNC_COUNT 2
+extern uint8_t  MS_FUNCTION;   // Motor S signal (MS_FUNC_SPEED or MS_FUNC_RPM)
+extern uint16_t MS_RPM_MAX;    // Motor S full-scale RPM (1000-20000) when MS_FUNCTION == MS_FUNC_RPM
 
 // ===== LED TACHOMETER CONFIGURATION =====
 extern uint8_t NUM_LEDS;              // Total number of LEDs in the tachometer strip
@@ -252,4 +257,17 @@ struct LowSideOutputConfig {
 #define LSO_DEFAULT_CONFIG { LSO_MODE_DISABLED, MOTOR_FUNC_COOLANT_TEMP, LSO_ON_ABOVE, 95, 90, 100, \
                              {60, 70, 75, 80, 85, 90, 95, 100}, {0, 0, 20, 35, 50, 65, 80, 100} }
 extern LowSideOutputConfig LOW_SIDE_OUT[LSO_COUNT];
+
+// ===== SPLASH SCREENS =====
+// Splash image ID shown on each OLED at power-up and shutdown (see splash.h):
+//   0 .. SPLASH_IMAGE_COUNT-1 = built-in image (image_data.cpp SPLASH_IMAGES)
+//   SPLASH_CUSTOM_1 / SPLASH_CUSTOM_2 = uploaded image in EEPROM slot 1 / 2
+enum : uint8_t {
+  SPLASH1_DEFAULT = 0,    // Falcon script
+  SPLASH2_DEFAULT = 8,    // 302 Cubic Inches
+  SPLASH_CUSTOM_1 = 200,
+  SPLASH_CUSTOM_2 = 201
+};
+extern uint8_t SPLASH1_IMG;           // Display 1 splash image ID
+extern uint8_t SPLASH2_IMG;           // Display 2 splash image ID
 #endif // CONFIG_CALIBRATION_H

@@ -284,6 +284,21 @@ def test_av_physical_unit_follows_sensor_type() -> None:
     assert av_physical_unit(5) == "Lambda"
     assert av_physical_unit(4) == "kPa"
     assert av_physical_unit(None) == "kPa"
+    assert av_physical_unit(2) == "kPa (gauge)"
+    assert av_physical_unit(2, imperial=True) == "PSI (gauge)"
+
+
+def test_100psi_gauge_preset_shows_gauge_values() -> None:
+    # Lowdoller 0-100 PSIG: 0.5 V = 0 PSI, 4.5 V = 100 PSI; stored as absolute kPa*10
+    from gui_model import av_physical_text
+    _adc_lo, _adc_hi, lo, hi = AV_PRESETS[2]
+    assert av_physical_text(lo, "PSI (gauge)") == "0"
+    assert av_physical_text(hi, "PSI (gauge)") == "100"
+    assert av_physical_text(lo, "kPa (gauge)") == "0"
+    assert av_physical_text(hi, "kPa (gauge)") == "689.5"
+    assert physical_to_raw("0", "PSI (gauge)") == 1013
+    assert physical_to_raw("100", "PSI (gauge)") == 7908
+    assert physical_to_raw("689.5", "kPa (gauge)") == 7908
 
 def test_av_presets_are_absolute_kpa_times_ten() -> None:
     assert AV_PRESETS[0] == (102, 921, 0, 2068)

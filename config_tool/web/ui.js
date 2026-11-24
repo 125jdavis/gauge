@@ -140,14 +140,26 @@ export function panel({ title, tag = '', wide = false, head = null, body, cls = 
  */
 export function field({ label, control, unit = '', note = '', error = '', disabled = false, dirty = false, tip = '' }) {
   const text = error || note;
-  return html`<div class="field"${attr('aria-disabled="true"', disabled)}>
+  const row = (withNote) => html`<div class="field"${attr('aria-disabled="true"', disabled)}>
     <label${tip ? html` title="${tip}"` : ''}>${dirty ? html`<span class="dirty-dot"></span>` : ''}<span>${label}</span></label>
     <div class="control">${control}${unit ? html`<span class="unit">${unit}</span>` : ''}</div>
-    ${text ? html`<div class="note${error ? ' is-error' : ''}">${text}</div>` : ''}
+    ${withNote && text ? html`<div class="note${error ? ' is-error' : ''}">${text}</div>` : ''}
   </div>`;
+  const out = row(true);
+  // fields() shows a note shared by several rows once, under the group.
+  if (note && !error) { out.note = note; out.bare = row(false); }
+  return out;
 }
 
-export const fields = (list) => html`<div class="fields">${list}</div>`;
+/** A column of fields. A note repeated on several rows is shown once below them. cls: 'cols' for a multi-column grid. */
+export function fields(list, cls = '') {
+  const items = [list].flat(Infinity).filter(Boolean);
+  const counts = {};
+  items.forEach((it) => { if (it.note) counts[it.note] = (counts[it.note] || 0) + 1; });
+  const shared = Object.keys(counts).filter((n) => counts[n] > 1);
+  const rows = items.map((it) => (it.note && counts[it.note] > 1 ? it.bare : it));
+  return html`<div class="fields${cls ? ` ${cls}` : ''}">${rows}${shared.map((n) => html`<p class="fields-note">${n}</p>`)}</div>`;
+}
 
 export function button(label, { kind = 'secondary', h = '', disabled = false, iconName = '', title = '', cls = '' } = {}) {
   const primary = kind === 'primary';

@@ -25,6 +25,13 @@ export const S = {
   splash: { 1: { png: '', name: '', pct: 0 }, 2: { png: '', name: '', pct: 0 } },
   tach: { previewRpm: null, blink: true, testOn: false, hues: {} },
   test: { values: {}, texts: {}, odoRevs: '1', odoMoving: false, log: [] },
+  // Logging tab: samples are {t: gauge millis, v: metric values in st.logSignals order}.
+  // hover holds each trace's crosshair position (0-1 across the plot) or null.
+  log: {
+    live: false, recording: false, name: '', rows: 0, lastAt: 0, samples: [],
+    traces: ['speed', 'rpm', 'lambda', 'map'], hover: [null, null, null, null],
+    size: { w: 800, h: 120 },  // measured plot size in px (charts draw at 1:1)
+  },
   screens: {},                    // display list UI order: {param: {order, forValue}}
   dirHint: {},                    // motor direction when low == high: {n: ccw}
   modal: null,
@@ -62,6 +69,7 @@ const TAB_RULES = [
   ['outputs', /^out\d_/],
   ['display', /^(units|disp\d_order|clock_offset|fuel_capacity)$/],
   ['faults', /^(oil_warn_kpa|coolant_warn_c|batt_warn_v|engine_run_rpm|fuel_warn_pct|.*_warn_ms)$/],
+  ['splash', /^splash\d_img$/],
 ];
 
 export function tabOf(param) {
@@ -181,7 +189,10 @@ export function selectField(label, p, options, opts = {}) {
   const note = opts.note ?? dependencyNote(p);
   const disabled = opts.disabled ?? !!note;
   const offset = opts.offset ?? 0;
-  const pairs = options.map((text, i) => [String(i + offset), text]);
+  const hide = opts.hide ?? [];
+  // Hidden options keep their index; one already stored in a loaded config still shows.
+  const pairs = options.map((text, i) => [String(i + offset), text])
+    .filter(([v, text]) => !hide.includes(text) || v === val(p));
   const h = on({
     change: (_e, el) => {
       if (opts.onPick) opts.onPick(el.value);

@@ -37,6 +37,26 @@ SERIAL_SOURCE_VALUES = {
 }
 
 CAN_PROTOCOL_OPTIONS = ("Haltech v2", "Megasquirt", "AiM", "OBDII")
+
+# Splash images: index = firmware splash image ID (gauge_V4/image_data.cpp SPLASH_IMAGES,
+# append-only). Previews live in web/splash/<id>.png. Uploaded images use the custom IDs
+# (config_calibration.h SPLASH_CUSTOM_1 / _2).
+SPLASH_BUILTIN_OPTIONS = (
+    "Falcon script", "144 Cubic Inches", "170 Cubic Inches", "200 Cubic Inches",
+    "260 Cubic Inches", "260 V emblem", "289 Cubic Inches", "289 V emblem",
+    "302 Cubic Inches", "302 V emblem", "2300 Turbo",
+)
+SPLASH_CUSTOM_IDS = (200, 201)  # uploaded image in slot 1, slot 2
+SPLASH_PARAMS = ("splash1_img", "splash2_img")
+SPLASH_DEFAULTS = {"splash1_img": 0, "splash2_img": 8}
+
+
+def splash_id_valid(value: str) -> bool:
+    try:
+        n = int(value)
+    except ValueError:
+        return False
+    return 0 <= n < len(SPLASH_BUILTIN_OPTIONS) or n in SPLASH_CUSTOM_IDS
 TACH_SWEEP_OPTIONS = ("Left to right", "Right to left", "Edge to center", "Center to edge")
 TACH_COLORS = {
     "tach_color_normal": "1E0F00",
@@ -100,6 +120,7 @@ AV_TYPE_OPTIONS = (
     "Lambda",
 )
 AV_TYPE_PARAMS = ("av1_type", "av2_type", "av3_type")
+AV_TYPE_100PSI_G = 2
 AV_TYPE_NONE = 3
 AV_TYPE_CUSTOM = 4
 AV_TYPE_LAMBDA = 5
@@ -121,14 +142,30 @@ AV_CAL_PARAMS = tuple(
     for n in (1, 2, 3)
 )
 # Stored raw = physical value * scale (pressure is stored as absolute kPa * 10)
-PHYS_UNIT_SCALE = {"kPa": 10, "Lambda": 1000, "PSI (abs)": 10 / 0.1450377377}
+PHYS_UNIT_SCALE = {
+    "kPa": 10, "Lambda": 1000, "PSI (abs)": 10 / 0.1450377377,
+    "kPa (gauge)": 10, "PSI (gauge)": 10 / 0.1450377377,
+}
+# Gauge units are entered relative to atmosphere; stored raw = phys * scale + offset
+PHYS_UNIT_OFFSET = {"kPa (gauge)": ATMOSPHERE_KPA * 10, "PSI (gauge)": ATMOSPHERE_KPA * 10}
+# Sensor types whose calibration is shown and entered as gauge pressure
+AV_GAUGE_TYPES = (AV_TYPE_100PSI_G,)
+# Types that keep their type when a calibration point is edited (they define the units shown)
+AV_UNIT_TYPES = (AV_TYPE_LAMBDA, *AV_GAUGE_TYPES)
 
 
 def av_physical_unit(av_type: Optional[int], imperial: bool = False) -> str:
     """Unit the user enters physical values in for an AV input of the given type."""
     if av_type == AV_TYPE_LAMBDA:
         return "Lambda"
+    if av_type in AV_GAUGE_TYPES:
+        return "PSI (gauge)" if imperial else "kPa (gauge)"
     return "PSI (abs)" if imperial else "kPa"
+
+
+def av_physical_text(raw: int, unit: str) -> str:
+    """Display text for a stored AV calibration value (PSI shown to 0.01, the stored resolution)."""
+    return _trim_number(raw_to_physical(raw, unit), 2 if unit.startswith("PSI") else 3)
 
 def volts_to_adc(value: str) -> int:
     try:
@@ -149,14 +186,15 @@ def physical_to_raw(value: str, unit: str) -> int:
         phys = float(value)
     except ValueError as exc:
         raise ValueError(f"Physical value must be a number in {unit}.") from exc
-    raw = round(phys * PHYS_UNIT_SCALE[unit]) if math.isfinite(phys) else 32768
+    offset = PHYS_UNIT_OFFSET.get(unit, 0)
+    raw = round(phys * PHYS_UNIT_SCALE[unit] + offset) if math.isfinite(phys) else 32768
     if not -32768 <= raw <= 32767:
         raise ValueError(f"Physical value is out of range for {unit}.")
     return raw
 
 
 def raw_to_physical(raw: int, unit: str) -> float:
-    return raw / PHYS_UNIT_SCALE[unit]
+    return (raw - PHYS_UNIT_OFFSET.get(unit, 0)) / PHYS_UNIT_SCALE[unit]
 
 
 def _trim_number(value: float, decimals: int = 3) -> str:
@@ -233,6 +271,9 @@ MOTOR_FUNCTION_OPTIONS = (
     "Oil pressure", "Fuel pressure", "Oil temp", "MAP", "Lambda (x1000)",
 )
 MOTOR_FUNCTION_PARAMS = ("m1_func", "m2_func", "m3_func", "m4_func")
+# Motor S (NEMA14) function: 0 = Speed (0 to speedo_max), 1 = RPM (0 to ms_rpm_max)
+MS_FUNCTION_VALUES = ("0", "1")
+MS_RPM_MAX_RANGE = (1000, 20000)
 # Gauge min/max units per MOTOR_FUNC_* value, and the min/max applied when a function is picked
 MOTOR_FUNCTION_UNITS = (
     "", "%", "\u00b0C", "RPM", "km/h", "kPa", "kPa", "\u00b0C", "kPa",
@@ -766,7 +807,7 @@ ALL_PARAMS = [
     *CURVE_PARAMS,
     "revs_per_km", "teeth_per_rev", "filter_hall", "filter_gps", "hall_speed_min",
     "cyl_count", "filter_rpm", "rpm_debounce_us", "engine_rpm_min",
-    "speedo_max",
+    "speedo_max", "ms_func", "ms_rpm_max",
     "num_leds", "warn_leds", "shift_leds", "tach_sweep", "tach_max", "tach_min", "tach_flash",
     *TACH_COLORS,
     "odo_steps", "odo_motor_teeth", "odo_gear_teeth",
@@ -776,6 +817,7 @@ ALL_PARAMS = [
     *WARN_DEBOUNCE_PARAMS,
     "clock_offset", "fuel_capacity", "can_protocol", "units",
     "disp1_order", "disp2_order",
+    *SPLASH_PARAMS,
     *OUTPUT_PARAMS,
 ]
 
@@ -848,6 +890,8 @@ TOOLTIPS: Dict[str, str] = {
     "rpm_debounce_us":   "RPM pulse debounce window us (100-20000).",
     "engine_rpm_min":    "Minimum displayed RPM (0-255).",
     "speedo_max":        "Maximum speedometer reading in the selected unit.",
+    "ms_func":           "Signal shown by Motor S: Speed (0 to Speedometer Max) or RPM (0 to Motor S RPM max).",
+    "ms_rpm_max":        "Motor S full-scale RPM when its function is RPM (1000-20000).",
     "num_leds":          "Total LED strip count (1-64).",
     "warn_leds":         "Warning start, in LED steps before the final step.",
     "shift_leds":        "Shift start, in LED steps before the final step.",
@@ -880,6 +924,8 @@ TOOLTIPS: Dict[str, str] = {
     "clock_offset":      "UTC offset hours (-12 to +12).",
     "fuel_capacity":     "Fuel tank capacity in gallons or liters (1-200 gallons).",
     "can_protocol":      "Select the CAN protocol used by your vehicle.",
+    "splash1_img":       "Image shown on display 1 at power-up and shutdown.",
+    "splash2_img":       "Image shown on display 2 at power-up and shutdown.",
     "units":             "Unit system shown on the gauge: Metric or 'Merican (imperial).",
     "disp1_order":       "Screens reachable by scrolling display 1, in order (Settings is always last).",
     "disp2_order":       "Screens selectable for display 2 from the Settings menu, in order.",
@@ -1092,6 +1138,20 @@ def validate_config(values: Dict[str, str], dirty, imperial: bool = False) -> tu
             fail("Invalid sweep angle", ValueError(
                 f"{title}: Sweep angle must be between {lo:.1f} and {MOTOR_MAX_ANGLE} degrees."))
 
+    # Motor S function and RPM full scale
+    text = get("ms_func").strip()
+    if text and text not in MS_FUNCTION_VALUES:
+        fail("Invalid Motor S setting", ValueError("Motor S function must be Speed (0) or RPM (1)."))
+    text = get("ms_rpm_max").strip()
+    if text or "ms_rpm_max" in dirty:
+        try:
+            rpm = int(text)
+        except ValueError:
+            rpm = None
+        if rpm is None or not MS_RPM_MAX_RANGE[0] <= rpm <= MS_RPM_MAX_RANGE[1]:
+            fail("Invalid Motor S setting", ValueError(
+                f"Motor S RPM max must be a whole number from {MS_RPM_MAX_RANGE[0]} to {MS_RPM_MAX_RANGE[1]}."))
+
     # Speed inputs (_validate_speed_inputs); stored km/h*100 and mph*100
     sources = selected_sources(values)
     try:
@@ -1181,6 +1241,12 @@ def validate_config(values: Dict[str, str], dirty, imperial: bool = False) -> tu
         if not 0 <= ms <= WARN_DEBOUNCE_MAX_S * 1000:
             fail("Invalid warning delay", ValueError(
                 f"{WARN_DEBOUNCE_NAMES[param]}: Delay must be from 0 to {WARN_DEBOUNCE_MAX_S} seconds."))
+
+    # Splash image selections
+    for n, param in enumerate(SPLASH_PARAMS, 1):
+        text = get(param).strip()
+        if text and not splash_id_valid(text):
+            fail("Invalid splash image", ValueError(f"Display {n}: unknown splash image ({text})."))
     return updates, newly_dirty
 
 
