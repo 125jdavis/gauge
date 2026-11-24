@@ -121,6 +121,7 @@ class Api:
         self._config_file = ConfigFile()
         self._splash: Dict[int, bytes] = {}
         self._test_orig_sources: Dict[str, str] = {}  # Test tab: source param -> original value
+        self._test_sources_set: Dict[str, str] = {}   # Test tab: source param -> value it was set to
         self._tach_test_on = False
         self._connect_cancel: Optional[threading.Event] = None
         self._fw_busy = False
@@ -625,25 +626,34 @@ class Api:
         log.append(f"{desc} -> {result if result else 'ok'}")
         return True
 
+    def _use_source(self, param: str, value: int, log: List[str]) -> bool:
+        """Temporarily switch *param* to source *value* in RAM, remembering the original."""
+        value_text = str(value)
+        current = self._test_sources_set.get(param)
+        if current == value_text:
+            return True
+        if param not in self._test_orig_sources:
+            try:
+                with self._lock:
+                    original = self._serial.get(param)
+            except Exception as exc:
+                log.append(f"get {param} -> ERROR: {exc}")
+                return False
+        if not self._test_run(f"set {param} {value_text}", lambda: self._serial.set(param, value_text), log):
+            return False
+        if param not in self._test_orig_sources:
+            self._test_orig_sources[param] = original
+        self._test_sources_set[param] = value_text
+        return True
+
     def _use_serial_source(self, param: str, log: List[str]) -> bool:
         """Temporarily switch *param* to its Serial source in RAM, remembering the original."""
-        if param in self._test_orig_sources:
-            return True
-        try:
-            with self._lock:
-                original = self._serial.get(param)
-        except Exception as exc:
-            log.append(f"get {param} -> ERROR: {exc}")
-            return False
-        value = str(m.SERIAL_SOURCE_VALUES[param])
-        if not self._test_run(f"set {param} {value}", lambda: self._serial.set(param, value), log):
-            return False
-        self._test_orig_sources[param] = original
-        return True
+        return self._use_source(param, m.SERIAL_SOURCE_VALUES[param], log)
 
     def _restore_sources(self) -> List[str]:
         """Put every source changed by the Test tab back (RAM only, never saved)."""
         pending, self._test_orig_sources = self._test_orig_sources, {}
+        self._test_sources_set = {}
         log: List[str] = []
         if pending and self._connected():
             for param, original in pending.items():
@@ -668,6 +678,16 @@ class Api:
     @_bridge("Error")
     def restore_sources(self) -> Dict[str, Any]:
         return {"log": self._restore_sources()}
+
+    @_bridge("Test failed")
+    def test_odo_profile(self) -> Dict[str, Any]:
+        """Run the firmware's 1-mile odometer accuracy profile (speed source 5, RAM only)."""
+        self._require_connection()
+        log: List[str] = []
+        ok = self._use_source("speed_source", m.ODOMETER_TEST_SPEED_SOURCE, log)
+        if ok:
+            log.append("odometer test: 1 mile at 60 mph starts in 5 s, finishes in ~70 s")
+        return {"started": ok, "log": log}
 
     @_bridge("Test failed")
     def test_odo(self, revs: Any) -> Dict[str, Any]:

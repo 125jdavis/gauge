@@ -703,7 +703,8 @@ float generateSyntheticManifoldPressure(void) {
 /**
  * generateOdometerTestSpeed - Generate a deterministic 1-mile odometer accuracy test profile
  * 
- * Starts 5 seconds after device boot. Speed profile:
+ * Starts 5 seconds after the profile is selected (at boot, or when SPEED_SOURCE is
+ * switched to 5 at runtime, e.g. from the config tool's Test tab). Speed profile:
  * - Phase 1 (5s-10s):  Linear ramp from 0 to 96.56 km/h (60 mph) over 5 seconds
  * - Phase 2 (10s-65s): Hold constant at 96.56 km/h for 55 seconds
  * - Phase 3 (65s-70s): Linear ramp from 96.56 km/h to 0 over 5 seconds
@@ -715,20 +716,35 @@ float generateSyntheticManifoldPressure(void) {
  * Returns: Speed in km/h * 100 format (e.g., 9656 = 96.56 km/h)
  */
 int generateOdometerTestSpeed(void) {
-    const unsigned long TEST_START_MS = 5000UL;   // 5 seconds after boot
+    const unsigned long TEST_START_MS = 5000UL;   // 5 seconds after selection
     const unsigned long RAMP_UP_MS    = 5000UL;   // 5-second ramp up (0 → 96.56 km/h)
     const unsigned long HOLD_MS       = 55000UL;  // 55-second hold at 96.56 km/h
     const unsigned long RAMP_DOWN_MS  = 5000UL;   // 5-second ramp down (96.56 km/h → 0)
     const int           MAX_SPEED     = 9656;     // 96.56 km/h * 100
 
+    const unsigned long RESTART_GAP_MS = 1000UL;  // not called this long = source was switched away
+
+    static unsigned long profileStart = 0;
+    static unsigned long lastCall = 0;
+    static bool started = false;
+
     unsigned long currentTime = millis();
 
+    // (Re)start the profile whenever this source is newly selected
+    if (!started || currentTime - lastCall > RESTART_GAP_MS) {
+        profileStart = currentTime;
+        started = true;
+    }
+    lastCall = currentTime;
+
+    unsigned long sinceStart = currentTime - profileStart;
+
     // Before test starts, return 0
-    if (currentTime < TEST_START_MS) {
+    if (sinceStart < TEST_START_MS) {
         return 0;
     }
 
-    unsigned long elapsed = currentTime - TEST_START_MS;
+    unsigned long elapsed = sinceStart - TEST_START_MS;
 
     // Phase 1: Ramp up
     if (elapsed < RAMP_UP_MS) {

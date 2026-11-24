@@ -36,6 +36,9 @@ SERIAL_SOURCE_VALUES = {
     "fuel_lvl_src": 3,
 }
 
+# speed_source value of the firmware's 1-mile odometer accuracy profile (Test tab only)
+ODOMETER_TEST_SPEED_SOURCE = 5
+
 CAN_PROTOCOL_OPTIONS = ("Haltech v2", "Megasquirt", "AiM", "OBDII")
 
 # Splash images: index = firmware splash image ID (gauge_V4/image_data.cpp SPLASH_IMAGES,

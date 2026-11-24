@@ -3,8 +3,8 @@
 import { html, panel, fields } from '../ui.js';
 import { S, selectField } from '../state.js';
 
-// Synthetic and Serial are bench/test sources; end-user serial testing lives on the Test tab.
-const HIDDEN_SOURCES = ['Synthetic', 'Serial'];
+// Synthetic, Odometer test and Serial are bench/test sources; they live on the Test tab.
+const HIDDEN_SOURCES = ['Synthetic', 'Odometer test', 'Serial'];
 const sourceField = (label, p) => selectField(label, p, S.st.sources[p], { note: '', fallback: 'Unsupported source', hide: HIDDEN_SOURCES });
 
 export function render() {

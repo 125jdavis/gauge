@@ -116,7 +116,8 @@ float generateSyntheticManifoldPressure(void);
 /**
  * generateOdometerTestSpeed - Generate a deterministic 1-mile odometer accuracy test profile
  * 
- * Starts 5 seconds after device boot. Speed profile:
+ * Starts 5 seconds after the profile is selected (at boot or when SPEED_SOURCE is
+ * switched to 5 at runtime). Speed profile:
  * - Phase 1 (5s-10s):  Linear ramp from 0 to 96.56 km/h (60 mph) over 5 seconds
  * - Phase 2 (10s-65s): Hold constant at 96.56 km/h for 55 seconds
  * - Phase 3 (65s-70s): Linear ramp from 96.56 km/h to 0 over 5 seconds
@@ -124,6 +125,7 @@ float generateSyntheticManifoldPressure(void);
  * odometer (motor) and trip odometer (OLED display) against the expected value.
  * 
  * Returns 0 before the test starts (< 5 s) and after the test completes (> 70 s).
+ * Switching away for over 1 s and back restarts the profile.
  * 
  * Returns: Speed in km/h * 100 format (e.g., 9656 = 96.56 km/h)
  * 

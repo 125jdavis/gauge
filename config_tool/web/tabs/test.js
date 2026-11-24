@@ -69,6 +69,11 @@ async function toggleOdo() {
   if (res && res.moving) { startOdoUi(res.ms); requestRender(); }
 }
 
+const ODO_PROFILE_TIP = 'Runs the gauge firmware 1-mile odometer accuracy test: 5 s after you click, '
+  + 'speed ramps to 60 mph, holds, and ramps back to 0 (about 70 s total), driving the odometer motor and '
+  + 'trip odometer exactly 1 mile. Compare both against 1.0 mi to check calibration. Speed source is '
+  + 'switched in RAM only; Restore sources (or leaving this tab) puts it back.';
+
 async function restore() {
   await logResult(api.restore_sources());
 }
@@ -127,6 +132,7 @@ export function render() {
         button('Ping', { h: on({ click: () => logResult(api.ping()) }), disabled: offline }),
         button('Version', { h: on({ click: () => logResult(api.version()) }), disabled: offline }),
         button(S.test.odoMoving ? 'Stop odometer' : 'Move odometer', { h: on({ click: () => toggleOdo() }), disabled: offline }),
+        button('1-mile odometer test', { h: on({ click: () => requireConnection() && logResult(api.test_odo_profile()) }), disabled: offline, title: ODO_PROFILE_TIP }),
         button('Splash slot 1', { h: on({ click: () => logResult(api.test_splash(1)) }), disabled: offline }),
         button('Splash slot 2', { h: on({ click: () => logResult(api.test_splash(2)) }), disabled: offline }),
       ]),
